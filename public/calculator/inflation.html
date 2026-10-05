@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inflation Calculator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+
+.container{
+    width:min(1050px,calc(100% - 32px));
+    margin:auto;
+    padding:32px 0 50px;
+}
+
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+
+h1{
+    margin:0 0 8px;
+    font-size:32px;
+}
+
+.subtitle{
+    margin:0 0 28px;
+    color:#716b78;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+
+.field{
+    margin-bottom:22px;
+}
+
+.field:last-child{
+    margin-bottom:0;
+}
+
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+
+input[type=number]{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+
+input[type=number]:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+
+input[type=range]{
+    width:100%;
+    accent-color:#6750a4;
+}
+
+.range-row{
+    margin-top:8px;
+}
+
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+
+.chart-title{
+    margin:0 0 14px;
+    font-size:18px;
+}
+
+.bar{
+    height:34px;
+    width:100%;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+}
+
+.future-bar{
+    height:100%;
+    width:100%;
+    transform-origin:left center;
+    background:#e7a6c5;
+}
+
+.legend{
+    display:flex;
+    gap:22px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.current-dot{
+    background:#b8a8d9;
+}
+
+.future-dot{
+    background:#e7a6c5;
+}
+
+.comparison{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:12px;
+    margin-top:24px;
+}
+
+.compare-box{
+    padding:17px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.compare-label{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:6px;
+}
+
+.compare-value{
+    font-size:20px;
+    font-weight:750;
+}
+
+.table-card{
+    margin-top:20px;
+}
+
+.table-wrap{
+    overflow-x:auto;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:650px;
+}
+
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+
+th:first-child,
+td:first-child{
+    text-align:left;
+}
+
+th{
+    color:#6d6675;
+    font-weight:650;
+}
+
+.info{
+    margin-top:20px;
+    padding:15px 17px;
+    border-radius:14px;
+    background:#f6f2fb;
+    color:#625c69;
+    font-size:13px;
+    line-height:1.6;
+}
+
+@media(max-width:760px){
+    .container{
+        width:min(100% - 20px,1050px);
+        padding-top:20px;
+    }
+
+    h1{
+        font-size:27px;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .results{
+        grid-template-columns:1fr;
+    }
+
+    .comparison{
+        grid-template-columns:1fr;
+    }
+
+    .card{
+        padding:19px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a class="back" href="index.html">← All Calculators</a>
+
+<h1>Inflation Calculator</h1>
+
+<p class="subtitle">
+See how inflation can change the future cost and purchasing power of money.
+</p>
+
+
+<div class="grid">
+
+<div class="card">
+
+<div class="field">
+
+<label for="amount">
+<span>Current Amount</span>
+<span>₹</span>
+</label>
+
+<input
+    id="amount"
+    type="number"
+    value="100000"
+    min="100"
+    max="100000000"
+    step="100"
+>
+
+<div class="range-row">
+
+<input
+    id="amountRange"
+    type="range"
+    min="100"
+    max="100000000"
+    step="100"
+    value="100000"
+>
+
+<div class="range-labels">
+<span>₹100</span>
+<span>₹10 Cr</span>
+</div>
+
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="rate">
+<span>Inflation Rate</span>
+<span>% p.a.</span>
+</label>
+
+<input
+    id="rate"
+    type="number"
+    value="6"
+    min="0"
+    max="30"
+    step="0.1"
+>
+
+<div class="range-row">
+
+<input
+    id="rateRange"
+    type="range"
+    min="0"
+    max="30"
+    step="0.1"
+    value="6"
+>
+
+<div class="range-labels">
+<span>0%</span>
+<span>30%</span>
+</div>
+
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="years">
+<span>Time Period</span>
+<span>Years</span>
+</label>
+
+<input
+    id="years"
+    type="number"
+    value="10"
+    min="1"
+    max="50"
+    step="1"
+>
+
+<div class="range-row">
+
+<input
+    id="yearsRange"
+    type="range"
+    min="1"
+    max="50"
+    step="1"
+    value="10"
+>
+
+<div class="range-labels">
+<span>1 Year</span>
+<span>50 Years</span>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2 class="chart-title">
+Inflation Impact
+</h2>
+
+<div class="results">
+
+<div class="result">
+
+<div class="title">
+Current Value
+</div>
+
+<div class="value" id="currentValue">
+₹0
+</div>
+
+</div>
+
+
+<div class="result">
+
+<div class="title">
+Future Cost
+</div>
+
+<div class="value" id="futureValue">
+₹0
+</div>
+
+</div>
+
+
+<div class="result">
+
+<div class="title">
+Increase
+</div>
+
+<div class="value" id="increaseValue">
+₹0
+</div>
+
+</div>
+
+</div>
+
+
+<div style="margin-top:28px">
+
+<h2 class="chart-title">
+Future Cost vs Current Cost
+</h2>
+
+<div class="bar">
+
+<div
+    id="futureBar"
+    class="future-bar"
+></div>
+
+</div>
+
+<div class="legend">
+
+<span>
+<i class="dot current-dot"></i>
+Current Amount
+</span>
+
+<span>
+<i class="dot future-dot"></i>
+Future Cost
+</span>
+
+</div>
+
+</div>
+
+
+<div class="comparison">
+
+<div class="compare-box">
+
+<div class="compare-label">
+Future Cost
+</div>
+
+<div class="compare-value" id="futureCompare">
+₹0
+</div>
+
+</div>
+
+
+<div class="compare-box">
+
+<div class="compare-label">
+Today's ₹1 Value
+</div>
+
+<div class="compare-value" id="purchasingPower">
+₹0
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card table-card">
+
+<h2 class="chart-title">
+Year-wise Inflation
+</h2>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+<th>Year</th>
+<th>Starting Cost</th>
+<th>Inflation Increase</th>
+<th>Future Cost</th>
+</tr>
+
+</thead>
+
+<tbody id="growthTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<div class="info">
+
+<strong>How it works:</strong>
+Future Cost = Current Amount × (1 + Inflation Rate)<sup>Years</sup>.
+The purchasing-power figure shows how much today's amount
+would be worth in today's rupees after accounting for inflation.
+
+</div>
+
+</div>
+
+
+<script>
+
+const amount =
+    document.getElementById("amount");
+
+const amountRange =
+    document.getElementById("amountRange");
+
+const rate =
+    document.getElementById("rate");
+
+const rateRange =
+    document.getElementById("rateRange");
+
+const years =
+    document.getElementById("years");
+
+const yearsRange =
+    document.getElementById("yearsRange");
+
+const currentValue =
+    document.getElementById("currentValue");
+
+const futureValue =
+    document.getElementById("futureValue");
+
+const increaseValue =
+    document.getElementById("increaseValue");
+
+const futureCompare =
+    document.getElementById("futureCompare");
+
+const purchasingPower =
+    document.getElementById("purchasingPower");
+
+const futureBar =
+    document.getElementById("futureBar");
+
+const growthTable =
+    document.getElementById("growthTable");
+
+
+function formatINR(value){
+
+    return new Intl.NumberFormat("en-IN",{
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(value);
+
+}
+
+
+function calculateInflation(){
+
+    const current =
+        Number(amount.value);
+
+    const inflationRate =
+        Number(rate.value) / 100;
+
+    const tenure =
+        Number(years.value);
+
+
+    if(
+        !Number.isFinite(current) ||
+        !Number.isFinite(inflationRate) ||
+        !Number.isFinite(tenure) ||
+        current <= 0 ||
+        inflationRate < 0 ||
+        tenure <= 0
+    ){
+
+        currentValue.textContent = "₹0";
+        futureValue.textContent = "₹0";
+        increaseValue.textContent = "₹0";
+        futureCompare.textContent = "₹0";
+        purchasingPower.textContent = "₹0";
+
+        futureBar.style.width = "50%";
+
+        growthTable.innerHTML = "";
+
+        return;
+
+    }
+
+
+    const future =
+        current *
+        Math.pow(
+            1 + inflationRate,
+            tenure
+        );
+
+
+    const increase =
+        future - current;
+
+
+    /*
+      Purchasing power of today's amount
+      after the specified period.
+
+      Example:
+      ₹100 today at 6% inflation for 10 years
+      has purchasing power of approximately
+      ₹55.84 in today's-money terms.
+    */
+
+    const realValue =
+        current /
+        Math.pow(
+            1 + inflationRate,
+            tenure
+        );
+
+
+    currentValue.textContent =
+        formatINR(current);
+
+    futureValue.textContent =
+        formatINR(future);
+
+    increaseValue.textContent =
+        formatINR(increase);
+
+    futureCompare.textContent =
+        formatINR(future);
+
+    purchasingPower.textContent =
+        formatINR(realValue);
+
+
+    /*
+      The bar is capped visually so very high
+      inflation does not overflow the container.
+    */
+
+    const ratio =
+        current > 0
+        ? future / current
+        : 1;
+
+    const visualWidth =
+        Math.min(
+            100,
+            50 + (ratio - 1) * 20
+        );
+
+    futureBar.style.width =
+        Math.max(50,visualWidth) + "%";
+
+
+    growthTable.innerHTML = "";
+
+
+    let starting =
+        current;
+
+
+    for(
+        let year = 1;
+        year <= tenure;
+        year++
+    ){
+
+        const futureCost =
+            current *
+            Math.pow(
+                1 + inflationRate,
+                year
+            );
+
+
+        const increase =
+            futureCost - starting;
+
+
+        const row =
+            document.createElement("tr");
+
+
+        row.innerHTML = `
+            <td>Year ${year}</td>
+            <td>${formatINR(starting)}</td>
+            <td>${formatINR(increase)}</td>
+            <td>${formatINR(futureCost)}</td>
+        `;
+
+
+        growthTable.appendChild(row);
+
+
+        starting =
+            futureCost;
+
+    }
+
+}
+
+
+function connect(numberInput,rangeInput){
+
+    rangeInput.addEventListener("input",()=>{
+
+        numberInput.value =
+            rangeInput.value;
+
+        calculateInflation();
+
+    });
+
+
+    numberInput.addEventListener("input",()=>{
+
+        /*
+          Do not force the number while typing.
+          This allows normal editing and deletion.
+        */
+
+        if(numberInput.value === "") return;
+
+        const value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        if(
+            value >= Number(rangeInput.min) &&
+            value <= Number(rangeInput.max)
+        ){
+
+            rangeInput.value = value;
+
+        }
+
+        calculateInflation();
+
+    });
+
+
+    numberInput.addEventListener("blur",()=>{
+
+        if(numberInput.value === "") return;
+
+        let value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(
+                Number(rangeInput.min),
+                value
+            )
+        );
+
+
+        numberInput.value = value;
+        rangeInput.value = value;
+
+        calculateInflation();
+
+    });
+
+}
+
+
+connect(
+    amount,
+    amountRange
+);
+
+connect(
+    rate,
+    rateRange
+);
+
+connect(
+    years,
+    yearsRange
+);
+
+
+calculateInflation();
+
+</script>
+
+</body>
+</html>

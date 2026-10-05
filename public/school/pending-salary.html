@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>Pending Salary</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+
+    <style>
+
+        body {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8f7ff 0%,
+                    #f5f7ff 50%,
+                    #faf7ff 100%
+                );
+
+        }
+
+
+        .premium-header {
+
+            border-bottom:
+                1px solid
+                #e0e7ff;
+
+            background:
+                rgba(255, 255, 255, 0.96);
+
+            box-shadow:
+                0 8px 24px
+                rgba(79, 70, 229, 0.07);
+
+            backdrop-filter:
+                blur(12px);
+
+        }
+
+
+        .premium-title {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #c13bbd 0%,
+                    #7b3fc6 50%,
+                    #2454c7 100%
+                );
+
+            -webkit-background-clip:
+                text;
+
+            background-clip:
+                text;
+
+            -webkit-text-fill-color:
+                transparent;
+
+            color:
+                transparent;
+
+        }
+
+
+        .premium-btn {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #ffffff 0%,
+                    #faf7ff 50%,
+                    #f5f7ff 100%
+                );
+
+            color:
+                #4f46a5;
+
+            box-shadow:
+                0 4px 12px
+                rgba(79, 70, 229, 0.05);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .premium-btn:hover {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #fff7ff 0%,
+                    #f5efff 50%,
+                    #eef3ff 100%
+                );
+
+            color:
+                #7b3fc6;
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(79, 70, 229, 0.10);
+
+        }
+
+
+        .premium-panel {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                rgba(255, 255, 255, 0.98);
+
+            box-shadow:
+                0 12px 30px
+                rgba(79, 70, 229, 0.07);
+
+        }
+
+
+        .table-header {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #faf7ff,
+                    #f5f7ff
+                );
+
+            border-bottom:
+                1px solid
+                #ebe8ff;
+
+        }
+
+
+        .premium-table thead {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #faf7ff,
+                    #f5f7ff
+                );
+
+        }
+
+
+        .premium-table tbody tr {
+
+            border-top:
+                1px solid
+                #eef2ff;
+
+            transition:
+                background 0.2s ease;
+
+        }
+
+
+        .premium-table tbody tr:hover {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #fffaff,
+                    #f8f7ff,
+                    #f5f7ff
+                );
+
+        }
+
+
+        .stat-card {
+
+            border:
+                1px solid
+                #e8e5ff;
+
+            box-shadow:
+                0 6px 18px
+                rgba(79, 70, 229, 0.06);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .stat-card:hover {
+
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 10px 24px
+                rgba(79, 70, 229, 0.10);
+
+        }
+
+
+        .premium-input {
+
+            border:
+                1px solid
+                #ddd6fe;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff,
+                    #faf7ff
+                );
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .premium-input:focus {
+
+            border-color:
+                #8b5cf6;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(139, 92, 246, 0.12);
+
+            outline:
+                none;
+
+        }
+
+
+        .primary-btn {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #7b3fc6,
+                    #2454c7
+                );
+
+            box-shadow:
+                0 6px 16px
+                rgba(79, 70, 229, 0.18);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .primary-btn:hover {
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 9px 20px
+                rgba(79, 70, 229, 0.24);
+
+        }
+
+
+        .modal-overlay {
+
+            backdrop-filter:
+                blur(5px);
+
+        }
+
+    </style>
+
+</head>
+
+
+<body class="min-h-screen">
+
+
+<main class="min-h-screen">
+
+
+    <!-- Header -->
+
+    <header
+        class="premium-header sticky top-0 z-50">
+
+        <div
+            class="
+                mx-auto
+                flex
+                w-full
+                max-w-7xl
+                items-center
+                justify-between
+                gap-3
+                px-4
+                py-3
+                sm:px-6
+                sm:py-4
+            ">
+
+            <button
+                type="button"
+                onclick="history.back()"
+                class="
+                    premium-btn
+                    flex
+                    shrink-0
+                    items-center
+                    gap-2
+                    rounded-xl
+                    px-3
+                    py-2
+                    text-sm
+                    font-semibold
+                    sm:px-4
+                    sm:py-2.5
+                ">
+
+                <span class="text-lg">
+
+                    ←
+
+                </span>
+
+                Back
+
+            </button>
+
+
+            <div
+                class="hidden text-center sm:block">
+
+                <p
+                    class="
+                        text-xs
+                        font-semibold
+                        uppercase
+                        tracking-wider
+                        text-indigo-500
+                    ">
+
+                    School Management
+
+                </p>
+
+                <h1
+                    class="
+                        premium-title
+                        mt-0.5
+                        text-xl
+                        font-bold
+                    ">
+
+                    Salary Payment
+
+                </h1>
+
+            </div>
+
+
+            <a
+                href="/school/salary-history.html"
+                class="
+                    premium-btn
+                    shrink-0
+                    rounded-xl
+                    px-3
+                    py-2
+                    text-sm
+                    font-semibold
+                    sm:px-4
+                    sm:py-2.5
+                ">
+
+                Salary History
+
+            </a>
+
+        </div>
+
+    </header>
+
+
+    <!-- Main -->
+
+    <div
+        class="
+            mx-auto
+            w-full
+            max-w-7xl
+            px-4
+            py-5
+            sm:px-6
+            sm:py-8
+        ">
+
+
+        <!-- Page Heading -->
+
+        <div
+            class="mb-6">
+
+            <h2
+                class="
+                    premium-title
+                    mt-1
+                    text-2xl
+                    font-bold
+                ">
+
+                Salary Payment
+
+            </h2>
+
+            <p
+                id="salaryMonth"
+                class="
+                    mt-1
+                    text-sm
+                    text-slate-500
+                ">
+
+                Loading...
+
+            </p>
+
+        </div>
+
+
+        <!-- Summary Cards -->
+
+        <div
+            class="
+                mb-6
+                grid
+                gap-4
+                sm:grid-cols-2
+                md:grid-cols-3
+            ">
+
+
+            <div
+                class="
+                    stat-card
+                    rounded-2xl
+                    bg-white
+                    p-5
+                ">
+
+                <p
+                    class="
+                        text-sm
+                        font-medium
+                        text-slate-500
+                    ">
+
+                    Total Salary
+
+                </p>
+
+                <p
+                    id="totalSalary"
+                    class="
+                        mt-2
+                        text-2xl
+                        font-bold
+                        text-slate-800
+                    ">
+
+                    ₹0
+
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    stat-card
+                    rounded-2xl
+                    border-emerald-200
+                    bg-emerald-50/70
+                    p-5
+                ">
+
+                <p
+                    class="
+                        text-sm
+                        font-medium
+                        text-emerald-600
+                    ">
+
+                    Paid
+
+                </p>
+
+                <p
+                    id="totalPaid"
+                    class="
+                        mt-2
+                        text-2xl
+                        font-bold
+                        text-emerald-700
+                    ">
+
+                    ₹0
+
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    stat-card
+                    rounded-2xl
+                    border-amber-200
+                    bg-amber-50/70
+                    p-5
+                ">
+
+                <p
+                    class="
+                        text-sm
+                        font-medium
+                        text-amber-600
+                    ">
+
+                    Pending
+
+                </p>
+
+                <p
+                    id="pendingAmount"
+                    class="
+                        mt-2
+                        text-2xl
+                        font-bold
+                        text-amber-700
+                    ">
+
+                    ₹0
+
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- Staff Salary -->
+
+        <div
+            class="
+                premium-panel
+                overflow-hidden
+                rounded-2xl
+            ">
+
+            <div
+                class="
+                    table-header
+                    px-5
+                    py-4
+                    sm:px-6
+                    sm:py-5
+                ">
+
+                <h3
+                    class="
+                        mt-1
+                        text-lg
+                        font-bold
+                        text-slate-800
+                    ">
+
+                    Staff Salary
+
+                </h3>
+
+            </div>
+
+
+            <div
+                class="overflow-x-auto">
+
+                <table
+                    class="
+                        premium-table
+                        w-full
+                        min-w-[850px]
+                    ">
+
+                    <thead>
+
+                        <tr>
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Employee
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Staff
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Designation
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Salary
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Paid
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Pending
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-4
+                                    py-4
+                                    text-right
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Action
+
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody
+                        id="salaryTableBody">
+
+                        <tr>
+
+                            <td
+                                colspan="7"
+                                class="
+                                    px-4
+                                    py-10
+                                    text-center
+                                    text-sm
+                                    text-slate-500
+                                ">
+
+                                Loading...
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </div>
+
+
+        <p
+            id="result"
+            class="
+                mt-4
+                text-sm
+                font-medium
+            ">
+
+        </p>
+
+    </div>
+
+
+    <!-- Salary Payment Modal -->
+
+    <div
+    id="salaryPaymentModal"
+    class="
+        modal-overlay
+        fixed
+        inset-0
+        z-[9999]
+        hidden
+        items-center
+        justify-center
+        overflow-y-auto
+        bg-slate-900/50
+        p-4
+    ">
+
+
+        <div
+    class="
+        relative
+        w-full
+        max-w-md
+        max-h-[90vh]
+        overflow-y-auto
+        rounded-2xl
+        border
+        border-indigo-100
+        bg-white
+        shadow-2xl
+    ">
+
+
+            <!-- Modal Header -->
+
+            <div
+                class="
+                    flex
+                    items-start
+                    justify-between
+                    border-b
+                    border-indigo-100
+                    bg-gradient-to-r
+                    from-purple-50
+                    to-indigo-50
+                    p-4
+                    sm:p-5
+                ">
+
+                <div>
+
+                    <h2
+                        class="
+                            mt-1
+                            text-xl
+                            font-bold
+                            text-slate-800
+                        ">
+
+                        Pay Salary
+
+                    </h2>
+
+                    <p
+                        id="paymentStaffName"
+                        class="
+                            mt-1
+                            text-sm
+                            text-slate-500
+                        ">
+
+                    </p>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    onclick="closeSalaryPayment()"
+                    class="
+                        flex
+                        h-9
+                        w-9
+                        items-center
+                        justify-center
+                        rounded-xl
+                        text-xl
+                        text-slate-400
+                        transition
+                        hover:bg-purple-100
+                        hover:text-purple-600
+                    ">
+
+                    ×
+
+                </button>
+
+            </div>
+
+
+            <form
+    id="salaryPaymentForm"
+    class="p-4 sm:p-5">
+
+
+                <input
+                    id="paymentTeacherId"
+                    type="hidden">
+
+
+                <!-- Salary Summary -->
+
+                <div
+                    class="
+                        mb-5
+                        rounded-2xl
+                        border
+                        border-indigo-100
+                        bg-gradient-to-br
+                        from-purple-50
+                        to-indigo-50
+                        p-4
+                    ">
+
+                    <div
+                        class="
+                            flex
+                            justify-between
+                            text-sm
+                        ">
+
+                        <span
+                            class="text-slate-500">
+
+                            Salary
+
+                        </span>
+
+                        <span
+                            id="paymentSalaryAmount"
+                            class="font-semibold text-slate-800">
+
+                            ₹0
+
+                        </span>
+
+                    </div>
+
+
+                    <div
+                        class="
+                            mt-3
+                            flex
+                            justify-between
+                            text-sm
+                        ">
+
+                        <span
+                            class="text-slate-500">
+
+                            Already Paid
+
+                        </span>
+
+                        <span
+                            id="paymentAlreadyPaid"
+                            class="font-semibold text-emerald-600">
+
+                            ₹0
+
+                        </span>
+
+                    </div>
+
+
+                    <div
+                        class="
+                            mt-3
+                            flex
+                            justify-between
+                            border-indigo-100
+                            pt-3
+                        ">
+
+                        <span
+                            class="font-semibold text-slate-700">
+
+                            Outstanding
+
+                        </span>
+
+                        <span
+                            id="paymentPendingAmount"
+                            class="font-bold text-amber-600">
+
+                            ₹0
+
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Payment Amount -->
+
+                <div
+                    class="mb-4">
+
+                    <label
+                        for="salaryAmountInput"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        ">
+
+                        Payment Amount
+
+                    </label>
+
+                    <input
+                        id="salaryAmountInput"
+                        type="number"
+                        min="1"
+                        step="0.01"
+                        required
+                        class="
+                            premium-input
+                            w-full
+                            rounded-xl
+                            p-3
+                            text-slate-800
+                        ">
+
+                </div>
+
+
+                <!-- Date -->
+
+                <div
+                    class="mb-4">
+
+                    <label
+                        for="salaryPaymentDate"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        ">
+
+                        Payment Date
+
+                    </label>
+
+                    <input
+                        id="salaryPaymentDate"
+                        type="date"
+                        required
+                        class="
+                            premium-input
+                            w-full
+                            rounded-xl
+                            p-3
+                            text-slate-800
+                        ">
+
+                </div>
+
+
+                <!-- Payment Mode -->
+
+                <div
+                    class="mb-4">
+
+                    <label
+                        for="salaryPaymentMode"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        ">
+
+                        Payment Mode
+
+                    </label>
+
+                    <select
+                        id="salaryPaymentMode"
+                        class="
+                            premium-input
+                            w-full
+                            rounded-xl
+                            bg-white
+                            p-3
+                            text-slate-800
+                        ">
+
+                        <option value="">
+                            Select Payment Mode
+                        </option>
+
+                        <option value="Cash">
+                            Cash
+                        </option>
+
+                        <option value="Bank Transfer">
+                            Bank Transfer
+                        </option>
+
+                        <option value="UPI">
+                            UPI
+                        </option>
+
+                        <option value="Cheque">
+                            Cheque
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- Reference -->
+
+                <div
+                    class="mb-4">
+
+                    <label
+                        for="salaryReferenceNo"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        ">
+
+                        Reference No.
+
+                    </label>
+
+                    <input
+                        id="salaryReferenceNo"
+                        type="text"
+                        placeholder="Optional"
+                        class="
+                            premium-input
+                            w-full
+                            rounded-xl
+                            p-3
+                            text-slate-800
+                        ">
+
+                </div>
+
+
+                <!-- Remarks -->
+
+                <div
+                    class="mb-5">
+
+                    <label
+                        for="salaryRemarks"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        ">
+
+                        Remarks
+
+                    </label>
+
+                    <textarea
+                        id="salaryRemarks"
+                        rows="2"
+                        placeholder="Optional"
+                        class="
+                            premium-input
+                            w-full
+                            rounded-xl
+                            p-3
+                            text-slate-800
+                        "></textarea>
+
+                </div>
+
+
+                <p
+                    id="paymentResult"
+                    class="
+                        mb-4
+                        text-sm
+                        font-medium
+                    ">
+
+                </p>
+
+
+                <!-- Actions -->
+
+                <div
+                    class="
+                        flex
+                        flex-col-reverse
+                        gap-3
+                        sm:flex-row
+                        sm:justify-end
+                    ">
+
+                    <button
+                        type="button"
+                        onclick="closeSalaryPayment()"
+                        class="
+                            premium-btn
+                            rounded-xl
+                            px-5
+                            py-3
+                            text-sm
+                            font-semibold
+                        ">
+
+                        Cancel
+
+                    </button>
+
+
+                    <button
+                        id="submitSalaryPaymentBtn"
+                        type="submit"
+                        class="
+                            primary-btn
+                            rounded-xl
+                            px-5
+                            py-3
+                            font-semibold
+                            text-white
+                        ">
+
+                        Pay Salary
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</main>
+
+
+<script src="/js/api.js"></script>
+
+<script src="/js/auth.js"></script>
+<script src="/js/notify.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/date.js"></script>
+<script src="/js/pendingSalary.js"></script>
+
+
+</body>
+
+</html>

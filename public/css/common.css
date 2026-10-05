@@ -1,0 +1,51 @@
+.table-lock-switch {
+
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+
+}
+
+.table-lock-switch input {
+
+    display: none;
+
+}
+
+.table-lock-slider {
+
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background: #cbd5e1;
+    border-radius: 9999px;
+    transition: .2s;
+
+}
+
+.table-lock-slider::before {
+
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    left: 2px;
+    top: 2px;
+    border-radius: 9999px;
+    background: white;
+    transition: .2s;
+
+}
+
+.table-lock-switch input:checked + .table-lock-slider {
+
+    background: #334155;
+
+}
+
+.table-lock-switch input:checked + .table-lock-slider::before {
+
+    transform: translateX(16px);
+
+}

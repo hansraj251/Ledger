@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SIP Calculator | Align</title>
+    <meta name="description" content="Calculate SIP investment, estimated returns and maturity value with Align SIP Calculator.">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f5f5f7;
+            color: #202124;
+        }
+
+        .page {
+            max-width: 1050px;
+            margin: auto;
+            padding: 22px 16px 50px;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 18px;
+            color: #6750a4;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .header {
+            margin-bottom: 22px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: clamp(28px, 5vw, 40px);
+        }
+
+        .header p {
+            margin: 8px 0 0;
+            color: #707078;
+            line-height: 1.5;
+        }
+
+        .calculator {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e4e1e9;
+            border-radius: 20px;
+            padding: 22px;
+        }
+
+        .card h2 {
+            margin: 0 0 20px;
+            font-size: 20px;
+        }
+
+        .field {
+            margin-bottom: 20px;
+        }
+
+        .field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 9px;
+        }
+
+        .field label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #6750a4;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #d9d5df;
+            border-radius: 12px;
+            padding: 0 14px;
+            font-size: 16px;
+            outline: none;
+            background: #faf9fc;
+        }
+
+        input[type="number"]:focus {
+            border-color: #6750a4;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #6750a4;
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            color: #99959f;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .results {
+            display: grid;
+            gap: 12px;
+        }
+
+        .result {
+            background: #f7f4ff;
+            border-radius: 14px;
+            padding: 15px 16px;
+        }
+
+        .result span {
+            display: block;
+            color: #77737e;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .result strong {
+            font-size: 21px;
+        }
+
+        .result.total {
+            background: #eee9ff;
+        }
+
+        .result.total strong {
+            color: #6750a4;
+            font-size: 27px;
+        }
+
+        .breakdown {
+            margin-top: 20px;
+        }
+
+        .bar {
+            height: 16px;
+            display: flex;
+            overflow: hidden;
+            border-radius: 20px;
+            background: #eee;
+        }
+
+        .invested-bar {
+            width: 50%;
+            background: #8b7ab8;
+        }
+
+        .returns-bar {
+            width: 50%;
+            background: #d5c9f5;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #6f6b75;
+        }
+
+        .table-card {
+            margin-top: 18px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 520px;
+        }
+
+        th,
+        td {
+            padding: 11px 8px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+            font-size: 13px;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        th {
+            color: #68636e;
+            font-weight: 600;
+        }
+
+        td {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .note {
+            margin-top: 20px;
+            color: #85818b;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 700px) {
+            .page {
+                padding: 16px 12px 40px;
+            }
+
+            .calculator {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <a class="back" href="index.html">← All Calculators</a>
+
+    <header class="header">
+        <h1>SIP Calculator</h1>
+        <p>
+            Estimate the future value of your monthly SIP investment
+            based on the expected annual return.
+        </p>
+    </header>
+
+    <section class="calculator">
+
+        <div class="card">
+
+            <h2>Investment Details</h2>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="monthly">Monthly Investment</label>
+                    <span class="value" id="monthlyValue">₹5,000</span>
+                </div>
+
+                <input
+                    id="monthly"
+                    type="number"
+                    min="500"
+                    max="1000000"
+                    step="500"
+                    value="5000"
+                >
+
+                <input
+                    id="monthlyRange"
+                    type="range"
+                    min="500"
+                    max="1000000"
+                    step="500"
+                    value="5000"
+                >
+
+                <div class="range-labels">
+                    <span>₹500</span>
+                    <span>₹10 Lakh</span>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="rate">Expected Return</label>
+                    <span class="value" id="rateValue">12%</span>
+                </div>
+
+                <input
+                    id="rate"
+                    type="number"
+                    min="1"
+                    max="50"
+                    step="0.1"
+                    value="12"
+                >
+
+                <input
+                    id="rateRange"
+                    type="range"
+                    min="1"
+                    max="50"
+                    step="0.1"
+                    value="12"
+                >
+
+                <div class="range-labels">
+                    <span>1%</span>
+                    <span>50%</span>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="years">Investment Period</label>
+                    <span class="value" id="yearsValue">10 Years</span>
+                </div>
+
+                <input
+                    id="years"
+                    type="number"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value="10"
+                >
+
+                <input
+                    id="yearsRange"
+                    type="range"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value="10"
+                >
+
+                <div class="range-labels">
+                    <span>1 Year</span>
+                    <span>50 Years</span>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <h2>Estimated Returns</h2>
+
+            <div class="results">
+
+                <div class="result">
+                    <span>Total Invested</span>
+                    <strong id="invested">₹0</strong>
+                </div>
+
+                <div class="result">
+                    <span>Estimated Returns</span>
+                    <strong id="returns">₹0</strong>
+                </div>
+
+                <div class="result total">
+                    <span>Total Value</span>
+                    <strong id="total">₹0</strong>
+                </div>
+
+            </div>
+
+            <div class="breakdown">
+
+                <div class="bar">
+                    <div class="invested-bar" id="investedBar"></div>
+                    <div class="returns-bar" id="returnsBar"></div>
+                </div>
+
+                <div class="legend">
+                    <span>Invested: <strong id="legendInvested">₹0</strong></span>
+                    <span>Returns: <strong id="legendReturns">₹0</strong></span>
+                </div>
+
+            </div>
+
+            <p class="note">
+                SIP returns are market-linked and actual returns may differ
+                from the assumed annual return. This calculator provides
+                an estimate for planning purposes.
+            </p>
+
+        </div>
+
+    </section>
+
+    <section class="card table-card">
+
+        <h2>Year-wise Growth</h2>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Invested</th>
+                        <th>Returns</th>
+                        <th>Total Value</th>
+                    </tr>
+                </thead>
+
+                <tbody id="growthTable"></tbody>
+            </table>
+        </div>
+
+    </section>
+
+</div>
+
+<script>
+    const monthly = document.getElementById("monthly");
+    const monthlyRange = document.getElementById("monthlyRange");
+
+    const rate = document.getElementById("rate");
+    const rateRange = document.getElementById("rateRange");
+
+    const years = document.getElementById("years");
+    const yearsRange = document.getElementById("yearsRange");
+
+    const monthlyValue = document.getElementById("monthlyValue");
+    const rateValue = document.getElementById("rateValue");
+    const yearsValue = document.getElementById("yearsValue");
+
+    const investedEl = document.getElementById("invested");
+    const returnsEl = document.getElementById("returns");
+    const totalEl = document.getElementById("total");
+
+    const legendInvested = document.getElementById("legendInvested");
+    const legendReturns = document.getElementById("legendReturns");
+
+    const investedBar = document.getElementById("investedBar");
+    const returnsBar = document.getElementById("returnsBar");
+
+    const growthTable = document.getElementById("growthTable");
+
+    const money = value =>
+        new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            maximumFractionDigits: 0
+        }).format(value);
+
+    function calculateSIP() {
+
+        const P = Math.max(0, Number(monthly.value));
+        const annualRate = Math.max(0, Number(rate.value));
+        const yearsValueNumber = Math.max(0, Number(years.value));
+
+        const months = yearsValueNumber * 12;
+        const monthlyRate = annualRate / 12 / 100;
+
+        let total = 0;
+
+        if (monthlyRate === 0) {
+            total = P * months;
+        } else {
+            total =
+                P *
+                (
+                    ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) *
+                    (1 + monthlyRate)
+                );
+        }
+
+        const invested = P * months;
+        const returns = Math.max(0, total - invested);
+
+        monthlyValue.textContent = money(P);
+        rateValue.textContent = annualRate + "%";
+        document.getElementById("yearsValue").textContent =
+            yearsValueNumber + (yearsValueNumber === 1 ? " Year" : " Years");
+
+        investedEl.textContent = money(invested);
+        returnsEl.textContent = money(returns);
+        totalEl.textContent = money(total);
+
+        legendInvested.textContent = money(invested);
+        legendReturns.textContent = money(returns);
+
+        const totalForBar = invested + returns;
+
+        const investedPercent =
+            totalForBar > 0 ? (invested / totalForBar) * 100 : 50;
+
+        investedBar.style.width = investedPercent + "%";
+        returnsBar.style.width = (100 - investedPercent) + "%";
+
+        buildGrowthTable(P, annualRate, yearsValueNumber);
+    }
+
+    function buildGrowthTable(P, annualRate, numberOfYears) {
+
+        growthTable.innerHTML = "";
+
+        const monthlyRate = annualRate / 12 / 100;
+
+        for (let year = 1; year <= numberOfYears; year++) {
+
+            const months = year * 12;
+
+            let total;
+
+            if (monthlyRate === 0) {
+                total = P * months;
+            } else {
+                total =
+                    P *
+                    (
+                        ((Math.pow(1 + monthlyRate, months) - 1) / monthlyRate) *
+                        (1 + monthlyRate)
+                    );
+            }
+
+            const invested = P * months;
+            const returns = Math.max(0, total - invested);
+
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${year}</td>
+                <td>${money(invested)}</td>
+                <td>${money(returns)}</td>
+                <td>${money(total)}</td>
+            `;
+
+            growthTable.appendChild(row);
+        }
+    }
+
+    function connect(input, range) {
+
+        input.addEventListener("input", () => {
+            range.value = input.value;
+            calculateSIP();
+        });
+
+        range.addEventListener("input", () => {
+            input.value = range.value;
+            calculateSIP();
+        });
+    }
+
+    connect(monthly, monthlyRange);
+    connect(rate, rateRange);
+    connect(years, yearsRange);
+
+    calculateSIP();
+</script>
+
+</body>
+</html>

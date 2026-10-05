@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>EMI Calculator | Align</title>
+    <meta name="description" content="Calculate monthly EMI, total interest and total repayment with Align EMI Calculator.">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f5f5f7;
+            color: #202124;
+        }
+
+        .page {
+            max-width: 1050px;
+            margin: auto;
+            padding: 22px 16px 50px;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 18px;
+            color: #6750a4;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .header {
+            margin-bottom: 22px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: clamp(28px, 5vw, 40px);
+        }
+
+        .header p {
+            margin: 8px 0 0;
+            color: #707078;
+            line-height: 1.5;
+        }
+
+        .calculator {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e4e1e9;
+            border-radius: 20px;
+            padding: 22px;
+        }
+
+        .card h2 {
+            margin: 0 0 20px;
+            font-size: 20px;
+        }
+
+        .field {
+            margin-bottom: 20px;
+        }
+
+        .field:last-child {
+            margin-bottom: 0;
+        }
+
+        .field-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 9px;
+        }
+
+        .field label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #6750a4;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            height: 48px;
+            border: 1px solid #d9d5df;
+            border-radius: 12px;
+            padding: 0 14px;
+            font-size: 16px;
+            outline: none;
+            background: #faf9fc;
+        }
+
+        input[type="number"]:focus {
+            border-color: #6750a4;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-top: 10px;
+            accent-color: #6750a4;
+        }
+
+        .range-labels {
+            display: flex;
+            justify-content: space-between;
+            color: #99959f;
+            font-size: 11px;
+            margin-top: 4px;
+        }
+
+        .results {
+            display: grid;
+            gap: 12px;
+        }
+
+        .result {
+            background: #f7f4ff;
+            border-radius: 14px;
+            padding: 15px 16px;
+        }
+
+        .result span {
+            display: block;
+            color: #77737e;
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .result strong {
+            font-size: 21px;
+        }
+
+        .result.emi {
+            background: #eee9ff;
+        }
+
+        .result.emi strong {
+            color: #6750a4;
+            font-size: 28px;
+        }
+
+        .breakdown {
+            margin-top: 22px;
+        }
+
+        .bar {
+            height: 16px;
+            display: flex;
+            overflow: hidden;
+            border-radius: 20px;
+            background: #eee;
+        }
+
+        .principal-bar {
+            width: 50%;
+            background: #8b7ab8;
+        }
+
+        .interest-bar {
+            width: 50%;
+            background: #d5c9f5;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #6f6b75;
+        }
+
+        .note {
+            margin-top: 20px;
+            color: #85818b;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .table-card {
+            margin-top: 18px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th,
+        td {
+            padding: 11px 8px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+            font-size: 13px;
+        }
+
+        th:first-child,
+        td:first-child {
+            text-align: left;
+        }
+
+        th {
+            color: #68636e;
+            font-weight: 600;
+        }
+
+        td {
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 700px) {
+            .page {
+                padding: 16px 12px 40px;
+            }
+
+            .calculator {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+
+    <a class="back" href="index.html">← All Calculators</a>
+
+    <header class="header">
+        <h1>Loan Calculator</h1>
+        <p>
+            Calculate your monthly loan EMI, total interest and
+            total repayment amount.
+        </p>
+    </header>
+
+    <section class="calculator">
+
+        <div class="card">
+
+            <h2>Loan Details</h2>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="loan">Loan Amount</label>
+                    <span class="value" id="loanValue">₹10,00,000</span>
+                </div>
+
+                <input
+                    id="loan"
+                    type="number"
+                    min="10000"
+                    max="100000000"
+                    step="10000"
+                    value="1000000"
+                >
+
+                <input
+                    id="loanRange"
+                    type="range"
+                    min="10000"
+                    max="100000000"
+                    step="10000"
+                    value="1000000"
+                >
+
+                <div class="range-labels">
+                    <span>₹10,000</span>
+                    <span>₹10 Crore</span>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="rate">Interest Rate</label>
+                    <span class="value" id="rateValue">8.5%</span>
+                </div>
+
+                <input
+                    id="rate"
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="0.1"
+                    value="8.5"
+                >
+
+                <input
+                    id="rateRange"
+                    type="range"
+                    min="0"
+                    max="30"
+                    step="0.1"
+                    value="8.5"
+                >
+
+                <div class="range-labels">
+                    <span>0%</span>
+                    <span>30%</span>
+                </div>
+            </div>
+
+            <div class="field">
+                <div class="field-header">
+                    <label for="years">Loan Tenure</label>
+                    <span class="value" id="yearsValue">20 Years</span>
+                </div>
+
+                <input
+                    id="years"
+                    type="number"
+                    min="1"
+                    max="40"
+                    step="1"
+                    value="20"
+                >
+
+                <input
+                    id="yearsRange"
+                    type="range"
+                    min="1"
+                    max="40"
+                    step="1"
+                    value="20"
+                >
+
+                <div class="range-labels">
+                    <span>1 Year</span>
+                    <span>40 Years</span>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="card">
+
+            <h2>EMI Summary</h2>
+
+            <div class="results">
+
+                <div class="result emi">
+                    <span>Monthly EMI</span>
+                    <strong id="emi">₹0</strong>
+                </div>
+
+                <div class="result">
+                    <span>Total Interest</span>
+                    <strong id="interest">₹0</strong>
+                </div>
+
+                <div class="result">
+                    <span>Total Payment</span>
+                    <strong id="payment">₹0</strong>
+                </div>
+
+            </div>
+
+            <div class="breakdown">
+
+                <div class="bar">
+                    <div class="principal-bar" id="principalBar"></div>
+                    <div class="interest-bar" id="interestBar"></div>
+                </div>
+
+                <div class="legend">
+                    <span>Principal: <strong id="legendPrincipal">₹0</strong></span>
+                    <span>Interest: <strong id="legendInterest">₹0</strong></span>
+                </div>
+
+            </div>
+
+            <p class="note">
+                EMI calculations are estimates based on the loan amount,
+                annual interest rate and tenure entered above. Actual
+                repayment may vary according to the lender's terms.
+            </p>
+
+        </div>
+
+    </section>
+
+    <section class="card table-card">
+
+        <h2>Year-wise Repayment</h2>
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Opening Balance</th>
+                        <th>Principal Paid</th>
+                        <th>Interest Paid</th>
+                        <th>Closing Balance</th>
+                    </tr>
+                </thead>
+
+                <tbody id="repaymentTable"></tbody>
+
+            </table>
+
+        </div>
+
+    </section>
+
+</div>
+
+<script>
+    const loan = document.getElementById("loan");
+    const loanRange = document.getElementById("loanRange");
+
+    const rate = document.getElementById("rate");
+    const rateRange = document.getElementById("rateRange");
+
+    const years = document.getElementById("years");
+    const yearsRange = document.getElementById("yearsRange");
+
+    const loanValue = document.getElementById("loanValue");
+    const rateValue = document.getElementById("rateValue");
+    const yearsValue = document.getElementById("yearsValue");
+
+    const emiEl = document.getElementById("emi");
+    const interestEl = document.getElementById("interest");
+    const paymentEl = document.getElementById("payment");
+
+    const legendPrincipal = document.getElementById("legendPrincipal");
+    const legendInterest = document.getElementById("legendInterest");
+
+    const principalBar = document.getElementById("principalBar");
+    const interestBar = document.getElementById("interestBar");
+
+    const repaymentTable = document.getElementById("repaymentTable");
+
+    const money = value =>
+        new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            maximumFractionDigits: 0
+        }).format(Math.max(0, value));
+
+    function calculateEMI() {
+
+        const principal = Math.max(0, Number(loan.value));
+        const annualRate = Math.max(0, Number(rate.value));
+        const loanYears = Math.max(0, Number(years.value));
+
+        const months = loanYears * 12;
+        const monthlyRate = annualRate / 12 / 100;
+
+        let emi;
+
+        if (months === 0) {
+            emi = 0;
+        } else if (monthlyRate === 0) {
+            emi = principal / months;
+        } else {
+            emi =
+                principal *
+                monthlyRate *
+                Math.pow(1 + monthlyRate, months) /
+                (Math.pow(1 + monthlyRate, months) - 1);
+        }
+
+        const totalPayment = emi * months;
+        const totalInterest = Math.max(0, totalPayment - principal);
+
+        loanValue.textContent = money(principal);
+        rateValue.textContent = annualRate + "%";
+        yearsValue.textContent =
+            loanYears + (loanYears === 1 ? " Year" : " Years");
+
+        emiEl.textContent = money(emi);
+        interestEl.textContent = money(totalInterest);
+        paymentEl.textContent = money(totalPayment);
+
+        legendPrincipal.textContent = money(principal);
+        legendInterest.textContent = money(totalInterest);
+
+        const total = principal + totalInterest;
+
+        const principalPercent =
+            total > 0 ? (principal / total) * 100 : 50;
+
+        principalBar.style.width = principalPercent + "%";
+        interestBar.style.width = (100 - principalPercent) + "%";
+
+        buildRepaymentTable(
+            principal,
+            monthlyRate,
+            emi,
+            loanYears
+        );
+    }
+
+    function buildRepaymentTable(
+        principal,
+        monthlyRate,
+        emi,
+        loanYears
+    ) {
+
+        repaymentTable.innerHTML = "";
+
+        let balance = principal;
+
+        for (let year = 1; year <= loanYears; year++) {
+
+            const openingBalance = balance;
+
+            let principalPaid = 0;
+            let interestPaid = 0;
+
+            for (let month = 1; month <= 12; month++) {
+
+                if (balance <= 0) {
+                    break;
+                }
+
+                const interest = balance * monthlyRate;
+
+                let principalPart;
+
+                if (monthlyRate === 0) {
+                    principalPart = Math.min(emi, balance);
+                } else {
+                    principalPart = Math.min(
+                        Math.max(0, emi - interest),
+                        balance
+                    );
+                }
+
+                interestPaid += interest;
+                principalPaid += principalPart;
+
+                balance -= principalPart;
+
+                if (balance < 0.01) {
+                    balance = 0;
+                }
+            }
+
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+                <td>${year}</td>
+                <td>${money(openingBalance)}</td>
+                <td>${money(principalPaid)}</td>
+                <td>${money(interestPaid)}</td>
+                <td>${money(balance)}</td>
+            `;
+
+            repaymentTable.appendChild(row);
+        }
+    }
+
+    function connect(input, range) {
+
+        input.addEventListener("input", () => {
+
+            // Allow the user to freely edit/delete the value.
+            // Validation is handled when calculating, not while typing.
+            if (input.value === "") {
+                return;
+            }
+
+            const value = Number(input.value);
+
+            if (!Number.isFinite(value)) {
+                return;
+            }
+
+            range.value = Math.min(
+                Number(range.max),
+                Math.max(Number(range.min), value)
+            );
+
+            calculateEMI();
+        });
+
+        range.addEventListener("input", () => {
+            input.value = range.value;
+            calculateEMI();
+        });
+    }
+
+    connect(loan, loanRange);
+    connect(rate, rateRange);
+    connect(years, yearsRange);
+
+    calculateEMI();
+</script>
+
+</body>
+</html>

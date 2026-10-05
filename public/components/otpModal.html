@@ -1,0 +1,185 @@
+<div
+    id="otpModal"
+    class="
+        fixed
+        inset-0
+        z-50
+        hidden
+        items-center
+        justify-center
+        bg-slate-900/45
+        p-4
+        backdrop-blur-sm
+    ">
+
+    <div
+        class="
+            w-full
+            max-w-md
+            rounded-3xl
+            border
+            border-indigo-100
+            bg-white
+            p-6
+            shadow-[0_24px_60px_rgba(79,70,229,0.16),0_10px_30px_rgba(124,58,237,0.10)]
+        ">
+
+
+        <!-- Header -->
+
+        <div
+            class="
+                mb-5
+                border-b
+                border-indigo-100
+                pb-4
+            ">
+
+            <h2
+                class="
+                    text-2xl
+                    font-bold
+                "
+                style="
+                    background: linear-gradient(
+                        90deg,
+                        #c13bbd 0%,
+                        #7b3fc6 50%,
+                        #2454c7 100%
+                    );
+                    -webkit-background-clip: text;
+                    background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    color: transparent;
+                ">
+
+                Verify OTP
+
+            </h2>
+
+            <p
+                class="
+                    mt-2
+                    text-sm
+                    leading-6
+                    text-slate-500
+                ">
+
+                Enter the 6-digit OTP sent to your email.
+
+            </p>
+
+        </div>
+
+
+        <!-- OTP Input -->
+
+        <div>
+
+            <label
+                class="
+                    mb-2
+                    block
+                    text-sm
+                    font-semibold
+                    text-slate-700
+                ">
+
+                One-Time Password
+
+            </label>
+
+            <input
+                id="otpInput"
+                type="text"
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                class="
+                    w-full
+                    rounded-xl
+                    border
+                    border-indigo-100
+                    bg-white
+                    px-4
+                    py-3
+                    text-center
+                    text-lg
+                    font-semibold
+                    tracking-[0.35em]
+                    text-slate-800
+                    shadow-sm
+                    outline-none
+                    transition
+                    duration-200
+                    placeholder:tracking-normal
+                    placeholder:text-slate-400
+                    focus:border-purple-400
+                    focus:ring-4
+                    focus:ring-purple-100
+                "
+                placeholder="Enter OTP">
+
+        </div>
+
+
+        <!-- Result -->
+
+        <div
+            id="otpResult"
+            class="
+                mt-4
+                min-h-[20px]
+                text-sm
+                font-medium
+            ">
+
+        </div>
+
+
+        <!-- Action -->
+
+        <div
+            class="
+                mt-6
+                flex
+                justify-end
+                border-indigo-100
+                pt-5
+            ">
+
+            <button
+                id="verifyOtpBtn"
+                class="
+                    rounded-xl
+                    px-5
+                    py-2.5
+                    font-semibold
+                    text-white
+                    transition
+                    duration-200
+                    hover:-translate-y-0.5
+                    active:scale-[0.98]
+                "
+                style="
+                    background: linear-gradient(
+                        90deg,
+                        #7b3fc6 0%,
+                        #4f46a5 50%,
+                        #2454c7 100%
+                    );
+                    box-shadow:
+                        0 8px 20px
+                        rgba(79,70,229,0.18);
+                ">
+
+                Verify OTP
+
+            </button>
+
+        </div>
+
+
+    </div>
+
+</div>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lump Sum Calculator</title>
+<style>
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+.container{
+    width:min(1050px,calc(100% - 32px));
+    margin:0 auto;
+    padding:32px 0 50px;
+}
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+h1{margin:0 0 8px;font-size:32px}
+.subtitle{margin:0 0 28px;color:#716b78}
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+.field{margin-bottom:22px}
+.field:last-child{margin-bottom:0}
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+input[type=number]{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+input[type=number]:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+input[type=range]{width:100%;accent-color:#6750a4}
+.range-row{margin-top:8px}
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+.chart-title{
+    margin:0 0 14px;
+    font-size:18px;
+}
+.bar{
+    height:34px;
+    width:100%;
+    display:flex;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+}
+.invested-bar{background:#b8a8d9}
+.returns-bar{background:#e7a6c5}
+.legend{
+    display:flex;
+    gap:22px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+.dot{
+    width:10px;height:10px;border-radius:50%;display:inline-block;
+}
+.invested-dot{background:#b8a8d9}
+.returns-dot{background:#e7a6c5}
+.table-card{margin-top:20px}
+.table-wrap{overflow-x:auto}
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:600px;
+}
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+th:first-child,td:first-child{text-align:left}
+th{color:#6d6675;font-weight:650}
+@media(max-width:760px){
+    .container{width:min(100% - 20px,1050px);padding-top:20px}
+    h1{font-size:27px}
+    .grid{grid-template-columns:1fr}
+    .results{grid-template-columns:1fr}
+    .card{padding:19px}
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <a class="back" href="index.html">← All Calculators</a>
+
+    <h1>Lump Sum Calculator</h1>
+    <p class="subtitle">Calculate the future value of a one-time investment.</p>
+
+    <div class="grid">
+        <div class="card">
+            <div class="field">
+                <label for="investment">
+                    <span>Initial Investment</span>
+                    <span>₹</span>
+                </label>
+                <input id="investment" type="number" value="100000" min="1000" max="100000000" step="1000">
+                <div class="range-row">
+                    <input id="investmentRange" type="range" min="1000" max="100000000" step="1000" value="100000">
+                    <div class="range-labels"><span>₹1,000</span><span>₹10 Cr</span></div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="rate"><span>Expected Return</span><span>% p.a.</span></label>
+                <input id="rate" type="number" value="12" min="0" max="50" step="0.1">
+                <div class="range-row">
+                    <input id="rateRange" type="range" min="0" max="50" step="0.1" value="12">
+                    <div class="range-labels"><span>0%</span><span>50%</span></div>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="years"><span>Investment Period</span><span>Years</span></label>
+                <input id="years" type="number" value="10" min="1" max="50" step="1">
+                <div class="range-row">
+                    <input id="yearsRange" type="range" min="1" max="50" step="1" value="10">
+                    <div class="range-labels"><span>1 Year</span><span>50 Years</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 class="chart-title">Investment Summary</h2>
+
+            <div class="results">
+                <div class="result">
+                    <div class="title">Total Invested</div>
+                    <div class="value" id="invested">₹0</div>
+                </div>
+                <div class="result">
+                    <div class="title">Estimated Returns</div>
+                    <div class="value" id="returns">₹0</div>
+                </div>
+                <div class="result">
+                    <div class="title">Maturity Value</div>
+                    <div class="value" id="maturity">₹0</div>
+                </div>
+            </div>
+
+            <div style="margin-top:28px">
+                <h2 class="chart-title">Invested vs Returns</h2>
+                <div class="bar">
+                    <div id="investedBar" class="invested-bar"></div>
+                    <div id="returnsBar" class="returns-bar"></div>
+                </div>
+                <div class="legend">
+                    <span><i class="dot invested-dot"></i> Invested</span>
+                    <span><i class="dot returns-dot"></i> Returns</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card table-card">
+        <h2 class="chart-title">Year-wise Growth</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Year</th>
+                        <th>Opening Value</th>
+                        <th>Growth</th>
+                        <th>Closing Value</th>
+                    </tr>
+                </thead>
+                <tbody id="growthTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+const investment = document.getElementById("investment");
+const investmentRange = document.getElementById("investmentRange");
+const rate = document.getElementById("rate");
+const rateRange = document.getElementById("rateRange");
+const years = document.getElementById("years");
+const yearsRange = document.getElementById("yearsRange");
+
+const investedEl = document.getElementById("invested");
+const returnsEl = document.getElementById("returns");
+const maturityEl = document.getElementById("maturity");
+const investedBar = document.getElementById("investedBar");
+const returnsBar = document.getElementById("returnsBar");
+const growthTable = document.getElementById("growthTable");
+
+function formatINR(value){
+    return new Intl.NumberFormat("en-IN", {
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(value);
+}
+
+function calculate(){
+    const P = Number(investment.value);
+    const r = Number(rate.value) / 100;
+    const y = Number(years.value);
+
+    if(!Number.isFinite(P) || !Number.isFinite(r) || !Number.isFinite(y) ||
+       P <= 0 || r < 0 || y <= 0){
+        investedEl.textContent = "₹0";
+        returnsEl.textContent = "₹0";
+        maturityEl.textContent = "₹0";
+        investedBar.style.width = "50%";
+        returnsBar.style.width = "50%";
+        growthTable.innerHTML = "";
+        return;
+    }
+
+    const maturity = P * Math.pow(1 + r, y);
+    const estimatedReturns = maturity - P;
+
+    investedEl.textContent = formatINR(P);
+    returnsEl.textContent = formatINR(estimatedReturns);
+    maturityEl.textContent = formatINR(maturity);
+
+    const total = P + estimatedReturns;
+    const investedPercent = total > 0 ? (P / total) * 100 : 100;
+
+    investedBar.style.width = investedPercent + "%";
+    returnsBar.style.width = (100 - investedPercent) + "%";
+
+    growthTable.innerHTML = "";
+
+    let value = P;
+
+    for(let year = 1; year <= y; year++){
+        const opening = value;
+        const growth = opening * r;
+        value = opening + growth;
+
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td>Year ${year}</td>
+            <td>${formatINR(opening)}</td>
+            <td>${formatINR(growth)}</td>
+            <td>${formatINR(value)}</td>
+        `;
+        growthTable.appendChild(row);
+    }
+}
+
+function connect(numberInput, rangeInput){
+    rangeInput.addEventListener("input", () => {
+        numberInput.value = rangeInput.value;
+        calculate();
+    });
+
+    numberInput.addEventListener("input", () => {
+        if(numberInput.value === "") return;
+
+        const value = Number(numberInput.value);
+        if(!Number.isFinite(value)) return;
+
+        if(value >= Number(rangeInput.min) && value <= Number(rangeInput.max)){
+            rangeInput.value = value;
+        }
+
+        calculate();
+    });
+
+    numberInput.addEventListener("blur", () => {
+        if(numberInput.value === "") return;
+
+        let value = Number(numberInput.value);
+        if(!Number.isFinite(value)) return;
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(Number(rangeInput.min), value)
+        );
+
+        numberInput.value = value;
+        rangeInput.value = value;
+        calculate();
+    });
+}
+
+connect(investment, investmentRange);
+connect(rate, rateRange);
+connect(years, yearsRange);
+
+calculate();
+</script>
+
+</body>
+</html>

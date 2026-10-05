@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Property Details - Align</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css"
+    >
+
+    <style>
+
+        :root {
+            --align-pink: #c13bbd;
+            --align-purple: #7b3fc6;
+            --align-indigo: #4f46a5;
+            --align-blue: #2454c7;
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Header
+        |--------------------------------------------------------------------------
+        */
+
+        .property-header {
+
+            position: sticky;
+
+            top: 0;
+
+            z-index: 50;
+
+            width: 100%;
+
+            border-bottom:
+                1px solid #e0e7ff;
+
+            background:
+                rgba(255, 255, 255, 0.97);
+
+            box-shadow:
+                0 1px 3px
+                rgba(0, 0, 0, 0.08);
+
+            backdrop-filter:
+                blur(8px);
+
+        }
+
+
+        .property-header-inner {
+
+            width: 100%;
+
+            max-width: 1280px;
+
+            min-height: 72px;
+
+            margin: 0 auto;
+
+            padding:
+                12px 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 16px;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Logo
+        |--------------------------------------------------------------------------
+        */
+
+        .property-logo {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            text-decoration: none;
+
+        }
+
+
+        .property-logo img {
+
+            width: 40px;
+
+            height: 40px;
+
+            object-fit: contain;
+
+        }
+
+
+        .property-logo-text {
+
+            font-size: 24px;
+
+            font-weight: 700;
+
+            white-space: nowrap;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    var(--align-pink),
+                    var(--align-purple),
+                    var(--align-blue)
+                );
+
+            -webkit-background-clip:
+                text;
+
+            background-clip:
+                text;
+
+            -webkit-text-fill-color:
+                transparent;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Back Button
+        |--------------------------------------------------------------------------
+        */
+
+        .property-back-button {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding:
+                10px 18px;
+
+            border-radius: 10px;
+
+            border:
+                1px solid #dbe1f0;
+
+            background:
+                #ffffff;
+
+            color:
+                #475569;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+            text-decoration: none;
+
+        }
+
+
+        .property-back-button:hover {
+
+            background:
+                #f8fafc;
+
+            border-color:
+                #c7d2fe;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Contact Box
+        |--------------------------------------------------------------------------
+        */
+
+        .contact-box {
+
+            border:
+                1px solid
+                rgba(123, 63, 198, 0.14);
+
+            background:
+                #ffffff;
+
+            border-radius:
+                18px;
+
+            padding:
+                24px;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Gradient Button
+        |--------------------------------------------------------------------------
+        */
+
+        .gradient-button {
+
+            width: 100%;
+
+            border: none;
+
+            border-radius: 12px;
+
+            padding:
+                13px 18px;
+
+            color:
+                #ffffff;
+
+            font-size: 15px;
+
+            font-weight: 600;
+
+            cursor: pointer;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    var(--align-pink),
+                    var(--align-purple),
+                    var(--align-blue)
+                );
+
+        }
+        /*
+|--------------------------------------------------------------------------
+| Property Gallery
+|--------------------------------------------------------------------------
+*/
+
+#propertyImageContainer {
+    width: 100%;
+    padding: 24px;
+    background: #ffffff;
+}
+
+.property-main-image-box {
+    width: 560px;
+    height: 360px;
+    max-width: 100%;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 16px;
+    background: #f1f5f9;
+}
+
+.property-main-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.property-main-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(
+        135deg,
+        #f5f3ff,
+        #eef2ff,
+        #eff6ff
+    );
+    font-size: 64px;
+}
+
+.property-thumbnails {
+    width: 560px;
+    max-width: 100%;
+    margin: 16px auto 0;
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.property-thumbnail-image {
+    width: 90px;
+    height: 70px;
+    object-fit: cover;
+    display: block;
+}
+
+@media (max-width: 639px) {
+
+    #propertyImageContainer {
+        padding: 12px;
+    }
+
+    .property-main-image-box {
+        width: 100%;
+        height: 280px;
+    }
+
+    .property-thumbnails {
+        width: 100%;
+    }
+
+    .property-thumbnail-image {
+        width: 80px;
+        height: 60px;
+    }
+
+}
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Mobile
+        |--------------------------------------------------------------------------
+        */
+
+        @media (max-width: 639px) {
+
+            .property-logo-text {
+
+                font-size: 19px;
+
+            }
+
+
+            .property-logo img {
+
+                width: 34px;
+
+                height: 34px;
+
+            }
+
+
+            .property-back-button {
+
+                padding:
+                    8px 12px;
+
+                font-size: 13px;
+
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body
+    class="
+        min-h-screen
+        bg-slate-100
+        text-slate-800
+    "
+>
+
+
+<!--
+|--------------------------------------------------------------------------
+| Header
+|--------------------------------------------------------------------------
+-->
+
+<header class="property-header">
+
+    <div class="property-header-inner">
+
+
+        <!-- Logo -->
+
+        <a
+            href="/property/dashboard.html"
+            class="property-logo"
+        >
+
+            <img
+                src="/images/logo.png"
+                alt="AlignOS"
+            >
+
+            <span class="property-logo-text">
+
+                Align
+
+            </span>
+
+        </a>
+
+
+        <!-- Back -->
+
+        <a
+            href="/property/dashboard.html"
+            class="property-back-button"
+        >
+
+            ← Back
+
+        </a>
+
+    </div>
+
+</header>
+
+
+<!--
+|--------------------------------------------------------------------------
+| Main
+|--------------------------------------------------------------------------
+-->
+
+<main
+    class="
+        mx-auto
+        w-full
+        max-w-6xl
+        px-4
+        py-8
+        sm:px-6
+        lg:px-8
+    "
+>
+
+
+    <!-- Loading -->
+
+    <div
+        id="propertyLoading"
+        class="
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            p-10
+            text-center
+            text-sm
+            text-slate-500
+        "
+    >
+
+        Loading property...
+
+    </div>
+
+
+    <!-- Error -->
+
+    <div
+        id="propertyError"
+        class="
+            hidden
+            rounded-2xl
+            border
+            border-red-200
+            bg-red-50
+            p-5
+            text-sm
+            text-red-700
+        "
+    >
+    </div>
+
+
+    <!--
+    |--------------------------------------------------------------------------
+    | Property Details
+    |--------------------------------------------------------------------------
+    -->
+
+    <article
+        id="propertyDetails"
+        class="
+            hidden
+            overflow-hidden
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            shadow-sm
+        "
+    >
+
+
+        <!--
+        |--------------------------------------------------------------------------
+        | Property Image Gallery
+        |--------------------------------------------------------------------------
+        |
+        | details.js dynamically renders:
+        |
+        | Main image
+        | Thumbnails
+        |
+        -->
+
+        <div
+            id="propertyImageContainer"
+            class="w-full"
+        >
+        </div>
+
+
+        <!--
+        |--------------------------------------------------------------------------
+        | Property Information
+        |--------------------------------------------------------------------------
+        -->
+
+        <div
+            class="
+                grid
+                grid-cols-1
+                gap-8
+                p-6
+                lg:grid-cols-3
+                lg:p-8
+            "
+        >
+
+
+            <!-- Property Information -->
+
+            <div
+                class="lg:col-span-2"
+            >
+
+
+                <!-- Title -->
+
+                <h1
+                    id="propertyTitle"
+                    class="
+                        text-3xl
+                        font-bold
+                        text-slate-900
+                    "
+                ></h1>
+
+
+                <!-- Subtitle -->
+
+                <p
+                    id="propertySubtitle"
+                    class="
+                        mt-2
+                        text-base
+                        text-slate-500
+                    "
+                ></p>
+                <div class="mt-5">
+    <button
+        id="savePropertyBtn"
+        type="button"
+        class="
+            inline-flex
+            items-center
+            justify-center
+            gap-2
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            px-5
+            py-3
+            text-sm
+            font-semibold
+            text-slate-700
+            shadow-sm
+            transition
+            hover:bg-slate-50
+        "
+    >
+        <span id="savePropertyIcon">♡</span>
+        <span id="savePropertyText">
+            Save
+        </span>
+    </button>
+</div>
+
+                <!-- Pricing -->
+
+<div
+    id="propertyPricing"
+    class="mt-5 space-y-3"
+>
+
+    <!-- Sale Price -->
+
+    <div
+        id="propertySalePrice"
+        class="
+            text-2xl
+            font-bold
+            text-slate-900
+        "
+    ></div>
+
+
+    <!-- Sale Price Type -->
+
+    <div
+        id="propertySalePriceType"
+        class="
+            hidden
+            text-sm
+            font-medium
+            text-slate-500
+        "
+    ></div>
+
+
+    <!-- Rent -->
+
+    <div
+        id="propertyRent"
+        class="
+            hidden
+            text-xl
+            font-bold
+            text-slate-900
+        "
+    ></div>
+
+</div>
+
+
+                <!-- Description -->
+
+                <div
+                    id="propertyDescription"
+                    class="
+                        mt-6
+                        whitespace-pre-line
+                        text-sm
+                        leading-7
+                        text-slate-600
+                    "
+                ></div>
+
+
+            </div>
+
+
+            <!--
+            |--------------------------------------------------------------------------
+            | Contact
+            |--------------------------------------------------------------------------
+            -->
+
+            <aside>
+
+                <div
+                    id="contactSection"
+                    class="
+                        contact-box
+                        shadow-sm
+                    "
+                ></div>
+
+            </aside>
+
+
+        </div>
+
+
+    </article>
+
+
+</main>
+
+
+<!--
+|--------------------------------------------------------------------------
+| JavaScript
+|--------------------------------------------------------------------------
+-->
+<script src="/js/toast.js"></script>
+<script
+    src="/property/js/details.js"
+></script>
+
+
+</body>
+
+</html>

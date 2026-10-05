@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>School Settings</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+<style>
+
+body {
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8f7ff 0%,
+            #f5f7ff 50%,
+            #faf7ff 100%
+        );
+
+}
+
+
+/* Header */
+
+header {
+
+    border-color:
+        #e0e7ff !important;
+
+    background:
+        rgba(255, 255, 255, 0.96) !important;
+
+    box-shadow:
+        0 8px 24px
+        rgba(79, 70, 229, 0.07) !important;
+
+}
+
+
+/* Back Button */
+
+header button {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #faf7ff
+        ) !important;
+
+    color:
+        #4f46a5 !important;
+
+}
+
+
+header button:hover {
+
+    border-color:
+        #c4b5fd !important;
+
+    background:
+        #f5efff !important;
+
+    color:
+        #6d28d9 !important;
+
+}
+
+
+/* Main Sections */
+
+#settingsForm > section {
+
+    border-color:
+        #e0e7ff !important;
+
+    background:
+        rgba(255, 255, 255, 0.98) !important;
+
+    box-shadow:
+        0 10px 28px
+        rgba(79, 70, 229, 0.06) !important;
+
+}
+
+
+/* Section Headers */
+
+#settingsForm > section > div:first-child {
+
+    border-color:
+        #eeeaff !important;
+
+    background:
+        linear-gradient(
+            90deg,
+            #ffffff,
+            #faf9ff
+        );
+
+}
+
+
+/* Section Icons */
+
+#settingsForm > section:first-child div.rounded-xl {
+
+    background:
+        #f1edff !important;
+
+    color:
+        #6d4bc3 !important;
+
+}
+
+
+#settingsForm > section:nth-child(2) div.rounded-xl {
+
+    background:
+        #f3efff !important;
+
+    color:
+        #7654c8 !important;
+
+}
+
+
+/* Form Labels */
+
+#settingsForm label {
+
+    color:
+        #475569 !important;
+
+}
+
+
+/* Inputs */
+
+#settingsForm input:not([readonly]),
+#settingsForm textarea {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #faf7ff
+        ) !important;
+
+    color:
+        #334155 !important;
+
+}
+
+
+#settingsForm input:not([readonly]):hover,
+#settingsForm textarea:hover {
+
+    border-color:
+        #c4b5fd !important;
+
+}
+
+
+#settingsForm input:not([readonly]):focus,
+#settingsForm textarea:focus {
+
+    border-color:
+        #8b5cf6 !important;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(139, 92, 246, 0.12) !important;
+
+}
+
+
+/* Readonly Email */
+
+#email {
+
+    border-color:
+        #e2e8f0 !important;
+
+    background:
+        #f8fafc !important;
+
+    color:
+        #64748b !important;
+
+}
+
+
+/* Logo / Receipt Cards */
+
+#settingsForm section:nth-child(2)
+.bg-slate-50 {
+
+    border-color:
+        #e5e1f5 !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #faf9ff,
+            #f7f5ff
+        ) !important;
+
+}
+
+
+/* Logo Picker */
+
+#schoolLogoPicker {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        #ffffff !important;
+
+}
+
+
+#schoolLogoPicker:hover {
+
+    border-color:
+        #8b5cf6 !important;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(139, 92, 246, 0.10) !important;
+
+}
+
+
+/* Save Area */
+
+#settingsForm > section:last-child {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        rgba(255, 255, 255, 0.96) !important;
+
+    box-shadow:
+        0 -6px 24px
+        rgba(79, 70, 229, 0.07) !important;
+
+}
+
+
+/* Save Button */
+
+#saveBtn {
+
+    background:
+        linear-gradient(
+            90deg,
+            #7b3fc6,
+            #2454c7
+        ) !important;
+
+    box-shadow:
+        0 7px 18px
+        rgba(79, 70, 229, 0.20) !important;
+
+}
+
+
+#saveBtn:hover {
+
+    background:
+        linear-gradient(
+            90deg,
+            #7040b8,
+            #2454c7
+        ) !important;
+
+    box-shadow:
+        0 10px 24px
+        rgba(79, 70, 229, 0.27) !important;
+
+}
+
+
+/* Result / Secondary Text */
+
+#result,
+#schoolLogoResult {
+
+    color:
+        #6366a8;
+
+}
+
+</style>
+</head>
+
+<body
+    class="min-h-screen bg-slate-100">
+
+    <main
+        class="min-h-screen">
+
+        <!-- Header -->
+
+        <header
+            class="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+
+            <div
+                class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+
+                <div
+                    class="flex items-center gap-4">
+
+                    <button
+                        type="button"
+                        onclick="history.back()"
+                        class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95">
+
+                        <span
+                            class="text-lg leading-none">
+
+                            ←
+
+                        </span>
+
+                        Back
+
+                    </button>
+
+        </header>
+
+
+        <!-- Content -->
+
+        <div
+    class="mx-auto w-full max-w-7xl px-4 pt-8 pb-6 sm:px-6 sm:pt-10 lg:px-8 xl:pt-12 xl:pb-8">
+
+            <form
+                id="settingsForm"
+                class="space-y-6">
+
+
+                <!-- School Information -->
+
+                <section
+                    class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+                    <div
+                        class="border-b border-slate-200 px-5 py-5 sm:px-6">
+
+                        <div
+                            class="flex items-start gap-3">
+
+                            <div>
+
+                                <h2
+                                    class="text-base font-semibold text-slate-800 sm:text-lg">
+
+                                    School Information
+
+                                </h2>
+
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="grid gap-5 p-5 sm:p-6 md:grid-cols-2 xl:grid-cols-3">
+
+
+                        <!-- School Name -->
+
+                        <div>
+
+                            <label
+                                for="schoolName"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                School Name
+
+                            </label>
+
+                            <input
+                                id="schoolName"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+
+                        <!-- Owner Name -->
+
+                        <div>
+
+                            <label
+                                for="ownerName"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                Owner Name
+
+                            </label>
+
+                            <input
+                                id="ownerName"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+
+                        <!-- Email -->
+
+                        <div>
+
+                            <label
+                                for="email"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                Email Address
+
+                            </label>
+
+                            <input
+                                id="email"
+                                type="email"
+                                readonly
+                                class="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 p-3 text-sm text-slate-500">
+
+                        </div>
+
+
+                        <!-- Mobile -->
+
+                        <div>
+
+                            <label
+                                for="mobile"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                Mobile Number
+
+                            </label>
+
+                            <input
+                                id="mobile"
+                                type="tel"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+
+                        <!-- Address -->
+
+                        <div
+                            class="md:col-span-2">
+
+                            <label
+                                for="address"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                Address
+
+                            </label>
+
+                            <textarea
+                                id="address"
+                                rows="1"
+                                class="w-full resize-none rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"></textarea>
+
+                        </div>
+
+
+                        <!-- City -->
+
+                        <div>
+
+                            <label
+                                for="city"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                City
+
+                            </label>
+
+                            <input
+                                id="city"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+
+                        <!-- State -->
+
+                        <div>
+
+                            <label
+                                for="state"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                State
+
+                            </label>
+
+                            <input
+                                id="state"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+
+                        <!-- Pincode -->
+
+                        <div>
+
+                            <label
+                                for="pincode"
+                                class="mb-2 block text-sm font-semibold text-slate-700">
+
+                                Pincode
+
+                            </label>
+
+                            <input
+                                id="pincode"
+                                type="text"
+                                class="w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100">
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- Branding & Receipt -->
+
+                <section
+                    class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+                    <div
+                        class="border-b border-slate-200 px-5 py-5 sm:px-6">
+
+                        <div
+                            class="flex items-start gap-3">
+
+                            <div>
+
+                                <h2
+                                    class="text-base font-semibold text-slate-800 sm:text-lg">
+
+                                    Logo & Receipt Footer
+
+                                </h2>
+
+                                <p
+                                    class="mt-1 text-sm text-slate-500">
+
+                                    Customize your school logo and printed receipt footer.
+
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div
+                        class="grid gap-6 p-5 sm:p-6 md:grid-cols-2">
+
+
+                        <!-- School Logo -->
+
+                        <div
+                            class="rounded-2xl border border-slate-200 bg-slate-50 p-8">
+
+
+                            <div
+                                class="flex items-center gap-5">
+
+                                <button
+                                    type="button"
+                                    id="schoolLogoPicker"
+                                    class="flex h-28 w-28 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm transition hover:border-blue-400 hover:ring-2 hover:ring-blue-100 active:scale-95">
+
+                                    <img
+                                        id="schoolLogoPreview"
+                                        src=""
+                                        alt=""
+                                        class="hidden h-24 w-24 object-contain">
+
+                                    <span
+                                        id="schoolLogoPlaceholder"
+                                        class="px-2 text-center text-xs font-medium text-slate-400">
+
+                                        Click to upload logo
+
+                                    </span>
+
+                                </button>
+
+                                <div>
+
+                                    <input
+                                        id="schoolLogoInput"
+                                        type="file"
+                                        accept="image/png,image/jpeg,image/webp"
+                                        class="hidden">
+
+                                    <p
+                                        class="text-sm font-semibold text-slate-700">
+
+                                        School Logo
+
+                                    </p>
+
+                                    <p
+                                        class="mt-1 text-xs leading-5 text-slate-400">
+
+                                        PNG, JPG or WebP<br>
+                                        Maximum size: 2 MB
+
+                                    </p>
+
+                                    <p
+                                        id="schoolLogoResult"
+                                        class="mt-2 text-sm">
+
+                                    </p>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- Receipt Footer -->
+
+                        <div
+                            class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+
+                            <label
+                                for="receiptFooterMessage"
+                                class="mb-4 block text-sm font-semibold text-slate-700">
+
+                                Receipt Footer Message
+
+                            </label>
+
+                            <textarea
+                                id="receiptFooterMessage"
+                                rows="2"
+                                maxlength="500"
+                                placeholder="e.g. Thank you for your payment."
+                                class="w-full resize-none rounded-xl border border-slate-300 bg-white p-2 text-sm text-slate-800 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"></textarea>
+
+                            <div
+                                class="mt-2 flex items-start justify-between gap-4">
+
+                                <p
+                                    class="text-xs leading-5 text-slate-400">
+
+                                    This message will appear at the bottom of printed fee receipts.
+
+                                </p>
+
+                                <span
+                                    class="shrink-0 text-xs text-slate-400">
+
+                                    Max 500
+
+                                </span>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- Save Area -->
+
+                <section
+                    class="sticky bottom-0 z-40 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg backdrop-blur sm:p-5">
+
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                        <p
+                            id="result"
+                            class="text-sm font-medium">
+
+                        </p>
+
+                        <button
+                            id="saveBtn"
+                            type="submit"
+                            class="w-full rounded-xl bg-blue-600 px-7 py-3 font-semibold text-white shadow-sm transition hover:bg-blue-700 active:scale-95 sm:w-auto">
+
+                            Save Changes
+
+                        </button>
+
+                    </div>
+
+                </section>
+
+            </form>
+
+        </div>
+
+    </main>
+
+
+    <script src="/js/api.js"></script>
+
+    <script src="/js/auth.js"></script>
+
+    <script src="/js/schoolSettings.js"></script>
+
+</body>
+
+</html>

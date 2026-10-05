@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>Attendance Users</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+
+    <style>
+
+        body {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8f7ff 0%,
+                    #f5f7ff 50%,
+                    #faf7ff 100%
+                );
+
+        }
+
+
+        .premium-header {
+
+            border-bottom:
+                1px solid
+                #e0e7ff;
+
+            background:
+                rgba(255,255,255,0.96);
+
+            box-shadow:
+                0 8px 24px
+                rgba(79,70,229,0.07);
+
+            backdrop-filter:
+                blur(12px);
+
+        }
+
+
+        .premium-title {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #c13bbd 0%,
+                    #7b3fc6 50%,
+                    #2454c7 100%
+                );
+
+            -webkit-background-clip:
+                text;
+
+            background-clip:
+                text;
+
+            -webkit-text-fill-color:
+                transparent;
+
+            color:
+                transparent;
+
+        }
+
+
+        .premium-btn {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #ffffff 0%,
+                    #faf7ff 50%,
+                    #f5f7ff 100%
+                );
+
+            color:
+                #4f46a5;
+
+            box-shadow:
+                0 4px 12px
+                rgba(79,70,229,0.05);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .premium-btn:hover {
+
+            border-color:
+                #c4b5fd;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #fff7ff 0%,
+                    #f5efff 50%,
+                    #eef3ff 100%
+                );
+
+            color:
+                #7b3fc6;
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(79,70,229,0.10);
+
+        }
+
+
+        .add-user-btn {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #c13bbd 0%,
+                    #7b3fc6 50%,
+                    #2454c7 100%
+                );
+
+            box-shadow:
+                0 8px 20px
+                rgba(79,70,229,0.18);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .add-user-btn:hover {
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 12px 26px
+                rgba(79,70,229,0.24);
+
+        }
+
+
+        .premium-panel {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff 0%,
+                    #faf7ff 50%,
+                    #f5f7ff 100%
+                );
+
+            box-shadow:
+                0 12px 30px
+                rgba(79,70,229,0.07);
+
+        }
+
+
+        .premium-input {
+
+            border:
+                1px solid
+                #cbd5e1;
+
+            background:
+                rgba(255,255,255,0.95);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .premium-input:focus {
+
+            border-color:
+                #8b5cf6;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(139,92,246,0.12);
+
+            outline:
+                none;
+
+        }
+
+
+        .users-table {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                rgba(255,255,255,0.97);
+
+            box-shadow:
+                0 12px 30px
+                rgba(79,70,229,0.07);
+
+        }
+
+
+        .users-table thead {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #faf7ff,
+                    #f5f7ff
+                );
+
+        }
+
+
+        .users-table tbody tr {
+
+            border-top:
+                1px solid
+                #eef2ff;
+
+            transition:
+                background 0.2s ease;
+
+        }
+
+
+        .users-table tbody tr:hover {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #fffaff,
+                    #f8f7ff,
+                    #f5f7ff
+                );
+
+        }
+
+
+        .form-header {
+
+            border-bottom:
+                1px solid
+                #e9e7ff;
+
+        }
+
+
+        .form-submit {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #c13bbd,
+                    #7b3fc6,
+                    #2454c7
+                );
+
+            box-shadow:
+                0 7px 18px
+                rgba(79,70,229,0.16);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .form-submit:hover {
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 10px 22px
+                rgba(79,70,229,0.22);
+
+        }
+
+
+        .cancel-btn {
+
+            border:
+                1px solid
+                #ddd6fe;
+
+            background:
+                #ffffff;
+
+            color:
+                #475569;
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+
+        .cancel-btn:hover {
+
+            background:
+                #f5f3ff;
+
+            border-color:
+                #c4b5fd;
+
+            color:
+                #7b3fc6;
+
+        }
+        #attendanceUserForm {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(5px);
+}
+
+#attendanceUserForm:not(.hidden) {
+    display: flex;
+}
+
+#attendanceUserForm > .attendance-user-modal-content {
+    width: 100%;
+    max-width: 760px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border-radius: 1rem;
+}
+
+@media (max-width: 640px) {
+
+    #attendanceUserForm {
+        padding: 0.75rem;
+    }
+
+    #attendanceUserForm > .attendance-user-modal-content {
+        max-height: 92vh;
+    }
+
+}
+
+    </style>
+
+</head>
+
+
+<body class="min-h-screen">
+
+
+<div class="min-h-screen">
+
+
+    <!-- Header -->
+
+    <header
+        class="premium-header sticky top-0 z-50">
+
+        <div
+            class="
+                mx-auto
+                flex
+                min-h-[60px]
+                w-full
+                max-w-7xl
+                items-center
+                justify-between
+                gap-3
+                px-4
+                py-3
+                sm:min-h-[72px]
+                sm:px-6
+                sm:py-4
+            ">
+
+
+            <a
+                href="/school/dashboard.html"
+                class="
+                    premium-btn
+                    flex
+                    shrink-0
+                    items-center
+                    gap-2
+                    rounded-xl
+                    px-3
+                    py-1.5
+                    text-sm
+                    font-semibold
+                    sm:px-4
+                    sm:py-2.5
+                ">
+
+                <span
+                    class="text-lg">
+
+                    ←
+
+                </span>
+
+                Back
+
+            </a>
+
+
+            <button
+                id="addAttendanceUserBtn"
+                type="button"
+                class="
+                    add-user-btn
+                    rounded-xl
+                    px-3
+                    py-2
+                    text-sm
+                    font-semibold
+                    text-white
+                    sm:px-5
+                    sm:py-2.5
+                ">
+
+                + Add Attendance User
+
+            </button>
+
+
+        </div>
+
+    </header>
+
+
+    <!-- Main -->
+
+    <main
+        class="
+            mx-auto
+            w-full
+            max-w-7xl
+            px-4
+            py-5
+            sm:px-6
+            sm:py-8
+        ">
+
+
+        <!-- Page Heading -->
+
+        <div
+            class="mb-6">
+
+            <h1
+                class="
+                    premium-title
+                    mt-1
+                    text-2xl
+                    font-bold
+                    sm:text-3xl
+                ">
+
+                Attendance Users
+
+            </h1>
+
+            <p
+                class="
+                    mt-1
+                    text-sm
+                    text-slate-500
+                ">
+
+                Manage users who can mark student attendance.
+
+            </p>
+
+        </div>
+
+
+        <!-- Create User Form -->
+
+        <div
+    id="attendanceUserForm"
+    class="hidden">
+
+    <div
+        class="
+            attendance-user-modal-content
+            premium-panel
+            rounded-2xl
+            p-4
+            shadow-2xl
+            sm:p-6
+        ">
+
+
+            <div
+                class="
+                    form-header
+                    mb-5
+                    flex
+                    items-center
+                    justify-between
+                    pb-4
+                ">
+
+                <div>
+
+                    <h2
+                        class="
+                            mt-1
+                            text-lg
+                            font-bold
+                            text-slate-800
+                        ">
+
+                        Create Attendance User
+
+                    </h2>
+
+                    <p
+                        class="
+                            mt-1
+                            text-sm
+                            text-slate-500
+                        ">
+
+                        Create a User ID and password for attendance marking.
+
+                    </p>
+
+                </div>
+
+
+                <button
+                    id="closeAttendanceUserFormBtn"
+                    type="button"
+                    class="
+                        flex
+                        h-9
+                        w-9
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-indigo-100
+                        bg-white
+                        text-2xl
+                        leading-none
+                        text-slate-400
+                        shadow-sm
+                        transition
+                        hover:border-purple-200
+                        hover:bg-purple-50
+                        hover:text-purple-600
+                    ">
+
+                    ×
+
+                </button>
+
+            </div>
+
+
+            <form
+                id="attendanceUserFormElement">
+
+
+                <div
+                    class="
+                        grid
+                        grid-cols-1
+                        gap-4
+                        sm:grid-cols-2
+                    ">
+
+
+                    <!-- Staff -->
+
+                    <div>
+
+                        <label
+                            class="
+                                mb-2
+                                block
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                            ">
+
+                            Staff
+
+                        </label>
+
+                        <select
+                            id="attendanceTeacher"
+                            required
+                            class="
+                                premium-input
+                                w-full
+                                rounded-xl
+                                px-4
+                                py-2.5
+                                text-sm
+                            ">
+
+                            <option value="">
+
+                                Select staff
+
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- Classes -->
+
+                    <div>
+
+                        <label
+                            class="
+                                mb-2
+                                block
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                            ">
+
+                            Classes
+
+                        </label>
+
+                        <select
+                            id="attendanceClasses"
+                            multiple
+                            required
+                            size="5"
+                            class="
+                                premium-input
+                                w-full
+                                rounded-xl
+                                px-4
+                                py-2.5
+                                text-sm
+                            ">
+
+                        </select>
+
+                        <p
+                            class="
+                                mt-1.5
+                                text-xs
+                                text-slate-500
+                            ">
+
+                            Hold Ctrl or Cmd to select multiple classes.
+
+                        </p>
+
+                    </div>
+
+
+                    <!-- User ID -->
+
+                    <div>
+
+                        <label
+                            class="
+                                mb-2
+                                block
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                            ">
+
+                            User ID
+
+                        </label>
+
+                        <input
+                            id="attendanceUsername"
+                            type="text"
+                            required
+                            autocomplete="username"
+                            class="
+                                premium-input
+                                w-full
+                                rounded-xl
+                                px-4
+                                py-2.5
+                                text-sm
+                            ">
+
+                    </div>
+
+
+                    <!-- Password -->
+
+                    <div>
+
+                        <label
+                            class="
+                                mb-2
+                                block
+                                text-sm
+                                font-semibold
+                                text-slate-700
+                            ">
+
+                            Password
+
+                        </label>
+
+                        <input
+                            id="attendanceUserPassword"
+                            type="password"
+                            required
+                            minlength="8"
+                            autocomplete="new-password"
+                            class="
+                                premium-input
+                                w-full
+                                rounded-xl
+                                px-4
+                                py-2.5
+                                text-sm
+                            ">
+
+                    </div>
+
+
+                </div>
+
+
+                <p
+                    id="attendanceUserFormResult"
+                    class="mt-4 text-sm">
+
+                </p>
+
+
+                <div
+                    class="
+                        mt-5
+                        flex
+                        justify-end
+                        gap-3
+                    ">
+
+                    <button
+                        id="cancelAttendanceUserBtn"
+                        type="button"
+                        class="
+                            cancel-btn
+                            rounded-xl
+                            px-4
+                            py-2.5
+                            text-sm
+                            font-semibold
+                        ">
+
+                        Cancel
+
+                    </button>
+
+
+                    <button
+                        type="submit"
+                        class="
+                            form-submit
+                            rounded-xl
+                            px-5
+                            py-2.5
+                            text-sm
+                            font-semibold
+                            text-white
+                        ">
+
+                        Create User
+
+                    </button>
+
+                </div>
+
+
+            </form>
+            </div>
+
+
+        </div>
+
+
+        <!-- Users Table -->
+
+        <div
+            class="
+                users-table
+                overflow-hidden
+                rounded-2xl
+            ">
+
+
+            <div
+                class="
+                    border-b
+                    border-indigo-100
+                    bg-white/80
+                    px-5
+                    py-4
+                    sm:px-6
+                ">
+
+                <h2
+                    class="
+                        mt-1
+                        font-semibold
+                        text-slate-800
+                    ">
+
+                    Attendance Users
+
+                </h2>
+
+            </div>
+
+
+            <div
+                class="overflow-x-auto">
+
+                <table
+                    class="min-w-full">
+
+
+                    <thead>
+
+                        <tr>
+
+                            <th
+                                class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Name
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                User ID
+
+                            </th>
+
+
+                            <th
+                                class="
+                                    px-5
+                                    py-3
+                                    text-left
+                                    text-xs
+                                    font-semibold
+                                    uppercase
+                                    tracking-wide
+                                    text-indigo-500
+                                ">
+
+                                Status
+
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody
+                        id="attendanceUsersBody">
+
+                        <tr>
+
+                            <td
+                                colspan="3"
+                                class="
+                                    px-5
+                                    py-10
+                                    text-center
+                                    text-sm
+                                    text-slate-500
+                                ">
+
+                                No attendance users found.
+
+                            </td>
+
+                        </tr>
+
+                    </tbody>
+
+
+                </table>
+
+            </div>
+
+
+        </div>
+
+
+    </main>
+
+
+</div>
+
+
+<script src="/js/api.js"></script>
+
+<script src="/js/auth.js"></script>
+
+<script src="/js/attendanceUsers.js"></script>
+
+
+</body>
+
+</html>

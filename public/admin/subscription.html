@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0">
+
+<title>Subscription</title>
+
+<link
+    rel="stylesheet"
+    href="/css/output.css">
+
+<style>
+
+body {
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8f7ff 0%,
+            #f5f7ff 50%,
+            #faf7ff 100%
+        );
+
+}
+
+
+.premium-header {
+
+    border-bottom:
+        1px solid
+        #e0e7ff;
+
+    background:
+        rgba(255,255,255,0.96);
+
+    box-shadow:
+        0 8px 24px
+        rgba(79,70,229,0.07);
+
+    backdrop-filter:
+        blur(12px);
+
+}
+
+
+.premium-nav-btn {
+
+    border:
+        1px solid
+        #e0e7ff;
+
+    background:
+        linear-gradient(
+            90deg,
+            #ffffff 0%,
+            #faf7ff 50%,
+            #f5f7ff 100%
+        );
+
+    color:
+        #4f46a5;
+
+    box-shadow:
+        0 4px 12px
+        rgba(79,70,229,0.05);
+
+    transition:
+        all 0.2s ease;
+
+}
+
+
+.premium-nav-btn:hover {
+
+    border-color:
+        #c4b5fd;
+
+    background:
+        linear-gradient(
+            90deg,
+            #fff7ff 0%,
+            #f5efff 50%,
+            #eef3ff 100%
+        );
+
+    color:
+        #7b3fc6;
+
+    transform:
+        translateY(-1px);
+
+    box-shadow:
+        0 8px 20px
+        rgba(79,70,229,0.10);
+
+}
+
+
+.premium-main-card {
+
+    border:
+        1px solid
+        #e0e7ff;
+
+    border-radius:
+        24px;
+
+    background:
+        rgba(255,255,255,0.97);
+
+    box-shadow:
+        0 20px 50px
+        rgba(79,70,229,0.10),
+        0 8px 24px
+        rgba(124,58,237,0.06);
+
+}
+
+
+.premium-title {
+
+    background:
+        linear-gradient(
+            90deg,
+            #c13bbd 0%,
+            #7b3fc6 50%,
+            #2454c7 100%
+        );
+
+    -webkit-background-clip:
+        text;
+
+    background-clip:
+        text;
+
+    -webkit-text-fill-color:
+        transparent;
+
+    color:
+        transparent;
+
+}
+
+
+.logout-btn {
+
+    border:
+        1px solid
+        #fee2e2;
+
+    background:
+        #fff1f2;
+
+    color:
+        #dc2626;
+
+    box-shadow:
+        0 4px 12px
+        rgba(239,68,68,0.05);
+
+    transition:
+        all 0.2s ease;
+
+}
+
+
+.logout-btn:hover {
+
+    border-color:
+        #fecaca;
+
+    background:
+        #ffe4e6;
+
+    transform:
+        translateY(-1px);
+
+    box-shadow:
+        0 8px 20px
+        rgba(239,68,68,0.10);
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div
+    class="flex min-h-screen flex-col">
+
+
+<main
+    class="
+        min-h-screen
+        bg-transparent
+        p-4
+        pt-20
+        md:p-6
+        md:pt-6
+        xl:p-8
+        xl:pt-8
+    ">
+
+
+<!-- Mobile Header -->
+
+<div
+    class="
+        premium-header
+        fixed
+        left-0
+        right-0
+        top-0
+        z-40
+        px-4
+        py-3
+        md:hidden
+    ">
+
+    <div
+        class="
+            flex
+            items-center
+            justify-between
+        ">
+
+
+        <a
+            href="/admin/support.html"
+            class="
+                premium-nav-btn
+                rounded-xl
+                px-3
+                py-2
+                text-sm
+                font-medium
+            ">
+
+            Support
+
+        </a>
+
+
+        <button
+            id="logoutBtnMobile"
+            class="
+                logout-btn
+                rounded-xl
+                px-3
+                py-2
+                text-sm
+                font-semibold
+            ">
+
+            Logout
+
+        </button>
+
+
+    </div>
+
+</div>
+
+
+<!-- Desktop Header -->
+
+<div
+    class="
+        premium-header
+        sticky
+        top-0
+        z-30
+        -mx-6
+        -mt-6
+        mb-6
+        hidden
+        px-6
+        py-3
+        md:block
+        xl:-mx-8
+        xl:-mt-8
+        xl:px-8
+    ">
+
+    <div
+        class="
+            flex
+            items-center
+            justify-between
+        ">
+
+
+        <div
+            class="
+                flex
+                items-center
+                gap-2
+            ">
+
+            <a
+                href="/admin/support.html"
+                class="
+                    premium-nav-btn
+                    rounded-xl
+                    px-5
+                    py-2
+                    font-medium
+                ">
+
+                Support
+
+            </a>
+
+        </div>
+
+
+        <button
+            id="logoutBtnDesktop"
+            class="
+                logout-btn
+                rounded-xl
+                px-5
+                py-2
+                font-medium
+            ">
+
+            Logout
+
+        </button>
+
+
+    </div>
+
+</div>
+
+
+<!-- Main Subscription Card -->
+
+<div
+    class="
+        premium-main-card
+        p-6
+        lg:p-8
+    ">
+
+
+    <div
+        class="
+            mb-8
+            border-b
+            border-indigo-100
+            pb-6
+        ">
+
+
+        <h1
+            class="
+                premium-title
+                text-3xl
+                font-bold
+                md:text-4xl
+            ">
+
+            Subscription
+
+        </h1>
+
+
+        <p
+            class="
+                mt-2
+                max-w-2xl
+                text-sm
+                leading-6
+                text-slate-500
+                md:text-base
+            ">
+
+            Manage your Align POS subscription and plan details.
+
+        </p>
+
+    </div>
+
+
+    <div
+        id="subscriptionCard">
+
+        Loading...
+
+    </div>
+
+
+</div>
+
+
+</main>
+
+
+<div id="modalContainer"></div>
+
+
+</div>
+
+
+<script src="/js/api.js"></script>
+
+<script src="/js/auth.js"></script>
+
+<script src="/js/notify.js"></script>
+
+<script src="/js/toast.js"></script>
+
+<script src="/js/components.js"></script>
+
+<script
+    src="https://checkout.razorpay.com/v1/checkout.js">
+</script>
+
+<script src="/js/subscriptionPayment.js"></script>
+
+<script src="/js/align.js"></script>
+
+<script src="/js/adminSubscription.js"></script>
+
+<script src="/js/modal.js"></script>
+
+
+<script>
+
+loadComponent(
+    "modalContainer",
+    "/components/modal.html"
+);
+
+</script>
+
+
+</body>
+
+</html>

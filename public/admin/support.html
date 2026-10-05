@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>Support</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+
+    <style>
+
+        body {
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #f8f7ff 0%,
+                    #f5f7ff 50%,
+                    #faf7ff 100%
+                );
+
+        }
+
+        .premium-header {
+
+            border-bottom:
+                1px solid
+                #e0e7ff;
+
+            background:
+                rgba(255,255,255,0.96);
+
+            box-shadow:
+                0 8px 24px
+                rgba(79,70,229,0.07);
+
+            backdrop-filter:
+                blur(12px);
+
+        }
+
+        .premium-nav-btn {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #ffffff 0%,
+                    #faf7ff 50%,
+                    #f5f7ff 100%
+                );
+
+            color:
+                #4f46a5;
+
+            box-shadow:
+                0 4px 12px
+                rgba(79,70,229,0.05);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+        .premium-nav-btn:hover {
+
+            border-color:
+                #c4b5fd;
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #fff7ff 0%,
+                    #f5efff 50%,
+                    #eef3ff 100%
+                );
+
+            color:
+                #7b3fc6;
+
+            transform:
+                translateY(-1px);
+
+            box-shadow:
+                0 8px 20px
+                rgba(79,70,229,0.10);
+
+        }
+
+        .premium-main-card {
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            border-radius:
+                24px;
+
+            background:
+                rgba(255,255,255,0.97);
+
+            box-shadow:
+                0 20px 50px
+                rgba(79,70,229,0.10),
+                0 8px 24px
+                rgba(124,58,237,0.06);
+
+        }
+
+        .premium-title {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #c13bbd 0%,
+                    #7b3fc6 50%,
+                    #2454c7 100%
+                );
+
+            -webkit-background-clip:
+                text;
+
+            background-clip:
+                text;
+
+            -webkit-text-fill-color:
+                transparent;
+
+            color:
+                transparent;
+
+        }
+
+        .support-card {
+
+            position:
+                relative;
+
+            overflow:
+                hidden;
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            border-radius:
+                18px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff 0%,
+                    #faf7ff 50%,
+                    #f5f7ff 100%
+                );
+
+            box-shadow:
+                0 10px 28px
+                rgba(79,70,229,0.07);
+
+            transition:
+                all 0.2s ease;
+
+        }
+
+        .support-card::before {
+
+            content:
+                "";
+
+            position:
+                absolute;
+
+            left:
+                0;
+
+            top:
+                0;
+
+            bottom:
+                0;
+
+            width:
+                4px;
+
+            background:
+                linear-gradient(
+                    to bottom,
+                    #c13bbd,
+                    #7b3fc6,
+                    #2454c7
+                );
+
+        }
+
+        .support-card:hover {
+
+            border-color:
+                #c4b5fd;
+
+            transform:
+                translateY(-2px);
+
+            box-shadow:
+                0 16px 35px
+                rgba(79,70,229,0.12);
+
+        }
+
+        .support-icon {
+
+            display:
+                flex;
+
+            height:
+                44px;
+
+            width:
+                44px;
+
+            align-items:
+                center;
+
+            justify-content:
+                center;
+
+            border:
+                1px solid
+                #e0e7ff;
+
+            border-radius:
+                14px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #ffffff,
+                    #f5efff
+                );
+
+            box-shadow:
+                0 6px 14px
+                rgba(79,70,229,0.08);
+
+        }
+
+        .help-card {
+
+            border:
+                1px solid
+                #ddd6fe;
+
+            border-radius:
+                18px;
+
+            background:
+                linear-gradient(
+                    135deg,
+                    #fff7ff 0%,
+                    #f5efff 50%,
+                    #eef3ff 100%
+                );
+
+            box-shadow:
+                0 12px 30px
+                rgba(79,70,229,0.08);
+
+        }
+
+        .login-btn {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    #7b3fc6 0%,
+                    #4f46a5 50%,
+                    #2454c7 100%
+                );
+
+            box-shadow:
+                0 8px 20px
+                rgba(79,70,229,0.20);
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+<main
+    id="mainContent"
+    class="
+        min-h-screen
+        bg-transparent
+        p-4
+        pt-20
+        md:p-6
+        md:pt-6
+        xl:p-8
+        xl:pt-8
+    ">
+
+
+<!-- Mobile Header -->
+
+<div
+    id="mobileHeader"
+    class="
+        premium-header
+        fixed
+        left-0
+        right-0
+        top-0
+        z-40
+        px-4
+        py-3
+        md:hidden
+    ">
+
+    <div
+        class="
+            flex
+            items-center
+            justify-between
+            gap-2
+        ">
+
+
+        <div
+            id="adminHeaderButtonsMobile"
+            class="
+                flex
+                items-center
+                gap-2
+            ">
+
+
+            <a
+                href="/admin/subscription.html"
+                class="
+                    premium-nav-btn
+                    rounded-xl
+                    px-3
+                    py-2
+                    text-sm
+                    font-medium
+                ">
+
+                Subscription
+
+            </a>
+
+        </div>
+
+
+        <a
+            id="loginBtnHeaderMobile"
+            href="/login.html"
+            class="
+                login-btn
+                hidden
+                rounded-xl
+                px-4
+                py-2
+                text-sm
+                font-semibold
+                text-white
+            ">
+
+            Login
+
+        </a>
+
+
+    </div>
+
+</div>
+
+
+<!-- Desktop Header -->
+
+<div
+    id="desktopHeader"
+    class="
+        premium-header
+        sticky
+        top-0
+        z-30
+        -mx-6
+        -mt-6
+        mb-6
+        hidden
+        px-6
+        py-3
+        md:block
+        xl:-mx-8
+        xl:-mt-8
+        xl:px-8
+    ">
+
+    <div
+        class="
+            flex
+            items-center
+            justify-between
+        ">
+
+
+        <div
+            id="adminHeaderButtons"
+            class="
+                flex
+                items-center
+                gap-3
+            ">
+
+
+            <a
+                href="/admin/subscription.html"
+                class="
+                    premium-nav-btn
+                    rounded-xl
+                    px-5
+                    py-2
+                    font-medium
+                ">
+
+                Subscription
+
+            </a>
+
+        </div>
+
+
+        <a
+            id="loginBtnHeader"
+            href="/login.html"
+            class="
+                login-btn
+                hidden
+                rounded-xl
+                px-5
+                py-2
+                font-medium
+                text-white
+            ">
+
+            Login
+
+        </a>
+
+
+    </div>
+
+</div>
+
+
+<!-- Main Support Card -->
+
+<div
+    class="
+        premium-main-card
+        p-6
+        lg:p-8
+    ">
+
+
+    <div
+        class="
+            mb-8
+            border-b
+            border-indigo-100
+            pb-6
+        ">
+
+
+        <h1
+            class="
+                premium-title
+                text-3xl
+                font-bold
+                md:text-4xl
+            ">
+
+            Support
+
+        </h1>
+
+
+        <p
+            class="
+                mt-2
+                max-w-2xl
+                text-sm
+                leading-6
+                text-slate-500
+                md:text-base
+            ">
+
+            Need assistance with Align?
+            Our support team is here to help you.
+
+        </p>
+
+    </div>
+
+
+    <!-- Support Options -->
+
+    <div
+        class="
+            grid
+            gap-4
+            md:grid-cols-2
+        ">
+
+
+        <!-- Phone -->
+
+        <div
+            class="support-card p-5">
+
+            <div
+                class="
+                    flex
+                    items-start
+                    gap-4
+                ">
+
+                <div
+                    class="support-icon">
+
+                    📞
+
+                </div>
+
+
+                <div>
+
+                    <h2
+                        class="
+                            text-lg
+                            font-semibold
+                            text-slate-800
+                        ">
+
+                        Phone
+
+                    </h2>
+
+
+                    <p
+                        id="supportPhone"
+                        class="
+                            mt-2
+                            font-medium
+                            text-indigo-600
+                        ">
+
+                        +91 9782004333
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Email -->
+
+        <div
+            class="support-card p-5">
+
+            <div
+                class="
+                    flex
+                    items-start
+                    gap-4
+                ">
+
+                <div
+                    class="support-icon">
+
+                    📧
+
+                </div>
+
+
+                <div>
+
+                    <h2
+                        class="
+                            text-lg
+                            font-semibold
+                            text-slate-800
+                        ">
+
+                        Email
+
+                    </h2>
+
+
+                    <p
+                        id="supportEmail"
+                        class="
+                            mt-2
+                            break-all
+                            font-medium
+                            text-indigo-600
+                        ">
+
+                        alignos.in@gmail.com
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- WhatsApp -->
+
+        <div
+            class="support-card p-5">
+
+            <div
+                class="
+                    flex
+                    items-start
+                    gap-4
+                ">
+
+                <div
+                    class="support-icon">
+
+                    💬
+
+                </div>
+
+
+                <div>
+
+                    <h2
+                        class="
+                            text-lg
+                            font-semibold
+                            text-slate-800
+                        ">
+
+                        WhatsApp
+
+                    </h2>
+
+
+                    <p
+                        id="supportWhatsapp"
+                        class="
+                            mt-2
+                            font-medium
+                            text-indigo-600
+                        ">
+
+                        +91 9782004333
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- Support Hours -->
+
+        <div
+            class="support-card p-5">
+
+            <div
+                class="
+                    flex
+                    items-start
+                    gap-4
+                ">
+
+                <div
+                    class="support-icon">
+
+                    🕒
+
+                </div>
+
+
+                <div>
+
+                    <h2
+                        class="
+                            text-lg
+                            font-semibold
+                            text-slate-800
+                        ">
+
+                        Support Hours
+
+                    </h2>
+
+
+                    <p
+                        class="
+                            mt-2
+                            leading-6
+                            text-slate-600
+                        ">
+
+                        Monday – Saturday
+
+                        <br>
+
+                        9:00 AM – 7:00 PM
+
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+    </div>
+
+
+    <!-- Need Help -->
+
+    <div
+        class="
+            help-card
+            mt-6
+            p-6
+        ">
+
+        <div
+            class="
+                flex
+                items-start
+                gap-4
+            ">
+
+            <div
+                class="support-icon">
+
+                💡
+
+            </div>
+
+
+            <div>
+
+                <h2
+                    class="
+                        text-lg
+                        font-semibold
+                        text-slate-800
+                    ">
+
+                    Need Help?
+
+                </h2>
+
+
+                <p
+                    class="
+                        mt-2
+                        leading-6
+                        text-slate-600
+                    ">
+
+                    If you're facing any issue with Align,
+                    contact our support team. We'll help you
+                    as quickly as possible.
+
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- Footer -->
+
+        <div
+            class="
+                mt-8
+                border-t
+                border-indigo-100
+                pt-6
+            ">
+
+            <footer
+                class="
+                    flex
+                    flex-wrap
+                    items-center
+                    justify-center
+                    gap-x-3
+                    gap-y-2
+                    text-center
+                    text-sm
+                    text-slate-500
+                ">
+
+
+                <a
+                    href="https://alignos.in/legal/terms.html"
+                    class="
+                        transition
+                        hover:text-purple-600
+                        hover:underline
+                    ">
+
+                    Terms &amp; Conditions
+
+                </a>
+
+
+                <span
+                    class="text-indigo-200">
+
+                    |
+
+                </span>
+
+
+                <a
+                    href="https://alignos.in/legal/privacy.html"
+                    class="
+                        transition
+                        hover:text-purple-600
+                        hover:underline
+                    ">
+
+                    Privacy Policy
+
+                </a>
+
+
+                <span
+                    class="text-indigo-200">
+
+                    |
+
+                </span>
+
+
+                <a
+                    href="https://alignos.in/legal/refund.html"
+                    class="
+                        transition
+                        hover:text-purple-600
+                        hover:underline
+                    ">
+
+                    Refund &amp; Cancellation Policy
+
+                </a>
+
+
+                <span
+                    class="text-indigo-200">
+
+                    |
+
+                </span>
+
+
+                <a
+                    href="https://alignos.in/legal/shipping.html"
+                    class="
+                        transition
+                        hover:text-purple-600
+                        hover:underline
+                    ">
+
+                    Shipping &amp; Delivery Policy
+
+                </a>
+
+
+            </footer>
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+</main>
+
+
+<script
+    src="/js/notify.js">
+</script>
+
+<script
+    src="/js/api.js">
+</script>
+
+
+<script>
+
+if (!API.getToken()) {
+
+    document
+        .getElementById(
+            "adminHeaderButtons"
+        )
+        ?.classList.add(
+            "hidden"
+        );
+
+
+    document
+        .getElementById(
+            "adminHeaderButtonsMobile"
+        )
+        ?.classList.add(
+            "hidden"
+        );
+
+
+    document
+        .getElementById(
+            "loginBtnHeader"
+        )
+        ?.classList.remove(
+            "hidden"
+        );
+
+
+    document
+        .getElementById(
+            "loginBtnHeaderMobile"
+        )
+        ?.classList.remove(
+            "hidden"
+        );
+
+}
+
+</script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Sell Property — Align Properties</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css"
+    >
+
+    <style>
+
+    :root {
+        --align-pink: #c13bbd;
+        --align-purple: #7b3fc6;
+        --align-indigo: #4f46a5;
+        --align-blue: #2454c7;
+    }
+
+    .align-gradient-text {
+        background:
+            linear-gradient(
+                90deg,
+                var(--align-pink),
+                var(--align-purple),
+                var(--align-blue)
+            );
+
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+    }
+
+    .property-header {
+        width: 100%;
+        border-bottom: 1px solid #e0e7ff;
+        background: rgba(255, 255, 255, 0.97);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .property-header-inner {
+        width: 100%;
+        max-width: 1280px;
+        min-height: 72px;
+        margin: 0 auto;
+        padding: 12px 16px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    .property-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        min-width: 0;
+    }
+
+    .property-logo img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        flex-shrink: 0;
+    }
+
+    .property-logo-text {
+        font-size: 24px;
+        font-weight: 700;
+        white-space: nowrap;
+
+        background:
+            linear-gradient(
+                90deg,
+                var(--align-pink),
+                var(--align-purple),
+                var(--align-blue)
+            );
+
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .property-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .property-header-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        padding: 10px 18px;
+        border-radius: 10px;
+
+        border: 1px solid #dbe1f0;
+        background: #ffffff;
+        color: #475569;
+
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+
+        transition:
+            background 0.2s ease,
+            border-color 0.2s ease;
+    }
+
+    .property-header-button:hover {
+        background: #f8fafc;
+        border-color: #c7d2fe;
+    }
+
+    .property-primary-button {
+        background:
+            linear-gradient(
+                90deg,
+                var(--align-pink),
+                var(--align-purple),
+                var(--align-blue)
+            );
+
+        box-shadow:
+            0 8px 20px
+            rgba(79, 70, 229, 0.20);
+
+        transition:
+            transform 0.2s ease,
+            box-shadow 0.2s ease,
+            opacity 0.2s ease;
+    }
+
+    .property-primary-button:hover {
+        transform: translateY(-1px);
+
+        box-shadow:
+            0 12px 26px
+            rgba(79, 70, 229, 0.24);
+    }
+
+    .property-primary-button:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .property-input:focus {
+        border-color: #a78bfa;
+
+        box-shadow:
+            0 0 0 3px
+            rgba(124, 58, 237, 0.10);
+
+        outline: none;
+    }
+
+    .property-card {
+        border:
+            1px solid
+            rgba(123, 63, 198, 0.12);
+
+        box-shadow:
+            0 8px 25px
+            rgba(79, 70, 229, 0.06);
+    }
+
+    @media (max-width: 639px) {
+
+        .property-logo-text {
+            font-size: 19px;
+        }
+
+        .property-header-button {
+            padding: 9px 12px;
+        }
+
+    }
+
+    @media (max-width: 480px) {
+
+        .property-header-inner {
+            gap: 8px;
+        }
+
+        .property-logo {
+            gap: 7px;
+        }
+
+        .property-logo img {
+            width: 34px;
+            height: 34px;
+        }
+
+        .property-logo-text {
+            font-size: 17px;
+        }
+
+        .property-header-actions {
+            gap: 6px;
+        }
+
+        .property-header-button {
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+    }
+
+</style>
+
+</head>
+
+
+<body
+    class="
+        min-h-screen
+        bg-slate-100
+        text-slate-800
+    "
+>
+
+
+    <!-- Header -->
+
+    <!-- Header -->
+
+<header
+    class="
+        property-header
+        sticky
+        top-0
+        z-50
+    "
+>
+
+    <div class="property-header-inner">
+
+        <!-- Logo -->
+
+        <a
+            href="/property/dashboard.html"
+            class="property-logo"
+        >
+
+            <img
+                src="/images/logo.png"
+                alt="AlignOS"
+            >
+
+            <span class="property-logo-text">
+                Align
+            </span>
+
+        </a>
+
+
+        <!-- Header Buttons -->
+
+        <div class="property-header-actions">
+
+            <a
+                href="/property/dashboard.html"
+                class="property-header-button"
+            >
+                Back
+            </a>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+    <!-- Main -->
+
+    <main
+        class="
+            mx-auto
+            w-full
+            max-w-4xl
+            px-4
+            py-8
+            sm:px-6
+            lg:px-8
+        "
+    >
+
+
+        <!-- Error -->
+
+        <div
+            id="propertyFormError"
+            class="
+                mb-6
+                hidden
+                rounded-2xl
+                border
+                border-red-200
+                bg-red-50
+                p-5
+                text-sm
+                text-red-700
+            "
+        ></div>
+
+
+        <!-- Form -->
+
+        <form
+            id="propertyForm"
+            class="
+                property-card
+                rounded-3xl
+                bg-white
+                p-6
+                sm:p-8
+            "
+        >
+
+
+            <!-- Basic Information -->
+
+            <div>
+
+                <h2
+                    class="
+                        text-xl
+                        font-bold
+                        text-slate-900
+                    "
+                >
+                   Information
+                </h2>
+
+                <p
+                    class="
+                        mt-1
+                        text-sm
+                        text-slate-500
+                    "
+                >
+                    Provide the basic information buyers will see.
+                </p>
+
+            </div>
+
+
+            <div
+                class="
+                    mt-6
+                    space-y-5
+                "
+            >
+
+
+                <!-- Title -->
+
+                <div>
+
+                    <label
+                        for="propertyTitle"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        "
+                    >
+                        Title
+                    </label>
+
+                    <input
+                        id="propertyTitle"
+                        type="text"
+                        maxlength="150"
+                        required
+                        placeholder="e.g. Title"
+                        class="
+                            property-input
+                            w-full
+                            rounded-xl
+                            border
+                            border-gray-300
+                            p-4
+                            text-base
+                        "
+                    >
+
+                    <p
+                        class="
+                            mt-1
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        Maximum 150 characters.
+                    </p>
+
+                </div>
+
+
+                <!-- Subtitle -->
+
+                <div>
+
+                    <label
+                        for="propertySubtitle"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        "
+                    >
+                        Subtitle
+                    </label>
+
+                    <input
+                        id="propertySubtitle"
+                        type="text"
+                        maxlength="255"
+                        placeholder="Subtitle"
+                        class="
+                            property-input
+                            w-full
+                            rounded-xl
+                            border
+                            border-gray-300
+                            p-4
+                            text-base
+                        "
+                    >
+
+                </div>
+
+
+                <!-- Description -->
+
+                <div>
+
+                    <label
+                        for="propertyDescription"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        "
+                    >
+                        Description
+                    </label>
+
+                    <textarea
+                        id="propertyDescription"
+                        rows="2"
+                        placeholder="Describe your item in detail..."
+                        class="
+                            property-input
+                            w-full
+                            resize-y
+                            rounded-xl
+                            border
+                            border-gray-300
+                            p-4
+                            text-base
+                        "
+                    ></textarea>
+
+                </div>
+
+
+                <!-- Price Row -->
+
+<div
+    class="
+        grid
+        grid-cols-1
+        gap-5
+        sm:grid-cols-2
+    "
+>
+
+    <!-- Sale Price -->
+
+    <div>
+
+        <label
+            for="propertyPrice"
+            class="
+                mb-2
+                block
+                text-sm
+                font-semibold
+                text-slate-700
+            "
+        >
+            Sale Price
+        </label>
+
+        <input
+            id="propertyPrice"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Enter sale price"
+            class="
+                property-input
+                w-full
+                rounded-xl
+                border
+                border-gray-300
+                p-4
+                text-base
+            "
+        >
+
+    </div>
+
+
+    <!-- Rent / Month -->
+
+    <div>
+
+        <label
+            for="propertyRent"
+            class="
+                mb-2
+                block
+                text-sm
+                font-semibold
+                text-slate-700
+            "
+        >
+            Rent / Month
+        </label>
+
+        <input
+            id="propertyRent"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Enter monthly rent"
+            class="
+                property-input
+                w-full
+                rounded-xl
+                border
+                border-gray-300
+                p-4
+                text-base
+            "
+        >
+
+    </div>
+
+</div>
+
+
+<!-- Sale Price Type -->
+
+<div class="mt-5">
+
+    <label
+        for="propertyPriceType"
+        class="
+            mb-2
+            block
+            text-sm
+            font-semibold
+            text-slate-700
+        "
+    >
+        Sale Price Type
+    </label>
+
+    <select
+        id="propertyPriceType"
+        class="
+            property-input
+            w-full
+            rounded-xl
+            border
+            border-gray-300
+            bg-white
+            p-4
+            text-base
+        "
+    >
+
+        <option value="fixed">
+            Fixed Price
+        </option>
+
+        <option value="negotiable">
+            Negotiable
+        </option>
+
+    </select>
+
+</div>
+
+                </div>
+                <div class="mb-6">
+
+    <label class="mb-3 block text-sm font-semibold text-slate-700">
+        Contact Preference
+    </label>
+
+    <div class="space-y-3">
+
+        <label
+            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        >
+
+            <input
+                id="contactShow"
+                name="contactPreference"
+                type="radio"
+                value="show"
+                checked
+                class="mt-1 h-4 w-4"
+            >
+
+            <span>
+                <span class="block font-medium text-slate-800">
+                    Show Contact
+                </span>
+
+                <span class="mt-1 block text-sm text-slate-500">
+                    Buyers can see the seller's contact details directly.
+                </span>
+            </span>
+
+        </label>
+
+
+        <label
+            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4"
+        >
+
+            <input
+                id="contactRequest"
+                name="contactPreference"
+                type="radio"
+                value="request"
+                class="mt-1 h-4 w-4"
+            >
+
+            <span>
+                <span class="block font-medium text-slate-800">
+                    Share on Request
+                </span>
+
+                <span class="mt-1 block text-sm text-slate-500">
+                    Buyers must send a contact request before the seller's contact is shared.
+                </span>
+            </span>
+
+        </label>
+
+    </div>
+
+</div>
+
+<!-- Property Location -->
+<div class="mt-6">
+    <h3 class="mb-4 text-lg font-bold text-slate-800">
+        Property Location
+    </h3>
+
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+        <input
+            id="location"
+            type="text"
+            placeholder="Locality / Area"
+            class="w-full rounded-xl border border-slate-300 p-3"
+        >
+
+        <select
+            id="state"
+            class="w-full rounded-xl border border-slate-300 bg-white p-3"
+        >
+            <option value="">Select State</option>
+        </select>
+
+        <select
+            id="city"
+            class="w-full rounded-xl border border-slate-300 bg-white p-3"
+            disabled
+        >
+            <option value="">Select State First</option>
+        </select>
+
+        <input
+            id="pincode"
+            type="text"
+            placeholder="PIN Code"
+            maxlength="6"
+            class="w-full rounded-xl border border-slate-300 p-3"
+        >
+
+    </div>
+
+    <textarea
+        id="address"
+        rows="3"
+        placeholder="Full Property Address"
+        class="mt-4 w-full rounded-xl border border-slate-300 p-3"
+    ></textarea>
+
+</div>
+                <!-- Photos -->
+
+                <div>
+
+                    <label
+                        for="propertyPhotos"
+                        class="
+                            mb-2
+                            block
+                            text-sm
+                            font-semibold
+                            text-slate-700
+                        "
+                    >
+                        Property Photos
+                    </label>
+
+                    <input
+                        id="propertyPhotos"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        class="
+                            block
+                            w-full
+                            cursor-pointer
+                            rounded-xl
+                            border
+                            border-slate-200
+                            bg-slate-50
+                            p-3
+                            text-sm
+                            text-slate-600
+                        "
+                    >
+
+                    <p
+                        class="
+                            mt-2
+                            text-xs
+                            text-slate-400
+                        "
+                    >
+                        Maximum 5 MB per image.
+                    </p>
+
+
+                    <!-- Preview -->
+
+                    <div
+                        id="propertyPhotoPreview"
+                        class="
+                            mt-5
+                            grid
+                            grid-cols-2
+                            gap-4
+                            sm:grid-cols-3
+                            md:grid-cols-4
+                        "
+                    ></div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Actions -->
+
+            <div
+                class="
+                    mt-8
+                    flex
+                    flex-col-reverse
+                    gap-3
+                    sm:flex-row
+                    sm:justify-end
+                "
+            >
+
+                <a
+                    href="/property/dashboard.html"
+                    class="
+                        inline-flex
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-slate-200
+                        bg-white
+                        px-6
+                        py-3
+                        text-sm
+                        font-semibold
+                        text-slate-600
+                        transition
+                        hover:bg-slate-50
+                    "
+                >
+                    Cancel
+                </a>
+
+
+                <button
+                    id="propertyFormSubmitBtn"
+                    type="submit"
+                    class="
+                        property-primary-button
+                        rounded-xl
+                        px-7
+                        py-3
+                        text-sm
+                        font-semibold
+                        text-white
+                    "
+                >
+
+                    <span
+                        id="propertyFormSubmitText"
+                    >
+                        Add
+                    </span>
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </main>
+
+<div id="modalContainer"></div>
+    <script src="/js/api.js"></script>
+    <script src="/js/notify.js"></script>
+
+    <script src="/js/toast.js"></script>
+
+    <script src="/js/components.js"></script>
+    <script src="/property/js/locationData.js"></script>
+    <script src="/property/js/sell.js"></script>
+
+   
+    <script src="/js/modal.js"></script>
+<script>
+
+loadComponent(
+    "modalContainer",
+    "/components/modal.html"
+);
+
+</script>
+</body>
+
+</html>

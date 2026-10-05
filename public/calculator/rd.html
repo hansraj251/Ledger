@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RD Calculator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+
+.container{
+    width:min(1050px,calc(100% - 32px));
+    margin:auto;
+    padding:32px 0 50px;
+}
+
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+
+h1{margin:0 0 8px;font-size:32px}
+.subtitle{margin:0 0 28px;color:#716b78}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+
+.field{margin-bottom:22px}
+.field:last-child{margin-bottom:0}
+
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+
+input[type=number]{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+
+input[type=number]:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+
+input[type=range]{
+    width:100%;
+    accent-color:#6750a4;
+}
+
+.range-row{margin-top:8px}
+
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+
+.chart-title{
+    margin:0 0 14px;
+    font-size:18px;
+}
+
+.bar{
+    height:34px;
+    width:100%;
+    display:flex;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+}
+
+.deposit-bar{background:#b8a8d9}
+.interest-bar{background:#e7a6c5}
+
+.legend{
+    display:flex;
+    gap:22px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.deposit-dot{background:#b8a8d9}
+.interest-dot{background:#e7a6c5}
+
+.table-card{margin-top:20px}
+
+.table-wrap{overflow-x:auto}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:700px;
+}
+
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+
+th:first-child,
+td:first-child{text-align:left}
+
+th{
+    color:#6d6675;
+    font-weight:650;
+}
+
+@media(max-width:760px){
+    .container{
+        width:min(100% - 20px,1050px);
+        padding-top:20px;
+    }
+
+    h1{font-size:27px}
+
+    .grid{grid-template-columns:1fr}
+
+    .results{grid-template-columns:1fr}
+
+    .card{padding:19px}
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a class="back" href="index.html">← All Calculators</a>
+
+<h1>RD Calculator</h1>
+<p class="subtitle">Calculate the maturity amount and interest earned on your recurring deposit.</p>
+
+<div class="grid">
+
+<div class="card">
+
+<div class="field">
+<label for="monthlyDeposit">
+<span>Monthly Deposit</span>
+<span>₹</span>
+</label>
+
+<input
+    id="monthlyDeposit"
+    type="number"
+    value="5000"
+    min="100"
+    max="1000000"
+    step="100"
+>
+
+<div class="range-row">
+<input
+    id="monthlyDepositRange"
+    type="range"
+    min="100"
+    max="1000000"
+    step="100"
+    value="5000"
+>
+<div class="range-labels">
+<span>₹100</span>
+<span>₹10 Lakh</span>
+</div>
+</div>
+</div>
+
+
+<div class="field">
+<label for="rate">
+<span>Interest Rate</span>
+<span>% p.a.</span>
+</label>
+
+<input
+    id="rate"
+    type="number"
+    value="7"
+    min="0"
+    max="20"
+    step="0.1"
+>
+
+<div class="range-row">
+<input
+    id="rateRange"
+    type="range"
+    min="0"
+    max="20"
+    step="0.1"
+    value="7"
+>
+<div class="range-labels">
+<span>0%</span>
+<span>20%</span>
+</div>
+</div>
+</div>
+
+
+<div class="field">
+<label for="years">
+<span>Tenure</span>
+<span>Years</span>
+</label>
+
+<input
+    id="years"
+    type="number"
+    value="5"
+    min="1"
+    max="10"
+    step="1"
+>
+
+<div class="range-row">
+<input
+    id="yearsRange"
+    type="range"
+    min="1"
+    max="10"
+    step="1"
+    value="5"
+>
+<div class="range-labels">
+<span>1 Year</span>
+<span>10 Years</span>
+</div>
+</div>
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2 class="chart-title">RD Summary</h2>
+
+<div class="results">
+
+<div class="result">
+<div class="title">Total Deposited</div>
+<div class="value" id="depositedValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Interest Earned</div>
+<div class="value" id="interestValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Maturity Amount</div>
+<div class="value" id="maturityValue">₹0</div>
+</div>
+
+</div>
+
+
+<div style="margin-top:28px">
+
+<h2 class="chart-title">Deposits vs Interest</h2>
+
+<div class="bar">
+<div id="depositBar" class="deposit-bar"></div>
+<div id="interestBar" class="interest-bar"></div>
+</div>
+
+<div class="legend">
+
+<span>
+<i class="dot deposit-dot"></i>
+Deposits
+</span>
+
+<span>
+<i class="dot interest-dot"></i>
+Interest
+</span>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card table-card">
+
+<h2 class="chart-title">Year-wise Growth</h2>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Year</th>
+<th>Total Deposited</th>
+<th>Interest Earned</th>
+<th>Closing Value</th>
+</tr>
+</thead>
+
+<tbody id="growthTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+<script>
+
+const monthlyDeposit =
+    document.getElementById("monthlyDeposit");
+
+const monthlyDepositRange =
+    document.getElementById("monthlyDepositRange");
+
+const rate =
+    document.getElementById("rate");
+
+const rateRange =
+    document.getElementById("rateRange");
+
+const years =
+    document.getElementById("years");
+
+const yearsRange =
+    document.getElementById("yearsRange");
+
+const depositedValue =
+    document.getElementById("depositedValue");
+
+const interestValue =
+    document.getElementById("interestValue");
+
+const maturityValue =
+    document.getElementById("maturityValue");
+
+const depositBar =
+    document.getElementById("depositBar");
+
+const interestBar =
+    document.getElementById("interestBar");
+
+const growthTable =
+    document.getElementById("growthTable");
+
+
+function formatINR(value){
+
+    return new Intl.NumberFormat("en-IN",{
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(value);
+
+}
+
+
+/*
+  RD calculation:
+
+  For each monthly deposit, interest is compounded
+  quarterly.
+
+  Maturity is calculated month-by-month so that
+  deposits made at different times receive the
+  appropriate amount of interest.
+*/
+
+function calculateRD(){
+
+    const monthly =
+        Number(monthlyDeposit.value);
+
+    const annualRate =
+        Number(rate.value) / 100;
+
+    const tenure =
+        Number(years.value);
+
+    if(
+        !Number.isFinite(monthly) ||
+        !Number.isFinite(annualRate) ||
+        !Number.isFinite(tenure) ||
+        monthly <= 0 ||
+        annualRate < 0 ||
+        tenure <= 0
+    ){
+
+        depositedValue.textContent = "₹0";
+        interestValue.textContent = "₹0";
+        maturityValue.textContent = "₹0";
+
+        depositBar.style.width = "50%";
+        interestBar.style.width = "50%";
+
+        growthTable.innerHTML = "";
+
+        return;
+    }
+
+
+    const months = tenure * 12;
+
+    /*
+      Indian bank-style RD approximation:
+      quarterly compounding.
+
+      Monthly deposits are accumulated using
+      the equivalent monthly growth factor derived
+      from the quarterly rate.
+    */
+
+    const quarterlyRate =
+        annualRate / 4;
+
+    const monthlyGrowth =
+        Math.pow(1 + quarterlyRate, 1 / 3);
+
+
+    let balance = 0;
+    let totalDeposited = 0;
+
+    const yearlyData = [];
+
+
+    for(let month = 1; month <= months; month++){
+
+        /*
+          Deposit is made at the beginning of the month.
+        */
+
+        balance += monthly;
+        totalDeposited += monthly;
+
+        balance *= monthlyGrowth;
+
+
+        if(month % 12 === 0){
+
+            yearlyData.push({
+                year: month / 12,
+                deposited: totalDeposited,
+                balance: balance
+            });
+
+        }
+
+    }
+
+
+    const maturity = balance;
+    const interest = maturity - totalDeposited;
+
+
+    depositedValue.textContent =
+        formatINR(totalDeposited);
+
+    interestValue.textContent =
+        formatINR(interest);
+
+    maturityValue.textContent =
+        formatINR(maturity);
+
+
+    const total =
+        totalDeposited + interest;
+
+    const depositPercent =
+        total > 0
+        ? (totalDeposited / total) * 100
+        : 100;
+
+    depositBar.style.width =
+        depositPercent + "%";
+
+    interestBar.style.width =
+        (100 - depositPercent) + "%";
+
+
+    growthTable.innerHTML = "";
+
+
+    let previousBalance = 0;
+
+
+    yearlyData.forEach(data => {
+
+        const yearlyInterest =
+            data.balance -
+            previousBalance -
+            (monthly * 12);
+
+        const row =
+            document.createElement("tr");
+
+        row.innerHTML = `
+            <td>Year ${data.year}</td>
+            <td>${formatINR(data.deposited)}</td>
+            <td>${formatINR(Math.max(0, yearlyInterest))}</td>
+            <td>${formatINR(data.balance)}</td>
+        `;
+
+        growthTable.appendChild(row);
+
+        previousBalance = data.balance;
+
+    });
+
+}
+
+
+function connect(numberInput, rangeInput){
+
+    rangeInput.addEventListener("input",()=>{
+
+        numberInput.value =
+            rangeInput.value;
+
+        calculateRD();
+
+    });
+
+
+    numberInput.addEventListener("input",()=>{
+
+        /*
+          Do not change the number field while typing.
+          This allows values such as 15000 to be entered
+          naturally without being forced back to minimum.
+        */
+
+        if(numberInput.value === "") return;
+
+        const value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        if(
+            value >= Number(rangeInput.min) &&
+            value <= Number(rangeInput.max)
+        ){
+
+            rangeInput.value = value;
+
+        }
+
+        calculateRD();
+
+    });
+
+
+    numberInput.addEventListener("blur",()=>{
+
+        if(numberInput.value === "") return;
+
+        let value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(Number(rangeInput.min),value)
+        );
+
+
+        numberInput.value = value;
+        rangeInput.value = value;
+
+        calculateRD();
+
+    });
+
+}
+
+
+connect(
+    monthlyDeposit,
+    monthlyDepositRange
+);
+
+connect(
+    rate,
+    rateRange
+);
+
+connect(
+    years,
+    yearsRange
+);
+
+calculateRD();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7th CPC Salary Calculator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+
+.container{
+    width:min(1100px,calc(100% - 32px));
+    margin:auto;
+    padding:32px 0 50px;
+}
+
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+
+h1{
+    margin:0 0 8px;
+    font-size:32px;
+}
+
+.subtitle{
+    margin:0 0 28px;
+    color:#716b78;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+
+.field{
+    margin-bottom:20px;
+}
+
+.field:last-child{
+    margin-bottom:0;
+}
+
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+
+input[type=number],
+select{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+
+input[type=number]:focus,
+select:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+
+input[type=range]{
+    width:100%;
+    accent-color:#6750a4;
+}
+
+.range-row{
+    margin-top:8px;
+}
+
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+
+.note{
+    margin-top:8px;
+    color:#817b88;
+    font-size:12px;
+    line-height:1.5;
+}
+
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+}
+
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+
+.section-title{
+    margin:0 0 16px;
+    font-size:18px;
+}
+
+.salary-bar{
+    height:34px;
+    width:100%;
+    display:flex;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+    margin-top:12px;
+}
+
+.basic-bar{background:#b8a8d9}
+.allowance-bar{background:#e7a6c5}
+
+.legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:18px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.basic-dot{background:#b8a8d9}
+.allowance-dot{background:#e7a6c5}
+
+.breakdown{
+    margin-top:20px;
+}
+
+.breakdown-row{
+    display:flex;
+    justify-content:space-between;
+    gap:20px;
+    padding:11px 0;
+    border-bottom:1px solid #eee9f0;
+    font-size:14px;
+}
+
+.breakdown-row:last-child{
+    border-bottom:0;
+}
+
+.breakdown-row strong{
+    font-weight:700;
+}
+
+.deduction{
+    color:#9b526d;
+}
+
+.total{
+    font-size:16px;
+    font-weight:750;
+}
+
+.table-card{
+    margin-top:20px;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+
+th:first-child,
+td:first-child{
+    text-align:left;
+}
+
+th{
+    color:#6d6675;
+    font-weight:650;
+}
+
+.info{
+    margin-top:20px;
+    padding:16px 18px;
+    border-radius:14px;
+    background:#f6f2fb;
+    color:#625c69;
+    font-size:13px;
+    line-height:1.6;
+}
+
+@media(max-width:760px){
+    .container{
+        width:min(100% - 20px,1100px);
+        padding-top:20px;
+    }
+
+    h1{
+        font-size:27px;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .results{
+        grid-template-columns:1fr;
+    }
+
+    .card{
+        padding:19px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a class="back" href="index.html">← All Calculators</a>
+
+<h1>7th CPC Salary Calculator</h1>
+
+<p class="subtitle">
+Calculate estimated monthly salary for Central Government employees
+under the 7th CPC pay structure.
+</p>
+
+
+<div class="grid">
+
+<!-- INPUTS -->
+
+<div class="card">
+
+<h2 class="section-title">Salary Details</h2>
+
+
+<div class="field">
+
+<label for="level">
+<span>Pay Level</span>
+<span>7th CPC</span>
+</label>
+
+<select id="level">
+
+<option value="1">Level 1</option>
+<option value="2">Level 2</option>
+<option value="3">Level 3</option>
+<option value="4">Level 4</option>
+<option value="5">Level 5</option>
+<option value="6">Level 6</option>
+<option value="7" selected>Level 7</option>
+<option value="8">Level 8</option>
+<option value="9">Level 9</option>
+<option value="10">Level 10</option>
+<option value="11">Level 11</option>
+<option value="12">Level 12</option>
+<option value="13">Level 13</option>
+<option value="13A">Level 13A</option>
+<option value="14">Level 14</option>
+<option value="15">Level 15</option>
+<option value="16">Level 16</option>
+<option value="17">Level 17</option>
+<option value="18">Level 18</option>
+
+</select>
+
+<div class="note">
+Select the Pay Matrix level applicable to your post.
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="basic">
+<span>Basic Pay</span>
+<span>₹</span>
+</label>
+
+<input
+    id="basic"
+    type="number"
+    value="44900"
+    min="18000"
+    max="250000"
+    step="100
+">
+
+<div class="range-row">
+
+<input
+    id="basicRange"
+    type="range"
+    min="18000"
+    max="250000"
+    step="100"
+    value="44900"
+>
+
+<div class="range-labels">
+<span>₹18,000</span>
+<span>₹2.5 Lakh</span>
+</div>
+
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="da">
+<span>Dearness Allowance</span>
+<span>%</span>
+</label>
+
+<input
+    id="da"
+    type="number"
+    value="60"
+    min="0"
+    max="100"
+    step="1"
+>
+
+<div class="range-row">
+
+<input
+    id="daRange"
+    type="range"
+    min="0"
+    max="100"
+    step="1"
+    value="60"
+>
+
+<div class="range-labels">
+<span>0%</span>
+<span>100%</span>
+</div>
+
+</div>
+
+<div class="note">
+Current default: 60% w.e.f. 01.01.2026. Keep editable for future revisions.
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="hraClass">
+<span>HRA City Class</span>
+<span></span>
+</label>
+
+<select id="hraClass">
+
+<option value="X">X City</option>
+<option value="Y" selected>Y City</option>
+<option value="Z">Z City</option>
+
+</select>
+
+</div>
+
+
+<div class="field">
+
+<label for="transport">
+<span>Transport Allowance</span>
+<span></span>
+</label>
+
+<select id="transport">
+
+<option value="higher" selected>
+Higher TPTA City
+</option>
+
+<option value="other">
+Other Place
+</option>
+
+<option value="none">
+Not Applicable
+</option>
+
+</select>
+
+</div>
+
+</div>
+
+
+<!-- SUMMARY -->
+
+<div class="card">
+
+<h2 class="section-title">Salary Summary</h2>
+
+
+<div class="results">
+
+<div class="result">
+
+<div class="title">
+Basic Pay
+</div>
+
+<div class="value" id="basicValue">
+₹0
+</div>
+
+</div>
+
+
+<div class="result">
+
+<div class="title">
+Gross Salary
+</div>
+
+<div class="value" id="grossValue">
+₹0
+</div>
+
+</div>
+
+
+<div class="result">
+
+<div class="title">
+Estimated In-hand
+</div>
+
+<div class="value" id="netValue">
+₹0
+</div>
+
+</div>
+
+</div>
+
+
+<div class="breakdown">
+
+<div class="breakdown-row">
+<span>Dearness Allowance</span>
+<strong id="daValue">₹0</strong>
+</div>
+
+<div class="breakdown-row">
+<span>HRA</span>
+<strong id="hraValue">₹0</strong>
+</div>
+
+<div class="breakdown-row">
+<span>Transport Allowance</span>
+<strong id="taValue">₹0</strong>
+</div>
+
+<div class="breakdown-row">
+<span>Other Allowances</span>
+<strong id="otherValue">₹0</strong>
+</div>
+
+<div class="breakdown-row total">
+<span>Gross Salary</span>
+<strong id="grossBreakdown">₹0</strong>
+</div>
+
+<div class="breakdown-row deduction">
+<span>NPS Contribution</span>
+<strong id="npsValue">₹0</strong>
+</div>
+
+<div class="breakdown-row deduction">
+<span>Other Deductions</span>
+<strong id="deductionValue">₹0</strong>
+</div>
+
+<div class="breakdown-row total">
+<span>Estimated In-hand</span>
+<strong id="netBreakdown">₹0</strong>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<!-- ALLOWANCES -->
+
+<div class="card table-card">
+
+<h2 class="section-title">
+Additional Salary Components
+</h2>
+
+<div class="field">
+
+<label for="otherAllowance">
+<span>Other Allowances</span>
+<span>₹ / month</span>
+</label>
+
+<input
+    id="otherAllowance"
+    type="number"
+    value="0"
+    min="0"
+    max="1000000"
+    step="100"
+>
+
+</div>
+
+
+<div class="field">
+
+<label for="otherDeduction">
+<span>Other Deductions</span>
+<span>₹ / month</span>
+</label>
+
+<input
+    id="otherDeduction"
+    type="number"
+    value="0"
+    min="0"
+    max="1000000"
+    step="100"
+>
+
+</div>
+
+
+<div class="field">
+
+<label for="npsEnabled">
+<span>NPS Employee Contribution</span>
+<span>10% of Basic + DA</span>
+</label>
+
+<select id="npsEnabled">
+
+<option value="yes" selected>
+Included
+</option>
+
+<option value="no">
+Not Included
+</option>
+
+</select>
+
+</div>
+
+</div>
+
+
+<!-- ANNUAL SUMMARY -->
+
+<div class="card table-card">
+
+<h2 class="section-title">
+Monthly & Annual Summary
+</h2>
+
+<div style="overflow-x:auto">
+
+<table>
+
+<thead>
+
+<tr>
+<th>Component</th>
+<th>Monthly</th>
+<th>Annual</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+<tr>
+<td>Basic Pay</td>
+<td id="tableBasic">₹0</td>
+<td id="annualBasic">₹0</td>
+</tr>
+
+<tr>
+<td>DA</td>
+<td id="tableDA">₹0</td>
+<td id="annualDA">₹0</td>
+</tr>
+
+<tr>
+<td>HRA</td>
+<td id="tableHRA">₹0</td>
+<td id="annualHRA">₹0</td>
+</tr>
+
+<tr>
+<td>Transport Allowance</td>
+<td id="tableTA">₹0</td>
+<td id="annualTA">₹0</td>
+</tr>
+
+<tr>
+<td>Other Allowances</td>
+<td id="tableOther">₹0</td>
+<td id="annualOther">₹0</td>
+</tr>
+
+<tr>
+<td><strong>Gross Salary</strong></td>
+<td id="tableGross">₹0</td>
+<td id="annualGross">₹0</td>
+</tr>
+
+<tr>
+<td>NPS Contribution</td>
+<td id="tableNPS">₹0</td>
+<td id="annualNPS">₹0</td>
+</tr>
+
+<tr>
+<td>Other Deductions</td>
+<td id="tableDeduction">₹0</td>
+<td id="annualDeduction">₹0</td>
+</tr>
+
+<tr>
+<td><strong>Estimated In-hand</strong></td>
+<td id="tableNet">₹0</td>
+<td id="annualNet">₹0</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<div class="info">
+
+<strong>Important:</strong>
+This is an estimated salary calculator. Actual salary depends on
+the employee's post, applicable allowances, posting, accommodation,
+NPS/UPS/other pension arrangements, recoveries, tax, CGHS and other
+department-specific deductions. Income tax/TDS is not automatically
+calculated here.
+
+HRA is calculated on Basic Pay. HRA rates automatically change
+according to the applicable DA slab: 24/16/8% up to 25% DA,
+27/18/9% above 25% and up to 50% DA, and 30/20/10% above
+50% DA for X/Y/Z cities respectively.
+
+Transport Allowance is calculated according to the selected
+Pay Level and posting category, with DA thereon.
+
+</div>
+
+</div>
+
+
+<script>
+
+const level =
+    document.getElementById("level");
+
+const basic =
+    document.getElementById("basic");
+
+const basicRange =
+    document.getElementById("basicRange");
+
+const da =
+    document.getElementById("da");
+
+const daRange =
+    document.getElementById("daRange");
+
+const hraClass =
+    document.getElementById("hraClass");
+
+const transport =
+    document.getElementById("transport");
+
+const otherAllowance =
+    document.getElementById("otherAllowance");
+
+const otherDeduction =
+    document.getElementById("otherDeduction");
+
+const npsEnabled =
+    document.getElementById("npsEnabled");
+
+
+const basicValue =
+    document.getElementById("basicValue");
+
+const daValue =
+    document.getElementById("daValue");
+
+const hraValue =
+    document.getElementById("hraValue");
+
+const taValue =
+    document.getElementById("taValue");
+
+const otherValue =
+    document.getElementById("otherValue");
+
+const grossValue =
+    document.getElementById("grossValue");
+
+const npsValue =
+    document.getElementById("npsValue");
+
+const deductionValue =
+    document.getElementById("deductionValue");
+
+const netValue =
+    document.getElementById("netValue");
+
+const grossBreakdown =
+    document.getElementById("grossBreakdown");
+
+const netBreakdown =
+    document.getElementById("netBreakdown");
+
+
+function formatINR(value){
+
+    return new Intl.NumberFormat("en-IN",{
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(Math.round(value));
+
+}
+
+
+function number(value){
+
+    const n = Number(value);
+
+    return Number.isFinite(n) ? n : 0;
+
+}
+
+
+function calculateSalary(){
+
+    const basicPay =
+        Math.max(0,number(basic.value));
+
+    const daRate =
+        Math.max(0,number(da.value)) / 100;
+
+    const other =
+        Math.max(0,number(otherAllowance.value));
+
+    const deductions =
+        Math.max(0,number(otherDeduction.value));
+
+
+    /*
+      DA
+    */
+
+    const daAmount =
+        basicPay * daRate;
+
+
+    /*
+      HRA rates linked to DA:
+
+      DA up to 25%:
+        X = 24%
+        Y = 16%
+        Z = 8%
+
+      DA above 25% and up to 50%:
+        X = 27%
+        Y = 18%
+        Z = 9%
+
+      DA above 50%:
+        X = 30%
+        Y = 20%
+        Z = 10%
+    */
+
+    let hraRate;
+
+    if(daRate <= 0.25){
+
+        if(hraClass.value === "X"){
+            hraRate = 0.24;
+        }else if(hraClass.value === "Y"){
+            hraRate = 0.16;
+        }else{
+            hraRate = 0.08;
+        }
+
+    }else if(daRate <= 0.50){
+
+        if(hraClass.value === "X"){
+            hraRate = 0.27;
+        }else if(hraClass.value === "Y"){
+            hraRate = 0.18;
+        }else{
+            hraRate = 0.09;
+        }
+
+    }else{
+
+        if(hraClass.value === "X"){
+            hraRate = 0.30;
+        }else if(hraClass.value === "Y"){
+            hraRate = 0.20;
+        }else{
+            hraRate = 0.10;
+        }
+
+    }
+
+    const hra =
+        basicPay * hraRate;
+
+
+    /*
+      Transport Allowance
+    */
+
+    let taBasic = 0;
+
+    const selectedLevel =
+        level.value;
+
+
+    if(transport.value !== "none"){
+
+        if(
+            selectedLevel === "1" ||
+            selectedLevel === "2"
+        ){
+
+            taBasic =
+                transport.value === "higher"
+                ? 1350
+                : 900;
+
+        }else if(
+            selectedLevel === "3" ||
+            selectedLevel === "4" ||
+            selectedLevel === "5" ||
+            selectedLevel === "6" ||
+            selectedLevel === "7" ||
+            selectedLevel === "8"
+        ){
+
+            taBasic =
+                transport.value === "higher"
+                ? 3600
+                : 1800;
+
+        }else{
+
+            taBasic =
+                transport.value === "higher"
+                ? 7200
+                : 3600;
+
+        }
+
+    }
+
+
+    /*
+      DA is applicable on Transport Allowance.
+    */
+
+    const ta =
+        taBasic * (1 + daRate);
+
+
+    /*
+      Gross
+    */
+
+    const gross =
+        basicPay +
+        daAmount +
+        hra +
+        ta +
+        other;
+
+
+    /*
+      NPS employee contribution:
+      10% of Basic + DA
+    */
+
+    const nps =
+        npsEnabled.value === "yes"
+        ? (basicPay + daAmount) * 0.10
+        : 0;
+
+
+    const totalDeductions =
+        nps + deductions;
+
+
+    const net =
+        Math.max(
+            0,
+            gross - totalDeductions
+        );
+
+
+    /*
+      Summary
+    */
+
+    basicValue.textContent =
+        formatINR(basicPay);
+
+    daValue.textContent =
+        formatINR(daAmount);
+
+    hraValue.textContent =
+        formatINR(hra);
+
+    taValue.textContent =
+        formatINR(ta);
+
+    otherValue.textContent =
+        formatINR(other);
+
+    grossValue.textContent =
+        formatINR(gross);
+
+    npsValue.textContent =
+        formatINR(nps);
+
+    deductionValue.textContent =
+        formatINR(deductions);
+
+    netValue.textContent =
+        formatINR(net);
+
+
+    grossBreakdown.textContent =
+        formatINR(gross);
+
+    netBreakdown.textContent =
+        formatINR(net);
+
+
+    /*
+      Table helper
+    */
+
+    function set(id,value){
+        document.getElementById(id).textContent =
+            formatINR(value);
+    }
+
+
+    set("tableBasic",basicPay);
+    set("annualBasic",basicPay * 12);
+
+    set("tableDA",daAmount);
+    set("annualDA",daAmount * 12);
+
+    set("tableHRA",hra);
+    set("annualHRA",hra * 12);
+
+    set("tableTA",ta);
+    set("annualTA",ta * 12);
+
+    set("tableOther",other);
+    set("annualOther",other * 12);
+
+    set("tableGross",gross);
+    set("annualGross",gross * 12);
+
+    set("tableNPS",nps);
+    set("annualNPS",nps * 12);
+
+    set("tableDeduction",deductions);
+    set("annualDeduction",deductions * 12);
+
+    set("tableNet",net);
+    set("annualNet",net * 12);
+
+}
+
+
+function connect(numberInput,rangeInput){
+
+    rangeInput.addEventListener("input",()=>{
+
+        numberInput.value =
+            rangeInput.value;
+
+        calculateSalary();
+
+    });
+
+
+    numberInput.addEventListener("input",()=>{
+
+        /*
+          Do not force the input while typing.
+        */
+
+        if(numberInput.value === ""){
+            calculateSalary();
+            return;
+        }
+
+        const value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        if(
+            value >= Number(rangeInput.min) &&
+            value <= Number(rangeInput.max)
+        ){
+
+            rangeInput.value = value;
+
+        }
+
+        calculateSalary();
+
+    });
+
+
+    numberInput.addEventListener("blur",()=>{
+
+        if(numberInput.value === "") return;
+
+        let value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(
+                Number(rangeInput.min),
+                value
+            )
+        );
+
+
+        numberInput.value = value;
+        rangeInput.value = value;
+
+        calculateSalary();
+
+    });
+
+}
+
+
+connect(
+    basic,
+    basicRange
+);
+
+connect(
+    da,
+    daRange
+);
+
+
+[
+    level,
+    hraClass,
+    transport,
+    otherAllowance,
+    otherDeduction,
+    npsEnabled
+].forEach(element => {
+
+    element.addEventListener(
+        "input",
+        calculateSalary
+    );
+
+    element.addEventListener(
+        "change",
+        calculateSalary
+    );
+
+});
+
+
+calculateSalary();
+
+</script>
+
+</body>
+</html>

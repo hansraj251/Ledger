@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>
+        Align Super Admin
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+
+</head>
+
+<body class="min-h-screen bg-slate-100">
+<script src="/js/components.js"></script>
+<script src="/js/api.js"></script>
+<script src="/js/align.js"></script>
+<script src="/js/notify.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/modal.js"></script>
+<script src="/js/superAdminAuth.js"></script>
+<script src="/js/superAdminLayout.js"></script>
+<script src="/js/superAdminAccounts.js"></script>
+
+<script>
+
+loadSuperAdminLayout({
+
+    title:
+        "Super Admin Accounts",
+
+    active:
+        "accounts"
+
+});
+
+document.getElementById(
+    "pageContent"
+).innerHTML = `
+
+<div
+    class="
+        rounded-2xl
+        border
+        border-slate-200
+        bg-gradient-to-br
+        from-white
+        via-purple-50/40
+        to-indigo-50/50
+        p-5
+        shadow-sm
+        sm:p-6
+    ">
+
+    <div
+        class="
+            mb-6
+            flex
+            flex-col
+            gap-4
+            md:flex-row
+            md:items-center
+            md:justify-between
+        ">
+
+
+        <button
+    id="addAccountBtn"
+    type="button"
+    class="
+        w-full
+        rounded-xl
+        bg-indigo-500
+        px-5
+        py-2.5
+        text-sm
+        font-semibold
+        text-white
+        shadow-sm
+        transition
+        hover:bg-indigo-700
+        md:w-auto
+    ">
+
+    + Add Super Admin
+
+</button>
+
+    </div>
+
+
+    <div
+        class="
+            overflow-x-auto
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white/80
+        ">
+
+        <table
+            class="min-w-[900px] w-full">
+
+            <thead
+                class="bg-slate-50/80">
+
+                <tr
+                    class="border-b border-slate-200">
+
+                    <th
+                        class="
+                            w-[240px]
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Name
+
+                    </th>
+
+                    <th
+                        class="
+                            w-[220px]
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Username
+
+                    </th>
+
+                    <th
+                        class="
+                            w-[140px]
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Status
+
+                    </th>
+
+                    <th
+                        class="
+                            w-[260px]
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-right
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Actions
+
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody
+                id="accountsTableBody">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<div
+    id="accountModal"
+    class="
+        fixed
+        inset-0
+        z-50
+        hidden
+        items-center
+        justify-center
+        overflow-y-auto
+        bg-slate-950/50
+        p-4
+        backdrop-blur-sm
+    ">
+
+    <div
+        class="
+            w-full
+            max-w-md
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+            shadow-2xl
+        ">
+
+        <div
+            class="
+                mb-5
+                flex
+                items-center
+                justify-between
+            ">
+
+            <h2
+                id="accountModalTitle"
+                class="
+                    text-xl
+                    font-semibold
+                    text-slate-800
+                ">
+
+                Add Super Admin
+
+            </h2>
+
+            <button
+                id="closeAccountModal"
+                class="
+                    flex
+                    h-9
+                    w-9
+                    items-center
+                    justify-center
+                    rounded-lg
+                    text-2xl
+                    leading-none
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                ">
+
+                &times;
+
+            </button>
+
+        </div>
+
+
+        <form
+            id="accountForm"
+            class="space-y-4">
+
+            <input
+                id="accountId"
+                type="hidden">
+
+
+            <div>
+
+                <label
+                    class="
+                        mb-1.5
+                        block
+                        text-sm
+                        font-medium
+                        text-slate-700
+                    ">
+
+                    Name
+
+                </label>
+
+                <input
+                    id="accountName"
+                    autocomplete="name"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        py-2.5
+                        text-slate-800
+                        outline-none
+                        transition
+                        focus:border-purple-500
+                        focus:ring-2
+                        focus:ring-purple-100
+                    ">
+
+            </div>
+
+
+            <div>
+
+                <label
+                    class="
+                        mb-1.5
+                        block
+                        text-sm
+                        font-medium
+                        text-slate-700
+                    ">
+
+                    Username
+
+                </label>
+
+                <input
+                    id="accountUsername"
+                    autocomplete="username"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        py-2.5
+                        text-slate-800
+                        outline-none
+                        transition
+                        focus:border-purple-500
+                        focus:ring-2
+                        focus:ring-purple-100
+                    ">
+
+            </div>
+
+
+            <div
+                id="passwordField">
+
+                <label
+                    class="
+                        mb-1.5
+                        block
+                        text-sm
+                        font-medium
+                        text-slate-700
+                    ">
+
+                    Password
+
+                </label>
+
+                <input
+                    id="accountPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        py-2.5
+                        text-slate-800
+                        outline-none
+                        transition
+                        focus:border-purple-500
+                        focus:ring-2
+                        focus:ring-purple-100
+                    ">
+
+            </div>
+
+
+            <div>
+
+                <label
+                    class="
+                        mb-1.5
+                        block
+                        text-sm
+                        font-medium
+                        text-slate-700
+                    ">
+
+                    Status
+
+                </label>
+
+                <select
+                    id="accountStatus"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        py-2.5
+                        text-slate-800
+                        outline-none
+                        transition
+                        focus:border-purple-500
+                        focus:ring-2
+                        focus:ring-purple-100
+                    ">
+
+                    <option value="active">
+                        Active
+                    </option>
+
+                    <option value="inactive">
+                        Inactive
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <div
+                class="
+                    flex
+                    flex-col-reverse
+                    gap-3
+                    pt-3
+                    md:flex-row
+                    md:justify-end
+                ">
+
+                <button
+                    type="button"
+                    id="cancelAccountBtn"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        px-4
+                        py-2.5
+                        font-medium
+                        text-slate-700
+                        transition
+                        hover:bg-slate-100
+                        md:w-auto
+                    ">
+
+                    Cancel
+
+                </button>
+
+                <button
+    id="saveAccountBtn"
+    type="submit"
+    class="
+        w-full
+        rounded-xl
+        bg-indigo-500
+        px-5
+        py-2.5
+        text-sm
+        font-semibold
+        text-white
+        shadow-sm
+        transition
+        hover:bg-indigo-700
+        md:w-auto
+    ">
+
+    Save
+
+</button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<div
+    id="passwordModal"
+    class="
+        fixed
+        inset-0
+        z-50
+        hidden
+        items-center
+        justify-center
+        bg-slate-950/50
+        p-4
+        backdrop-blur-sm
+    ">
+
+    <div
+        class="
+            w-full
+            max-w-md
+            rounded-2xl
+            border
+            border-slate-200
+            bg-white
+            p-6
+            shadow-2xl
+        ">
+
+        <div
+            class="
+                mb-5
+                flex
+                items-center
+                justify-between
+            ">
+
+            <h2
+                class="
+                    text-xl
+                    font-semibold
+                    text-slate-800
+                ">
+
+                Change Password
+
+            </h2>
+
+            <button
+                id="closePasswordModal"
+                class="
+                    flex
+                    h-9
+                    w-9
+                    items-center
+                    justify-center
+                    rounded-lg
+                    text-2xl
+                    leading-none
+                    text-slate-400
+                    transition
+                    hover:bg-slate-100
+                    hover:text-slate-700
+                ">
+
+                &times;
+
+            </button>
+
+        </div>
+
+
+        <form
+            id="passwordForm">
+
+            <input
+                id="passwordAccountId"
+                type="hidden">
+
+
+            <div
+                class="mb-4">
+
+                <label
+                    class="
+                        mb-1.5
+                        block
+                        text-sm
+                        font-medium
+                        text-slate-700
+                    ">
+
+                    New Password
+
+                </label>
+
+                <input
+                    id="newPassword"
+                    type="password"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        bg-white
+                        px-3
+                        py-2.5
+                        text-slate-800
+                        outline-none
+                        transition
+                        focus:border-purple-500
+                        focus:ring-2
+                        focus:ring-purple-100
+                    ">
+
+            </div>
+
+
+            <div
+                class="
+                    flex
+                    flex-col-reverse
+                    gap-3
+                    pt-3
+                    md:flex-row
+                    md:justify-end
+                ">
+
+                <button
+                    type="button"
+                    id="cancelPasswordBtn"
+                    class="
+                        w-full
+                        rounded-xl
+                        border
+                        border-slate-300
+                        px-4
+                        py-2.5
+                        font-medium
+                        text-slate-700
+                        transition
+                        hover:bg-slate-100
+                        md:w-auto
+                    ">
+
+                    Cancel
+
+                </button>
+
+                <button
+                    type="submit"
+                    class="
+        w-full
+        rounded-xl
+        bg-indigo-500
+        px-5
+        py-2.5
+        text-sm
+        font-semibold
+        text-white
+        shadow-sm
+        transition
+        hover:bg-indigo-700
+        md:w-auto
+    ">
+
+                    Update
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+<br>
+<div
+    class="
+        mt-6
+        rounded-2xl
+        border
+        border-slate-200
+        bg-gradient-to-br
+        from-white
+        via-purple-50/40
+        to-indigo-50/50
+        p-5
+        shadow-sm
+        sm:p-6
+    ">
+
+    <div
+        class="mb-5">
+
+        <div
+            class="
+                text-lg
+                font-semibold
+                text-slate-800
+            ">
+
+            POS Version
+
+        </div>
+
+        <div
+            class="
+                mt-1
+                text-sm
+                text-slate-500
+            ">
+
+            Set the latest Align POS version available.
+
+        </div>
+
+    </div>
+
+
+    <div
+        class="
+            flex
+            flex-col
+            gap-3
+            sm:flex-row
+            sm:items-end
+        ">
+
+        <div
+            class="w-full sm:max-w-xs">
+
+            <label
+                for="latestPosVersion"
+                class="
+                    mb-1.5
+                    block
+                    text-sm
+                    font-medium
+                    text-slate-700
+                ">
+
+                Latest Version
+
+            </label>
+
+            <input
+                id="latestPosVersion"
+                type="text"
+                placeholder="1.0.0"
+                class="
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-300
+                    bg-white
+                    p-3
+                    text-slate-800
+                    outline-none
+                    transition
+                    focus:border-indigo-500
+                    focus:ring-2
+                    focus:ring-indigo-100
+                ">
+
+        </div>
+
+
+        <button
+            id="savePosVersionBtn"
+            onclick="saveLatestPosVersion()"
+            class="
+                rounded-xl
+                bg-indigo-500
+                px-5
+                py-3
+                text-sm
+                font-semibold
+                text-white
+                shadow-sm
+                transition
+                hover:bg-indigo-700
+            ">
+
+            Save Version
+
+        </button>
+
+    </div>
+
+</div>
+
+`;
+
+initializeSuperAdminAccounts();
+
+</script>
+
+</body>
+
+</html>

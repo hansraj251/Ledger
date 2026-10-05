@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>Restaurants</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+
+</head>
+
+<body class="min-h-screen bg-slate-100">
+
+<script src="/js/components.js"></script>
+<script src="/js/superAdminAuth.js"></script>
+<script src="/js/superAdminLayout.js"></script>
+<script src="/js/notify.js"></script>
+<script src="/js/toast.js"></script>
+<script src="/js/superAdminRestaurants.js"></script>
+
+<script>
+
+loadSuperAdminLayout({
+
+    title: "Users",
+
+    active: "restaurants"
+
+});
+
+document.getElementById("pageContent").innerHTML = `
+
+<div
+    class="
+        overflow-hidden
+        rounded-2xl
+        border
+        border-slate-200
+        bg-white
+        shadow-sm
+    ">
+
+
+    <div
+        class="w-full overflow-x-auto">
+
+        <table
+            class="min-w-[1100px] w-full">
+
+            <thead
+                class="bg-slate-50">
+
+                <tr
+                    class="border-b border-slate-200">
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Type
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Code
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Name
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Owner
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Plan
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Status
+
+                    </th>
+
+                    <th
+                        class="
+                            whitespace-nowrap
+                            px-5
+                            py-3
+                            text-left
+                            text-xs
+                            font-semibold
+                            uppercase
+                            tracking-wide
+                            text-slate-500
+                        ">
+
+                        Action
+
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody
+                id="restaurantTable">
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+`;
+
+loadRestaurants();
+
+</script>
+
+</body>
+
+</html>

@@ -1,0 +1,26 @@
+node_modules/
+.env
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+
+# RSA Keys
+keys/private.pem
+
+# Logs
+logs/
+
+# macOS
+.DS_Store
+
+# Runtime uploads
+uploads/
+
+# Database backups
+backups/
+database/*backup*.db
+database/*before*.db
+database/align.db

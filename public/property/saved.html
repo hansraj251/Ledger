@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Saved Properties - Align Properties</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css"
+    >
+
+    <style>
+
+        :root {
+            --align-pink: #c13bbd;
+            --align-purple: #7b3fc6;
+            --align-blue: #2454c7;
+        }
+
+        .align-gradient-text {
+
+            background:
+                linear-gradient(
+                    90deg,
+                    var(--align-pink),
+                    var(--align-purple),
+                    var(--align-blue)
+                );
+
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            color: transparent;
+
+        }
+
+        .property-header {
+
+            width: 100%;
+
+            border-bottom:
+                1px solid #e0e7ff;
+
+            background:
+                rgba(255, 255, 255, 0.97);
+
+            box-shadow:
+                0 1px 3px
+                rgba(0, 0, 0, 0.08);
+
+        }
+
+        .property-header-inner {
+
+            width: 100%;
+            max-width: 1280px;
+
+            min-height: 72px;
+
+            margin: 0 auto;
+
+            padding:
+                12px 16px;
+
+            display: flex;
+
+            align-items: center;
+
+            justify-content: space-between;
+
+            gap: 16px;
+
+        }
+
+        .property-logo {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            text-decoration: none;
+
+            min-width: 0;
+
+        }
+
+        .property-logo img {
+
+            width: 40px;
+            height: 40px;
+
+            object-fit: contain;
+
+            flex-shrink: 0;
+
+        }
+
+        .property-logo-text {
+
+            font-size: 24px;
+
+            font-weight: 700;
+
+            white-space: nowrap;
+
+        }
+
+        .property-header-actions {
+
+            display: flex;
+
+            align-items: center;
+
+            gap: 10px;
+
+            flex-shrink: 0;
+
+        }
+
+        .property-header-button {
+
+            display: inline-flex;
+
+            align-items: center;
+
+            justify-content: center;
+
+            padding:
+                10px 16px;
+
+            border-radius: 10px;
+
+            border:
+                1px solid #dbe1f0;
+
+            background: #ffffff;
+
+            color: #475569;
+
+            font-size: 14px;
+
+            font-weight: 600;
+
+            text-decoration: none;
+
+            cursor: pointer;
+
+        }
+
+        .property-header-button:hover {
+
+            background: #f8fafc;
+
+            border-color: #c7d2fe;
+
+        }
+
+        .saved-card {
+
+            overflow: hidden;
+
+            border:
+                1px solid #e2e8f0;
+
+            border-radius: 18px;
+
+            background: #ffffff;
+
+            box-shadow:
+                0 8px 24px
+                rgba(15, 23, 42, 0.06);
+
+        }
+
+        .saved-image {
+
+            width: 100%;
+
+            height: 220px;
+
+            object-fit: cover;
+
+            background: #f1f5f9;
+
+        }
+
+        .saved-remove-button {
+
+            border:
+                1px solid #fecdd3;
+
+            color: #be123c;
+
+            background: #fff1f2;
+
+        }
+
+        .saved-remove-button:hover {
+
+            background: #ffe4e6;
+
+        }
+
+        @media (max-width: 639px) {
+
+            .property-logo-text {
+                font-size: 19px;
+            }
+
+            .property-header-button {
+                padding:
+                    9px 12px;
+            }
+
+            .saved-image {
+                height: 200px;
+            }
+
+        }
+
+        @media (max-width: 480px) {
+
+            .property-header-inner {
+                gap: 8px;
+            }
+
+            .property-logo {
+                gap: 7px;
+            }
+
+            .property-logo img {
+                width: 34px;
+                height: 34px;
+            }
+
+            .property-logo-text {
+                font-size: 17px;
+            }
+
+            .property-header-actions {
+                gap: 6px;
+            }
+
+            .property-header-button {
+                padding:
+                    8px 10px;
+
+                font-size: 13px;
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body
+    class="
+        min-h-screen
+        bg-slate-100
+        text-slate-800
+    "
+>
+
+
+    <!-- Header -->
+
+    <header
+        class="
+            property-header
+            sticky
+            top-0
+            z-50
+        "
+    >
+
+        <div
+            class="property-header-inner"
+        >
+
+            <a
+                href="/property/dashboard.html"
+                class="property-logo"
+            >
+
+                <img
+                    src="/images/logo.png"
+                    alt="AlignOS"
+                >
+
+                <span
+                    class="
+                        property-logo-text
+                        align-gradient-text
+                    "
+                >
+                    Align
+                </span>
+
+            </a>
+
+
+            <div
+                class="property-header-actions"
+            >
+
+                <a
+                    href="/property/profile.html"
+                    class="property-header-button"
+                >
+                    Profile
+                </a>
+
+                <button
+                    id="logoutBtn"
+                    type="button"
+                    class="property-header-button"
+                >
+                    Logout
+                </button>
+
+            </div>
+
+        </div>
+
+    </header>
+
+
+    <!-- Main -->
+
+    <main
+        class="
+            mx-auto
+            w-full
+            max-w-7xl
+            px-4
+            py-8
+            sm:px-6
+            lg:px-8
+        "
+    >
+
+        <div
+            class="
+                mb-8
+                flex
+                flex-col
+                gap-3
+                sm:flex-row
+                sm:items-end
+                sm:justify-between
+            "
+        >
+
+            <div>
+
+                <h1
+                    class="
+                        text-3xl
+                        font-bold
+                        align-gradient-text
+                    "
+                >
+                    Saved Properties
+                </h1>
+
+                <p
+                    class="
+                        mt-2
+                        text-sm
+                        text-slate-500
+                    "
+                >
+                    Properties you saved to view later.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <!-- Loading -->
+
+        <div
+            id="savedLoading"
+            class="
+                rounded-2xl
+                bg-white
+                p-8
+                text-center
+                text-sm
+                text-slate-500
+                shadow-sm
+            "
+        >
+            Loading saved properties...
+        </div>
+
+
+        <!-- Error -->
+
+        <div
+            id="savedError"
+            class="
+                hidden
+                rounded-xl
+                border
+                border-red-200
+                bg-red-50
+                p-4
+                text-sm
+                text-red-700
+            "
+        ></div>
+
+
+        <!-- Empty -->
+
+        <div
+            id="savedEmpty"
+            class="
+                hidden
+                rounded-2xl
+                border
+                border-slate-200
+                bg-white
+                p-10
+                text-center
+                shadow-sm
+            "
+        >
+
+            <div
+                class="text-5xl"
+            >
+                ♡
+            </div>
+
+            <h2
+                class="
+                    mt-4
+                    text-xl
+                    font-bold
+                    text-slate-800
+                "
+            >
+                No saved properties
+            </h2>
+
+            <p
+                class="
+                    mt-2
+                    text-sm
+                    text-slate-500
+                "
+            >
+                Properties you save will appear here.
+            </p>
+
+            <a
+                href="/property/dashboard.html"
+                class="
+                    mt-6
+                    inline-flex
+                    rounded-xl
+                    px-5
+                    py-3
+                    text-sm
+                    font-semibold
+                    text-white
+                "
+                style="
+                    background:
+                        linear-gradient(
+                            90deg,
+                            #c13bbd,
+                            #7b3fc6,
+                            #2454c7
+                        );
+                "
+            >
+                Browse Properties
+            </a>
+
+        </div>
+
+
+        <!-- Saved Properties -->
+
+        <div
+            id="savedContainer"
+            class="
+                hidden
+                grid
+                grid-cols-1
+                gap-6
+                md:grid-cols-2
+                xl:grid-cols-3
+            "
+        ></div>
+
+    </main>
+
+
+    <!-- Modal -->
+
+    <div id="modalContainer"></div>
+
+
+    <script src="/js/api.js"></script>
+
+    <script src="/js/notify.js"></script>
+
+    <script src="/js/toast.js"></script>
+
+    <script src="/js/components.js"></script>
+
+    <script src="/js/modal.js"></script>
+
+    <script>
+
+        loadComponent(
+            "modalContainer",
+            "/components/modal.html"
+        );
+
+    </script>
+
+    <script
+        src="/property/js/saved.js"
+    ></script>
+
+
+</body>
+
+</html>

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPF Calculator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+
+.container{
+    width:min(1050px,calc(100% - 32px));
+    margin:auto;
+    padding:32px 0 50px;
+}
+
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+
+h1{
+    margin:0 0 8px;
+    font-size:32px;
+}
+
+.subtitle{
+    margin:0 0 28px;
+    color:#716b78;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+
+.field{
+    margin-bottom:22px;
+}
+
+.field:last-child{
+    margin-bottom:0;
+}
+
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+
+input[type=number]{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+
+input[type=number]:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+
+input[type=range]{
+    width:100%;
+    accent-color:#6750a4;
+}
+
+.range-row{
+    margin-top:8px;
+}
+
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+
+.note{
+    margin-top:9px;
+    font-size:12px;
+    line-height:1.5;
+    color:#817b88;
+}
+
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+
+.chart-title{
+    margin:0 0 14px;
+    font-size:18px;
+}
+
+.bar{
+    height:34px;
+    width:100%;
+    display:flex;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+}
+
+.invested-bar{
+    background:#b8a8d9;
+}
+
+.interest-bar{
+    background:#e7a6c5;
+}
+
+.legend{
+    display:flex;
+    gap:22px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.invested-dot{
+    background:#b8a8d9;
+}
+
+.interest-dot{
+    background:#e7a6c5;
+}
+
+.table-card{
+    margin-top:20px;
+}
+
+.table-wrap{
+    overflow-x:auto;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:650px;
+}
+
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+
+th:first-child,
+td:first-child{
+    text-align:left;
+}
+
+th{
+    color:#6d6675;
+    font-weight:650;
+}
+
+.info{
+    margin-top:20px;
+    padding:16px 18px;
+    border-radius:14px;
+    background:#f6f2fb;
+    color:#625c69;
+    font-size:13px;
+    line-height:1.6;
+}
+
+@media(max-width:760px){
+    .container{
+        width:min(100% - 20px,1050px);
+        padding-top:20px;
+    }
+
+    h1{
+        font-size:27px;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .results{
+        grid-template-columns:1fr;
+    }
+
+    .card{
+        padding:19px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a class="back" href="index.html">← All Calculators</a>
+
+<h1>PPF Calculator</h1>
+<p class="subtitle">
+Calculate your Public Provident Fund maturity amount and interest earned.
+</p>
+
+<div class="grid">
+
+<div class="card">
+
+<div class="field">
+
+<label for="annualDeposit">
+<span>Annual Investment</span>
+<span>₹</span>
+</label>
+
+<input
+    id="annualDeposit"
+    type="number"
+    value="150000"
+    min="500"
+    max="150000"
+    step="50"
+>
+
+<div class="range-row">
+
+<input
+    id="annualDepositRange"
+    type="range"
+    min="500"
+    max="150000"
+    step="50"
+    value="150000"
+>
+
+<div class="range-labels">
+<span>₹500</span>
+<span>₹1.5 Lakh</span>
+</div>
+
+</div>
+
+<div class="note">
+PPF allows deposits from ₹500 up to ₹1,50,000 in a financial year.
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="rate">
+<span>Interest Rate</span>
+<span>% p.a.</span>
+</label>
+
+<input
+    id="rate"
+    type="number"
+    value="7.1"
+    min="0"
+    max="15"
+    step="0.1"
+>
+
+<div class="range-row">
+
+<input
+    id="rateRange"
+    type="range"
+    min="0"
+    max="15"
+    step="0.1"
+    value="7.1"
+>
+
+<div class="range-labels">
+<span>0%</span>
+<span>15%</span>
+</div>
+
+</div>
+
+<div class="note">
+Default rate: 7.1% p.a. Change it if the notified PPF rate changes.
+</div>
+
+</div>
+
+
+<div class="field">
+
+<label for="years">
+<span>Investment Period</span>
+<span>Years</span>
+</label>
+
+<input
+    id="years"
+    type="number"
+    value="15"
+    min="15"
+    max="50"
+    step="1"
+>
+
+<div class="range-row">
+
+<input
+    id="yearsRange"
+    type="range"
+    min="15"
+    max="50"
+    step="1"
+    value="15"
+>
+
+<div class="range-labels">
+<span>15 Years</span>
+<span>50 Years</span>
+</div>
+
+</div>
+
+<div class="note">
+Original PPF maturity period is 15 years. Longer periods represent extensions.
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2 class="chart-title">PPF Summary</h2>
+
+<div class="results">
+
+<div class="result">
+<div class="title">Total Investment</div>
+<div class="value" id="investmentValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Interest Earned</div>
+<div class="value" id="interestValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Maturity Value</div>
+<div class="value" id="maturityValue">₹0</div>
+</div>
+
+</div>
+
+
+<div style="margin-top:28px">
+
+<h2 class="chart-title">Investment vs Interest</h2>
+
+<div class="bar">
+
+<div
+    id="investmentBar"
+    class="invested-bar"
+></div>
+
+<div
+    id="interestBar"
+    class="interest-bar"
+></div>
+
+</div>
+
+<div class="legend">
+
+<span>
+<i class="dot invested-dot"></i>
+Investment
+</span>
+
+<span>
+<i class="dot interest-dot"></i>
+Interest
+</span>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card table-card">
+
+<h2 class="chart-title">Year-wise Growth</h2>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+<th>Year</th>
+<th>Annual Deposit</th>
+<th>Interest Earned</th>
+<th>Closing Balance</th>
+</tr>
+
+</thead>
+
+<tbody id="growthTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+
+<div class="info">
+
+<strong>Calculation assumption:</strong>
+The annual contribution is assumed to be deposited at the
+beginning of each financial year. Actual PPF interest depends
+on the timing of deposits because interest is calculated on
+the lowest balance between the 5th day and the end of the
+month and credited annually.
+
+</div>
+
+</div>
+
+
+<script>
+
+const annualDeposit =
+    document.getElementById("annualDeposit");
+
+const annualDepositRange =
+    document.getElementById("annualDepositRange");
+
+const rate =
+    document.getElementById("rate");
+
+const rateRange =
+    document.getElementById("rateRange");
+
+const years =
+    document.getElementById("years");
+
+const yearsRange =
+    document.getElementById("yearsRange");
+
+const investmentValue =
+    document.getElementById("investmentValue");
+
+const interestValue =
+    document.getElementById("interestValue");
+
+const maturityValue =
+    document.getElementById("maturityValue");
+
+const investmentBar =
+    document.getElementById("investmentBar");
+
+const interestBar =
+    document.getElementById("interestBar");
+
+const growthTable =
+    document.getElementById("growthTable");
+
+
+function formatINR(value){
+
+    return new Intl.NumberFormat("en-IN",{
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(value);
+
+}
+
+
+function calculatePPF(){
+
+    const yearlyDeposit =
+        Number(annualDeposit.value);
+
+    const annualRate =
+        Number(rate.value) / 100;
+
+    const tenure =
+        Number(years.value);
+
+
+    if(
+        !Number.isFinite(yearlyDeposit) ||
+        !Number.isFinite(annualRate) ||
+        !Number.isFinite(tenure) ||
+        yearlyDeposit <= 0 ||
+        annualRate < 0 ||
+        tenure <= 0
+    ){
+
+        investmentValue.textContent = "₹0";
+        interestValue.textContent = "₹0";
+        maturityValue.textContent = "₹0";
+
+        investmentBar.style.width = "50%";
+        interestBar.style.width = "50%";
+
+        growthTable.innerHTML = "";
+
+        return;
+
+    }
+
+
+    /*
+      PPF planning model:
+
+      Contribution is assumed at the beginning
+      of every financial year.
+
+      Balance = (Previous Balance + Deposit)
+                × (1 + annual rate)
+    */
+
+    let balance = 0;
+
+    let totalInvestment = 0;
+
+
+    const yearlyData = [];
+
+
+    for(
+        let year = 1;
+        year <= tenure;
+        year++
+    ){
+
+        const openingBalance = balance;
+
+        balance += yearlyDeposit;
+
+        totalInvestment += yearlyDeposit;
+
+        const interest =
+            balance * annualRate;
+
+        balance += interest;
+
+
+        yearlyData.push({
+            year,
+            deposit: yearlyDeposit,
+            interest,
+            closing: balance
+        });
+
+    }
+
+
+    const maturity = balance;
+
+    const totalInterest =
+        maturity - totalInvestment;
+
+
+    investmentValue.textContent =
+        formatINR(totalInvestment);
+
+    interestValue.textContent =
+        formatINR(totalInterest);
+
+    maturityValue.textContent =
+        formatINR(maturity);
+
+
+    const total =
+        totalInvestment + totalInterest;
+
+    const investmentPercent =
+        total > 0
+        ? (totalInvestment / total) * 100
+        : 100;
+
+
+    investmentBar.style.width =
+        investmentPercent + "%";
+
+    interestBar.style.width =
+        (100 - investmentPercent) + "%";
+
+
+    growthTable.innerHTML = "";
+
+
+    yearlyData.forEach(data => {
+
+        const row =
+            document.createElement("tr");
+
+        row.innerHTML = `
+            <td>Year ${data.year}</td>
+            <td>${formatINR(data.deposit)}</td>
+            <td>${formatINR(data.interest)}</td>
+            <td>${formatINR(data.closing)}</td>
+        `;
+
+        growthTable.appendChild(row);
+
+    });
+
+}
+
+
+function connect(numberInput, rangeInput){
+
+    rangeInput.addEventListener("input",()=>{
+
+        numberInput.value =
+            rangeInput.value;
+
+        calculatePPF();
+
+    });
+
+
+    numberInput.addEventListener("input",()=>{
+
+        /*
+          Do not force the value while the user is typing.
+          This makes deletion and normal number entry easy.
+        */
+
+        if(numberInput.value === "") return;
+
+        const value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        if(
+            value >= Number(rangeInput.min) &&
+            value <= Number(rangeInput.max)
+        ){
+
+            rangeInput.value = value;
+
+        }
+
+        calculatePPF();
+
+    });
+
+
+    numberInput.addEventListener("blur",()=>{
+
+        if(numberInput.value === "") return;
+
+        let value =
+            Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(
+                Number(rangeInput.min),
+                value
+            )
+        );
+
+
+        numberInput.value = value;
+        rangeInput.value = value;
+
+        calculatePPF();
+
+    });
+
+}
+
+
+connect(
+    annualDeposit,
+    annualDepositRange
+);
+
+connect(
+    rate,
+    rateRange
+);
+
+connect(
+    years,
+    yearsRange
+);
+
+
+calculatePPF();
+
+</script>
+
+</body>
+</html>

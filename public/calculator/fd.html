@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FD Calculator</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    background:#f5f3f8;
+    color:#24202b;
+}
+
+.container{
+    width:min(1050px,calc(100% - 32px));
+    margin:auto;
+    padding:32px 0 50px;
+}
+
+.back{
+    display:inline-block;
+    margin-bottom:18px;
+    color:#6750a4;
+    text-decoration:none;
+    font-weight:600;
+}
+
+h1{
+    margin:0 0 8px;
+    font-size:32px;
+}
+
+.subtitle{
+    margin:0 0 28px;
+    color:#716b78;
+}
+
+.grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:20px;
+}
+
+.card{
+    background:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 5px 24px rgba(50,40,70,.07);
+}
+
+.field{
+    margin-bottom:22px;
+}
+
+.field:last-child{
+    margin-bottom:0;
+}
+
+label{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:9px;
+    font-weight:650;
+}
+
+input[type=number],
+select{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #d9d4df;
+    border-radius:12px;
+    font-size:16px;
+    outline:none;
+    background:#fff;
+}
+
+input[type=number]:focus,
+select:focus{
+    border-color:#6750a4;
+    box-shadow:0 0 0 3px rgba(103,80,164,.12);
+}
+
+input[type=range]{
+    width:100%;
+    accent-color:#6750a4;
+}
+
+.range-row{
+    margin-top:8px;
+}
+
+.range-labels{
+    display:flex;
+    justify-content:space-between;
+    color:#817b88;
+    font-size:12px;
+}
+
+.results{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:12px;
+    margin-top:22px;
+}
+
+.result{
+    padding:18px;
+    border-radius:15px;
+    background:#f6f2fb;
+}
+
+.result .title{
+    color:#756f7d;
+    font-size:13px;
+    margin-bottom:7px;
+}
+
+.result .value{
+    font-size:21px;
+    font-weight:750;
+}
+
+.chart-title{
+    margin:0 0 14px;
+    font-size:18px;
+}
+
+.bar{
+    height:34px;
+    width:100%;
+    display:flex;
+    overflow:hidden;
+    border-radius:10px;
+    background:#eee;
+}
+
+.deposit-bar{
+    background:#b8a8d9;
+}
+
+.interest-bar{
+    background:#e7a6c5;
+}
+
+.legend{
+    display:flex;
+    gap:22px;
+    margin-top:12px;
+    font-size:13px;
+    color:#655f6c;
+}
+
+.legend span{
+    display:flex;
+    align-items:center;
+    gap:7px;
+}
+
+.dot{
+    width:10px;
+    height:10px;
+    border-radius:50%;
+    display:inline-block;
+}
+
+.deposit-dot{
+    background:#b8a8d9;
+}
+
+.interest-dot{
+    background:#e7a6c5;
+}
+
+.table-card{
+    margin-top:20px;
+}
+
+.table-wrap{
+    overflow-x:auto;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    min-width:650px;
+}
+
+th,td{
+    padding:13px 12px;
+    border-bottom:1px solid #eee9f0;
+    text-align:right;
+    font-size:14px;
+}
+
+th:first-child,
+td:first-child{
+    text-align:left;
+}
+
+th{
+    color:#6d6675;
+    font-weight:650;
+}
+
+@media(max-width:760px){
+    .container{
+        width:min(100% - 20px,1050px);
+        padding-top:20px;
+    }
+
+    h1{
+        font-size:27px;
+    }
+
+    .grid{
+        grid-template-columns:1fr;
+    }
+
+    .results{
+        grid-template-columns:1fr;
+    }
+
+    .card{
+        padding:19px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a class="back" href="index.html">← All Calculators</a>
+
+<h1>FD Calculator</h1>
+<p class="subtitle">Calculate the maturity amount and interest earned on your fixed deposit.</p>
+
+<div class="grid">
+
+<div class="card">
+
+<div class="field">
+<label for="principal">
+<span>Deposit Amount</span>
+<span>₹</span>
+</label>
+
+<input
+    id="principal"
+    type="number"
+    value="100000"
+    min="1000"
+    max="100000000"
+    step="1000"
+>
+
+<div class="range-row">
+<input
+    id="principalRange"
+    type="range"
+    min="1000"
+    max="100000000"
+    step="1000"
+    value="100000"
+>
+<div class="range-labels">
+<span>₹1,000</span>
+<span>₹10 Cr</span>
+</div>
+</div>
+</div>
+
+
+<div class="field">
+<label for="rate">
+<span>Interest Rate</span>
+<span>% p.a.</span>
+</label>
+
+<input
+    id="rate"
+    type="number"
+    value="7"
+    min="0"
+    max="20"
+    step="0.1"
+>
+
+<div class="range-row">
+<input
+    id="rateRange"
+    type="range"
+    min="0"
+    max="20"
+    step="0.1"
+    value="7"
+>
+<div class="range-labels">
+<span>0%</span>
+<span>20%</span>
+</div>
+</div>
+</div>
+
+
+<div class="field">
+<label for="years">
+<span>Tenure</span>
+<span>Years</span>
+</label>
+
+<input
+    id="years"
+    type="number"
+    value="5"
+    min="1"
+    max="20"
+    step="1"
+>
+
+<div class="range-row">
+<input
+    id="yearsRange"
+    type="range"
+    min="1"
+    max="20"
+    step="1"
+    value="5"
+>
+<div class="range-labels">
+<span>1 Year</span>
+<span>20 Years</span>
+</div>
+</div>
+</div>
+
+
+<div class="field">
+<label for="frequency">
+<span>Compounding Frequency</span>
+<span></span>
+</label>
+
+<select id="frequency">
+<option value="4">Quarterly</option>
+<option value="12">Monthly</option>
+<option value="2">Half-Yearly</option>
+<option value="1">Yearly</option>
+</select>
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2 class="chart-title">FD Summary</h2>
+
+<div class="results">
+
+<div class="result">
+<div class="title">Principal Amount</div>
+<div class="value" id="principalValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Interest Earned</div>
+<div class="value" id="interestValue">₹0</div>
+</div>
+
+<div class="result">
+<div class="title">Maturity Amount</div>
+<div class="value" id="maturityValue">₹0</div>
+</div>
+
+</div>
+
+
+<div style="margin-top:28px">
+
+<h2 class="chart-title">Principal vs Interest</h2>
+
+<div class="bar">
+<div id="principalBar" class="deposit-bar"></div>
+<div id="interestBar" class="interest-bar"></div>
+</div>
+
+<div class="legend">
+<span>
+<i class="dot deposit-dot"></i>
+Principal
+</span>
+
+<span>
+<i class="dot interest-dot"></i>
+Interest
+</span>
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+<div class="card table-card">
+
+<h2 class="chart-title">Year-wise Growth</h2>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Year</th>
+<th>Opening Balance</th>
+<th>Interest Earned</th>
+<th>Closing Balance</th>
+</tr>
+</thead>
+
+<tbody id="growthTable"></tbody>
+
+</table>
+
+</div>
+
+</div>
+
+</div>
+
+
+<script>
+
+const principal = document.getElementById("principal");
+const principalRange = document.getElementById("principalRange");
+
+const rate = document.getElementById("rate");
+const rateRange = document.getElementById("rateRange");
+
+const years = document.getElementById("years");
+const yearsRange = document.getElementById("yearsRange");
+
+const frequency = document.getElementById("frequency");
+
+const principalValue = document.getElementById("principalValue");
+const interestValue = document.getElementById("interestValue");
+const maturityValue = document.getElementById("maturityValue");
+
+const principalBar = document.getElementById("principalBar");
+const interestBar = document.getElementById("interestBar");
+
+const growthTable = document.getElementById("growthTable");
+
+
+function formatINR(value){
+
+    return new Intl.NumberFormat("en-IN",{
+        style:"currency",
+        currency:"INR",
+        maximumFractionDigits:0
+    }).format(value);
+
+}
+
+
+function calculateFD(){
+
+    const P = Number(principal.value);
+    const annualRate = Number(rate.value) / 100;
+    const tenure = Number(years.value);
+    const n = Number(frequency.value);
+
+    if(
+        !Number.isFinite(P) ||
+        !Number.isFinite(annualRate) ||
+        !Number.isFinite(tenure) ||
+        P <= 0 ||
+        annualRate < 0 ||
+        tenure <= 0
+    ){
+
+        principalValue.textContent = "₹0";
+        interestValue.textContent = "₹0";
+        maturityValue.textContent = "₹0";
+
+        principalBar.style.width = "50%";
+        interestBar.style.width = "50%";
+
+        growthTable.innerHTML = "";
+
+        return;
+    }
+
+
+    /*
+      Standard compound-interest FD calculation:
+
+      A = P × (1 + r/n)^(n×t)
+
+      P = Principal
+      r = Annual interest rate
+      n = Compounding frequency
+      t = Tenure in years
+    */
+
+    const maturity =
+        P * Math.pow(
+            1 + annualRate / n,
+            n * tenure
+        );
+
+    const interest = maturity - P;
+
+
+    principalValue.textContent = formatINR(P);
+    interestValue.textContent = formatINR(interest);
+    maturityValue.textContent = formatINR(maturity);
+
+
+    const total = P + interest;
+
+    const principalPercent =
+        total > 0 ? (P / total) * 100 : 100;
+
+    principalBar.style.width =
+        principalPercent + "%";
+
+    interestBar.style.width =
+        (100 - principalPercent) + "%";
+
+
+    growthTable.innerHTML = "";
+
+
+    let balance = P;
+
+    for(let year = 1; year <= tenure; year++){
+
+        const opening = balance;
+
+        const closing =
+            P * Math.pow(
+                1 + annualRate / n,
+                n * year
+            );
+
+        const interestEarned =
+            closing - opening;
+
+        balance = closing;
+
+
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+            <td>Year ${year}</td>
+            <td>${formatINR(opening)}</td>
+            <td>${formatINR(interestEarned)}</td>
+            <td>${formatINR(closing)}</td>
+        `;
+
+        growthTable.appendChild(row);
+    }
+
+}
+
+
+function connect(numberInput, rangeInput){
+
+    rangeInput.addEventListener("input",()=>{
+
+        numberInput.value = rangeInput.value;
+
+        calculateFD();
+
+    });
+
+
+    numberInput.addEventListener("input",()=>{
+
+        /*
+          Do not modify the number field while the user
+          is typing. This allows values such as 1500000
+          to be entered naturally.
+        */
+
+        if(numberInput.value === "") return;
+
+        const value = Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        if(
+            value >= Number(rangeInput.min) &&
+            value <= Number(rangeInput.max)
+        ){
+
+            rangeInput.value = value;
+
+        }
+
+        calculateFD();
+
+    });
+
+
+    numberInput.addEventListener("blur",()=>{
+
+        if(numberInput.value === "") return;
+
+        let value = Number(numberInput.value);
+
+        if(!Number.isFinite(value)) return;
+
+
+        value = Math.min(
+            Number(rangeInput.max),
+            Math.max(Number(rangeInput.min),value)
+        );
+
+
+        numberInput.value = value;
+        rangeInput.value = value;
+
+        calculateFD();
+
+    });
+
+}
+
+
+connect(principal,principalRange);
+connect(rate,rateRange);
+connect(years,yearsRange);
+
+frequency.addEventListener("change",calculateFD);
+
+calculateFD();
+
+</script>
+
+</body>
+</html>

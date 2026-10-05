@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+    <title>Attendance History</title>
+
+    <link
+        rel="stylesheet"
+        href="/css/output.css">
+<style>
+
+body {
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8f7ff 0%,
+            #f5f7ff 50%,
+            #faf7ff 100%
+        );
+
+}
+
+
+/* Header */
+
+header {
+
+    border-color:
+        #e0e7ff !important;
+
+    background:
+        rgba(255, 255, 255, 0.96) !important;
+
+    box-shadow:
+        0 8px 24px
+        rgba(79, 70, 229, 0.07) !important;
+
+    backdrop-filter:
+        blur(12px);
+
+}
+
+
+/* Back Button */
+
+header button {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #faf7ff
+        ) !important;
+
+    color:
+        #4f46a5 !important;
+
+    box-shadow:
+        0 4px 12px
+        rgba(79, 70, 229, 0.05);
+
+}
+
+
+header button:hover {
+
+    border-color:
+        #c4b5fd !important;
+
+    background:
+        linear-gradient(
+            90deg,
+            #fff7ff,
+            #f5efff,
+            #eef3ff
+        ) !important;
+
+    color:
+        #7b3fc6 !important;
+
+}
+
+
+/* Header Divider */
+
+header .h-8 {
+
+    background:
+        #e9e5ff !important;
+
+}
+
+
+/* Date Inputs */
+
+#startDate,
+#endDate {
+
+    border-color:
+        #ddd6fe !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #ffffff,
+            #faf7ff
+        ) !important;
+
+    color:
+        #334155 !important;
+
+    box-shadow:
+        0 4px 12px
+        rgba(79, 70, 229, 0.04);
+
+}
+
+
+#startDate:hover,
+#endDate:hover {
+
+    border-color:
+        #c4b5fd !important;
+
+}
+
+
+#startDate:focus,
+#endDate:focus {
+
+    border-color:
+        #8b5cf6 !important;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(139, 92, 246, 0.12) !important;
+
+}
+
+
+/* Student Information */
+
+#studentName {
+
+    color:
+        #4338ca !important;
+
+}
+
+
+#studentDetails {
+
+    color:
+        #64748b !important;
+
+}
+
+
+#historyResult {
+
+    color:
+        #6366a8;
+
+}
+
+
+/* Summary Cards */
+
+#totalDays {
+
+    color:
+        #4338ca !important;
+
+}
+
+
+#presentDays {
+
+    color:
+        #059669 !important;
+
+}
+
+
+#absentDays {
+
+    color:
+        #dc2626 !important;
+
+}
+
+
+/* All Summary Cards */
+
+#totalDays,
+#presentDays,
+#absentDays {
+
+    transition:
+        transform 0.2s ease;
+
+}
+
+
+/* Attendance Records Card */
+
+section .overflow-hidden {
+
+    border-color:
+        #e0e7ff !important;
+
+    background:
+        linear-gradient(
+            145deg,
+            #ffffff 0%,
+            #fcfaff 55%,
+            #f8f8ff 100%
+        ) !important;
+
+    box-shadow:
+        0 8px 22px
+        rgba(79, 70, 229, 0.06);
+
+}
+
+
+/* Records Header */
+
+section .overflow-hidden > div:first-child {
+
+    border-color:
+        #ebe9ff !important;
+
+    background:
+        linear-gradient(
+            90deg,
+            #ffffff,
+            #faf8ff
+        );
+
+}
+
+
+section .overflow-hidden h2 {
+
+    color:
+        #4338ca !important;
+
+}
+
+
+/* Table Header */
+
+table thead {
+
+    background:
+        #f7f5ff !important;
+
+}
+
+
+table th {
+
+    color:
+        #6366a8 !important;
+
+}
+
+
+/* Table Body */
+
+#historyTableBody tr {
+
+    border-color:
+        #eeeaff;
+
+    transition:
+        background 0.15s ease;
+
+}
+
+
+#historyTableBody tr:hover {
+
+    background:
+        #faf8ff;
+
+}
+
+
+#historyTableBody td {
+
+    color:
+        #475569;
+
+}
+
+
+/* Loading State */
+
+#historyTableBody td[colspan] {
+
+    color:
+        #8b8ba7 !important;
+
+}
+
+</style>
+</head>
+
+<body class="min-h-screen bg-slate-100">
+
+    <main class="min-h-screen">
+
+      <header
+    class="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+
+    <div
+        class="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-3 sm:flex-nowrap sm:justify-between sm:px-6 sm:py-4">
+
+        <div
+            class="flex min-w-0 shrink-0 items-center gap-2 sm:gap-4">
+
+            <button
+                type="button"
+                onclick="history.back()"
+                class="flex min-w-[72px] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-200 sm:min-w-0 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm">
+
+                <span class="text-base">
+                    ←
+                </span>
+
+                Back
+
+            </button>
+
+            <div
+                class="hidden h-8 w-px bg-slate-200 sm:block">
+            </div>
+
+        </div>
+
+
+        <div
+            class="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-none">
+
+            <div
+                class="min-w-0 flex-1 sm:flex-none">
+
+                <label
+                    for="startDate"
+                    class="sr-only">
+
+                    Start Date
+
+                </label>
+
+                <input
+                    id="startDate"
+                    type="date"
+                    class="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto sm:px-3">
+
+            </div>
+
+
+            <div
+                class="min-w-0 flex-1 sm:flex-none">
+
+                <label
+                    for="endDate"
+                    class="sr-only">
+
+                    End Date
+
+                </label>
+
+                <input
+                    id="endDate"
+                    type="date"
+                    class="w-full rounded-xl border border-slate-300 bg-white px-2.5 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:w-auto sm:px-3">
+
+            </div>
+
+        </div>
+
+    </div>
+
+</header>
+
+
+        <section
+    class="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-8">
+
+                <p
+                    id="historyResult"
+                    class="mt-4 text-sm">
+                </p>
+<div
+                class="min-w-0">
+
+                <h1
+                    id="studentName"
+                    class="truncate text-base font-semibold text-slate-800 sm:text-lg">
+
+                    Attendance History
+
+                </h1>
+
+                <p
+                    id="studentDetails"
+                    class="truncate text-xs text-slate-500">
+
+                    Loading student...
+
+                </p>
+
+            </div>
+
+            <div
+    class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                    <p
+                        class="text-sm text-slate-500">
+
+                        Total Days
+
+                    </p>
+
+                    <p
+                        id="totalDays"
+                        class="mt-2 text-2xl font-bold text-slate-800">
+
+                        0
+
+                    </p>
+
+                </div>
+
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                    <p
+                        class="text-sm text-slate-500">
+
+                        Present
+
+                    </p>
+
+                    <p
+                        id="presentDays"
+                        class="mt-2 text-2xl font-bold text-emerald-600">
+
+                        0
+
+                    </p>
+
+                </div>
+
+                <div
+                    class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+                    <p
+                        class="text-sm text-slate-500">
+
+                        Absent
+
+                    </p>
+
+                    <p
+                        id="absentDays"
+                        class="mt-2 text-2xl font-bold text-red-600">
+
+                        0
+
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+                <div
+                    class="border-b border-slate-200 px-6 py-4">
+
+                    <h2
+                        class="font-semibold text-slate-800">
+
+                        Attendance Records
+
+                    </h2>
+
+                </div>
+
+
+                <div
+    class="w-full overflow-x-auto">
+
+    <table
+        class="min-w-[600px] w-full">
+
+                        <thead
+                            class="bg-slate-50">
+
+                            <tr>
+
+                                <th
+                                    class="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6">
+
+                                    Date
+
+                                </th>
+
+                                <th
+                                    class="whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:px-6">
+
+                                    Status
+
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody
+                            id="historyTableBody">
+
+                            <tr>
+
+                                <td
+                                    colspan="3"
+                                    class="px-4 py-10 text-center text-sm text-slate-500 sm:px-6">
+
+                                    Loading attendance history...
+
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <script src="/js/api.js"></script>
+
+    <script src="/js/auth.js"></script>
+<script src="/js/notify.js"></script>
+<script src="/js/toast.js"></script>
+    <script src="/js/attendance-history.js"></script>
+
+</body>
+
+</html>

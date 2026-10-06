@@ -1,26 +1,21 @@
-node_modules/
-.env
+# Android / Gradle
+.gradle/
+build/
+**/build/
+.idea/
+*.iml
 
-# Dependencies
-node_modules/
+# JVM / Android crash dumps
+*.hprof
+hs_err_pid*
+replay_pid*
 
-# Environment
-.env
+# Local backups
+.task8-backup/
 
-# RSA Keys
-keys/private.pem
-
-# Logs
-logs/
-
-# macOS
+# OS
 .DS_Store
 
-# Runtime uploads
-uploads/
-
-# Database backups
-backups/
-database/*backup*.db
-database/*before*.db
-database/align.db
+# APK / generated outputs
+*.apk
+*.aab

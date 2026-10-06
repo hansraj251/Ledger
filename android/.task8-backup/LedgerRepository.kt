@@ -1,0 +1,76 @@
+package com.ledger.app.data
+
+class LedgerRepository(
+    private val database: LedgerDatabase
+) : LedgerDataSource {
+
+    private val partyDao = database.partyDao()
+
+    private val ledgerEntryDao = database.ledgerEntryDao()
+
+    override fun addParty(
+        name: String,
+        mobile: String
+    ): PartyEntity {
+        val party = PartyEntity(
+            name = name,
+            mobile = mobile
+        )
+
+        val id = partyDao.insert(party)
+
+        return party.copy(
+            id = id
+        )
+    }
+
+    override fun getParties(): List<PartyEntity> {
+        return partyDao.getAll()
+    }
+
+    override fun getParty(
+        partyId: Long
+    ): PartyEntity? {
+        return partyDao.getById(partyId)
+    }
+
+    override fun addEntry(
+        partyId: Long,
+        amount: Double,
+        type: EntryType,
+        note: String
+    ): LedgerEntryEntity {
+        require(amount > 0) {
+            "Amount must be greater than zero"
+        }
+
+        require(partyDao.getById(partyId) != null) {
+            "Party does not exist"
+        }
+
+        val entry = LedgerEntryEntity(
+            partyId = partyId,
+            amount = amount,
+            type = type,
+            note = note
+        )
+
+        val id = ledgerEntryDao.insert(entry)
+
+        return entry.copy(
+            id = id
+        )
+    }
+
+    override fun getEntries(
+        partyId: Long
+    ): List<LedgerEntryEntity> {
+        return ledgerEntryDao.getByPartyId(partyId)
+    }
+
+    override fun getBalance(
+        partyId: Long
+    ): Double {
+        return ledgerEntryDao.getBalance(partyId)
+    }
+}

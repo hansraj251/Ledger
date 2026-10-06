@@ -51,6 +51,21 @@ class LedgerViewModelTest {
             }
         }
 
+        override fun updateEntry(
+            entry: LedgerEntryEntity
+        ) {
+            val index =
+                entries.indexOfFirst {
+                    it.id == entry.id
+                }
+
+            require(index >= 0) {
+                "Entry does not exist"
+            }
+
+            entries[index] = entry
+        }
+
         override fun addEntry(
             partyId: Long,
             amount: Double,
@@ -409,19 +424,42 @@ class LedgerViewModelTest {
 
     @Test
     fun updateEntry_preservesIdAndCreatedAt() = runBlocking {
-        val originalCreatedAt = 123456789L
+        val dataSource =
+            FakeLedgerDataSource()
 
-        val entry = LedgerEntryEntity(
-            id = 10L,
-            partyId = 1L,
-            amount = 500.0,
-            type = EntryType.CREDIT,
-            note = "Original",
-            createdAt = originalCreatedAt
+        val viewModel =
+            LedgerViewModel(
+                dataSource
+            )
+
+        val originalCreatedAt =
+            123456789L
+
+        val entry =
+            LedgerEntryEntity(
+                id = 10L,
+                partyId = 1L,
+                amount = 500.0,
+                type = EntryType.CREDIT,
+                note = "Original",
+                createdAt = originalCreatedAt
+            )
+
+        val entriesField =
+            dataSource.javaClass
+                .getDeclaredField("entries")
+
+        entriesField.isAccessible = true
+
+        @Suppress("UNCHECKED_CAST")
+        val entries =
+            entriesField.get(
+                dataSource
+            ) as MutableList<LedgerEntryEntity>
+
+        entries.add(
+            entry
         )
-
-        entries.clear()
-        entries.add(entry)
 
         viewModel.updateEntry(
             entry = entry,
@@ -430,27 +468,57 @@ class LedgerViewModelTest {
             note = "Updated"
         )
 
-        val updated = entries.first()
+        viewModel.loadEntries(
+            1L
+        )
 
-        assertEquals(10L, updated.id)
-        assertEquals(originalCreatedAt, updated.createdAt)
-        assertEquals(750.0, updated.amount, 0.0)
-        assertEquals(EntryType.DEBIT, updated.type)
-        assertEquals("Updated", updated.note)
+        val updated =
+            viewModel.uiState.value.entries.first()
+
+        assertEquals(
+            10L,
+            updated.id
+        )
+
+        assertEquals(
+            originalCreatedAt,
+            updated.createdAt
+        )
+
+        assertEquals(
+            750.0,
+            updated.amount,
+            0.0
+        )
+
+        assertEquals(
+            EntryType.DEBIT,
+            updated.type
+        )
+
+        assertEquals(
+            "Updated",
+            updated.note
+        )
     }
 
     @Test
     fun updateEntry_updatesBalance() = runBlocking {
-        val entry = LedgerEntryEntity(
-            id = 20L,
-            partyId = 1L,
-            amount = 500.0,
-            type = EntryType.CREDIT,
-            note = "Original"
-        )
+        val dataSource =
+            FakeLedgerDataSource()
 
-        entries.clear()
-        entries.add(entry)
+        val viewModel =
+            LedgerViewModel(
+                dataSource
+            )
+
+        val entry =
+            dataSource.addEntry(
+                partyId = 1L,
+                amount = 500.0,
+                type = EntryType.CREDIT,
+                note = "Original"
+            )
 
         viewModel.updateEntry(
             entry = entry,
@@ -459,9 +527,15 @@ class LedgerViewModelTest {
             note = "Changed"
         )
 
-        viewModel.loadEntries(1L)
+        viewModel.loadEntries(
+            1L
+        )
 
-        assertEquals(800.0, viewModel.uiState.value.balance, 0.0)
+        assertEquals(
+            800.0,
+            viewModel.uiState.value.balance,
+            0.0
+        )
     }
 
 }

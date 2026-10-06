@@ -29,6 +29,7 @@ android {
 
 dependencies {
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     kapt("androidx.room:room-compiler:2.8.5")

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -24,6 +25,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -45,7 +48,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 @Composable
 fun HomeScreen(
     viewModel: LedgerViewModel,
-    onPartyClick: (PartyEntity) -> Unit
+    onPartyClick: (PartyEntity) -> Unit,
+    onProfileClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -83,11 +87,51 @@ fun HomeScreen(
                 modifier = Modifier.height(20.dp)
             )
 
-            Text(
-                text = "Ledger",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ledger",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                var showMenu by remember {
+                    mutableStateOf(false)
+                }
+
+                Box {
+                    IconButton(
+                        onClick = {
+                            showMenu = true
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options"
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = {
+                            showMenu = false
+                        }
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Text("Profile")
+                            },
+                            onClick = {
+                                showMenu = false
+                                onProfileClick()
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(
                 modifier = Modifier.height(4.dp)

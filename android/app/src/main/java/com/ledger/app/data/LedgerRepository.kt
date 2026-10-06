@@ -37,7 +37,7 @@ class LedgerRepository(
     override fun updateEntry(
         entry: LedgerEntryEntity
     ) {
-        dao.update(entry)
+        ledgerEntryDao.update(entry)
     }
 
     override fun addEntry(

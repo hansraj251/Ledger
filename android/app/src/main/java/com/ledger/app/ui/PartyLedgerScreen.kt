@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -111,7 +112,27 @@ fun PartyLedgerScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 3.dp
+            ) {
+                Box(
+                    modifier = Modifier.statusBarsPadding()
+                ) {
+                    PartyHeader(
+                        party = currentParty,
+                        onBack = onBack,
+                    onEdit = {
+                        editPartyName = currentParty.name
+                        editPartyMobile = currentParty.mobile
+                        showEditPartyDialog = true
+                    }
+                )
+                }
+            }
+        }
     ) { paddingValues ->
         LazyColumn(
             state = listState,
@@ -124,18 +145,6 @@ fun PartyLedgerScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                PartyHeader(
-                    party = currentParty,
-                    onBack = onBack,
-                    onEdit = {
-                        editPartyName = currentParty.name
-                        editPartyMobile = currentParty.mobile
-                        showEditPartyDialog = true
-                    }
-                )
-            }
-
             item {
                 BalanceHero(
                     balance = uiState.balance

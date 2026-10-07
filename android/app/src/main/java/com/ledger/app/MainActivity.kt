@@ -1,5 +1,8 @@
 package com.ledger.app
 
+import kotlinx.coroutines.launch
+import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.collectAsState
 import androidx.compose.material.icons.filled.ArrowBack
 
 import androidx.compose.foundation.background
@@ -875,52 +878,79 @@ private fun InitialGoogleDriveSetupScreen(
 private fun ProfileScreen(
     onBack: () -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context =
+        androidx.compose.ui.platform.LocalContext.current
 
-    val preferences = androidx.compose.runtime.remember {
-        context.getSharedPreferences(
-            "ledger_profile",
-            android.content.Context.MODE_PRIVATE
+    val profileViewModel: com.ledger.app.ui.ProfileViewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel(
+            factory =
+                com.ledger.app.ui.ProfileViewModelFactory(
+                    context.applicationContext
+                        as android.app.Application
+                )
         )
+
+    val profileState by
+        profileViewModel.uiState.collectAsState()
+
+    val scope =
+        androidx.compose.runtime.rememberCoroutineScope()
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        profileViewModel.loadProfile()
     }
 
-    var isEditing by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(false)
-    }
-
-    var name by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(
-            preferences.getString("name", "") ?: ""
-        )
-    }
-
-    var mobile by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(
-            preferences.getString("mobile", "") ?: ""
-        )
-    }
-
-    var editName by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(name)
-    }
-
-    var editMobile by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(mobile)
-    }
-
-    val initials = name
-        .trim()
-        .split(Regex("\\s+"))
-        .filter {
-            it.isNotBlank()
+    var isEditing by
+        androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf(false)
         }
-        .take(2)
-        .joinToString("") {
-            it.first().uppercase()
+
+    var name by
+        androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf("")
         }
-        .ifBlank {
-            "U"
+
+    var mobile by
+        androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf("")
         }
+
+    var editName by
+        androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf("")
+        }
+
+    var editMobile by
+        androidx.compose.runtime.remember {
+            androidx.compose.runtime.mutableStateOf("")
+        }
+
+    androidx.compose.runtime.LaunchedEffect(
+        profileState.name,
+        profileState.mobile
+    ) {
+        name = profileState.name
+        mobile = profileState.mobile
+
+        if (!isEditing) {
+            editName = profileState.name
+            editMobile = profileState.mobile
+        }
+    }
+
+    val initials =
+        name.trim()
+            .split(Regex("\\s+"))
+            .filter {
+                it.isNotBlank()
+            }
+            .take(2)
+            .joinToString("") {
+                it.first().uppercase()
+            }
+            .ifBlank {
+                "U"
+            }
 
     androidx.compose.material3.Scaffold(
         topBar = {
@@ -943,7 +973,8 @@ private fun ProfileScreen(
                         onClick = onBack
                     ) {
                         androidx.compose.material3.Icon(
-                            imageVector = androidx.compose.material.icons.Icons.Filled.ArrowBack,
+                            imageVector =
+                                androidx.compose.material.icons.Icons.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
@@ -984,9 +1015,8 @@ private fun ProfileScreen(
                     .padding(paddingValues)
                     .padding(horizontal = 16.dp),
             verticalArrangement =
-                androidx.compose.foundation.layout.Arrangement.spacedBy(
-                    14.dp
-                ),
+                androidx.compose.foundation.layout.Arrangement
+                    .spacedBy(14.dp),
             contentPadding =
                 androidx.compose.foundation.layout.PaddingValues(
                     top = 16.dp,
@@ -1022,7 +1052,8 @@ private fun ProfileScreen(
                                 androidx.compose.ui.Modifier
                                     .size(88.dp)
                                     .clip(
-                                        androidx.compose.foundation.shape
+                                        androidx.compose.foundation
+                                            .shape
                                             .CircleShape
                                     )
                                     .background(
@@ -1126,7 +1157,8 @@ private fun ProfileScreen(
                                 )
 
                                 androidx.compose.material3.Text(
-                                    text = "Manage your name and mobile number",
+                                    text =
+                                        "Manage your name and mobile number",
                                     style =
                                         androidx.compose.material3.MaterialTheme
                                             .typography
@@ -1153,6 +1185,7 @@ private fun ProfileScreen(
                         }
 
                         if (isEditing) {
+
                             androidx.compose.material3.OutlinedTextField(
                                 value = editName,
                                 onValueChange = {
@@ -1208,6 +1241,7 @@ private fun ProfileScreen(
                                     androidx.compose.foundation.layout.Arrangement
                                         .spacedBy(10.dp)
                             ) {
+
                                 androidx.compose.material3.OutlinedButton(
                                     onClick = {
                                         editName = name
@@ -1231,35 +1265,35 @@ private fun ProfileScreen(
                                             editMobile.trim()
 
                                         if (cleanName.isNotBlank()) {
-                                            name = cleanName
-                                            mobile = cleanMobile
+                                            scope.launch {
+                                                val saved =
+                                                    profileViewModel.saveProfile(
+                                                        name = cleanName,
+                                                        mobile = cleanMobile
+                                                    )
 
-                                            preferences.edit()
-                                                .putString(
-                                                    "name",
-                                                    cleanName
-                                                )
-                                                .putString(
-                                                    "mobile",
-                                                    cleanMobile
-                                                )
-                                                .apply()
-
-                                            isEditing = false
+                                                if (saved) {
+                                                    name = cleanName
+                                                    mobile = cleanMobile
+                                                    isEditing = false
+                                                }
+                                            }
                                         }
                                     },
                                     modifier =
                                         androidx.compose.ui.Modifier.weight(1f)
                                 ) {
                                     androidx.compose.material3.Text(
-                                        "Save Changes",
+                                        text = "Save Changes",
                                         fontWeight =
                                             androidx.compose.ui.text.font.FontWeight
                                                 .Bold
                                     )
                                 }
                             }
+
                         } else {
+
                             ProfileDetailRow(
                                 icon =
                                     androidx.compose.material.icons.Icons

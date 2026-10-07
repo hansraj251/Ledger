@@ -7,9 +7,10 @@ import androidx.room.RoomDatabase
     entities = [
         PartyEntity::class,
         LedgerEntryEntity::class,
-        LedgerDatabaseMarker::class
+        LedgerDatabaseMarker::class,
+        ProfileEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -17,4 +18,6 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun partyDao(): PartyDao
 
     abstract fun ledgerEntryDao(): LedgerEntryDao
+
+    abstract fun profileDao(): ProfileDao
 }

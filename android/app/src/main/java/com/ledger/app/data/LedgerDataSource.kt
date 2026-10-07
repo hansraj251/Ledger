@@ -2,6 +2,12 @@ package com.ledger.app.data
 
 interface LedgerDataSource {
 
+    fun getProfile(): ProfileEntity?
+
+    fun saveProfile(
+        profile: ProfileEntity
+    )
+
     fun addParty(
         name: String,
         mobile: String = ""

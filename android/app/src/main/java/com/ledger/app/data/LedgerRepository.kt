@@ -8,6 +8,18 @@ class LedgerRepository(
 
     private val ledgerEntryDao = database.ledgerEntryDao()
 
+    private val profileDao = database.profileDao()
+
+    override fun getProfile(): ProfileEntity? {
+        return profileDao.getProfile()
+    }
+
+    override fun saveProfile(
+        profile: ProfileEntity
+    ) {
+        profileDao.saveProfile(profile)
+    }
+
     override fun addParty(
         name: String,
         mobile: String

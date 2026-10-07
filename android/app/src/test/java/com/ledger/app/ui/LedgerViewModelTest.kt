@@ -3,6 +3,7 @@ package com.ledger.app.ui
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.ProfileEntity
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -25,6 +26,15 @@ class LedgerViewModelTest {
                 mobile = "9876500000"
             )
         )
+
+        override fun getProfile(): ProfileEntity? {
+            return null
+        }
+
+        override fun saveProfile(
+            profile: ProfileEntity
+        ) {
+        }
 
         override fun addParty(
             name: String,

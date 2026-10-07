@@ -13,6 +13,10 @@ interface LedgerDataSource {
         partyId: Long
     ): PartyEntity?
 
+    fun updateParty(
+        party: PartyEntity
+    )
+
     fun updateEntry(
         entry: LedgerEntryEntity
     )

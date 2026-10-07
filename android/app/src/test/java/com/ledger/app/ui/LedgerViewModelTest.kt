@@ -51,6 +51,11 @@ class LedgerViewModelTest {
             }
         }
 
+        override fun updateParty(
+            party: PartyEntity
+        ) {
+        }
+
         override fun updateEntry(
             entry: LedgerEntryEntity
         ) {

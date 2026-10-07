@@ -1,11 +1,13 @@
 package com.ledger.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.outlined.Call
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -32,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,6 +53,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.PartyEntity
@@ -67,6 +73,22 @@ fun PartyLedgerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    var currentParty by remember {
+        mutableStateOf(party)
+    }
+
+    var showEditPartyDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var editPartyName by remember {
+        mutableStateOf(party.name)
+    }
+
+    var editPartyMobile by remember {
+        mutableStateOf(party.mobile)
+    }
 
     var amount by remember {
         mutableStateOf("")
@@ -104,8 +126,13 @@ fun PartyLedgerScreen(
         ) {
             item {
                 PartyHeader(
-                    party = party,
-                    onBack = onBack
+                    party = currentParty,
+                    onBack = onBack,
+                    onEdit = {
+                        editPartyName = currentParty.name
+                        editPartyMobile = currentParty.mobile
+                        showEditPartyDialog = true
+                    }
                 )
             }
 
@@ -237,22 +264,53 @@ fun PartyLedgerScreen(
                 }
             }
         }
+
+        if (showEditPartyDialog) {
+            EditPartyDialog(
+                name = editPartyName,
+                mobile = editPartyMobile,
+                onNameChange = {
+                    editPartyName = it
+                },
+                onMobileChange = {
+                    editPartyMobile = it
+                },
+                onDismiss = {
+                    showEditPartyDialog = false
+                },
+                onSave = {
+                    scope.launch {
+                        val saved = viewModel.updateParty(
+                            party = currentParty,
+                            name = editPartyName,
+                            mobile = editPartyMobile
+                        )
+
+                        if (saved) {
+                            currentParty = currentParty.copy(
+                                name = editPartyName.trim(),
+                                mobile = editPartyMobile.trim()
+                            )
+
+                            showEditPartyDialog = false
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
 @Composable
 private fun PartyHeader(
     party: PartyEntity,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEdit: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(
-                start = 10.dp,
-                end = 20.dp,
-                top = 12.dp
-            ),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
@@ -267,16 +325,12 @@ private fun PartyHeader(
         val initials = party.name
             .trim()
             .split(" ")
-            .filter {
-                it.isNotBlank()
-            }
+            .filter { it.isNotBlank() }
             .take(2)
-            .joinToString("") {
-                it.first().uppercase()
-            }
+            .joinToString("") { it.first().uppercase() }
 
         Surface(
-            modifier = Modifier.size(46.dp),
+            modifier = Modifier.size(44.dp),
             shape = androidx.compose.foundation.shape.CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer
         ) {
@@ -285,29 +339,124 @@ private fun PartyHeader(
             ) {
                 Text(
                     text = initials.ifBlank { "P" },
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
 
         Spacer(
-            modifier = Modifier.size(12.dp)
+            modifier = Modifier.width(12.dp)
         )
 
         Column(
-            modifier = Modifier.weight(1f)
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onEdit)
         ) {
             Text(
                 text = party.name,
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = party.mobile.ifBlank { "Customer / supplier" },
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun EditPartyDialog(
+    name: String,
+    mobile: String,
+    onNameChange: (String) -> Unit,
+    onMobileChange: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Edit Party",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Update party details",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Party name")
+                    },
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = mobile,
+                    onValueChange = onMobileChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Mobile number")
+                    },
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(0.85f)
+                            .height(52.dp)
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = onSave,
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .height(52.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = "Save Changes",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

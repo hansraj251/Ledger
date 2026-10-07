@@ -34,6 +34,12 @@ class LedgerRepository(
         return partyDao.getById(partyId)
     }
 
+    override fun updateParty(
+        party: PartyEntity
+    ) {
+        partyDao.update(party)
+    }
+
     override fun updateEntry(
         entry: LedgerEntryEntity
     ) {

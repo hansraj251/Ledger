@@ -74,6 +74,48 @@ class LedgerViewModel(
         }
     }
 
+    suspend fun updateParty(
+        party: PartyEntity,
+        name: String,
+        mobile: String
+    ): Boolean {
+        val cleanName = name.trim()
+        val cleanMobile = mobile.trim()
+
+        if (cleanName.isEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Party name is required"
+            )
+            return false
+        }
+
+        return try {
+            val updatedParty = party.copy(
+                name = cleanName,
+                mobile = cleanMobile
+            )
+
+            withContext(Dispatchers.IO) {
+                dataSource.updateParty(updatedParty)
+            }
+
+            loadParties()
+
+            _uiState.value = _uiState.value.copy(
+                errorMessage = ""
+            )
+
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message
+                    ?: "Unable to update party"
+            )
+
+            false
+        }
+    }
+
     fun setSearchQuery(
         query: String
     ) {

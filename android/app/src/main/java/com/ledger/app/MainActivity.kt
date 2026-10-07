@@ -826,7 +826,7 @@ private fun InitialGoogleDriveSetupScreen(
             Text(
                 text =
                     "If a Ledger backup is found, it will be restored automatically. " +
-                        "If no backup exists, a new Ledger will be created."
+                        ""
             )
 
             Spacer(

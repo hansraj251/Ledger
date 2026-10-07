@@ -66,6 +66,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ledger.app.data.PartyEntity
+import com.ledger.app.data.LedgerDatabaseProvider
+import com.ledger.app.data.LedgerRepository
 import kotlinx.coroutines.launch
 
 @Composable
@@ -76,6 +78,10 @@ fun HomeScreen(
     onSyncClick: () -> Unit,
     onRestoreClick: () -> Unit
 ) {
+    var profileName by rememberSaveable {
+        mutableStateOf("")
+    }
+
     var partyName by rememberSaveable {
         mutableStateOf("")
     }
@@ -90,6 +96,7 @@ fun HomeScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var showAddPartyDialog by remember {
         mutableStateOf(false)
@@ -101,6 +108,16 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadParties()
+
+        val database = LedgerDatabaseProvider.get(
+            context.applicationContext as android.app.Application
+        )
+        val repository = LedgerRepository(database)
+        profileName = kotlinx.coroutines.withContext(
+            kotlinx.coroutines.Dispatchers.IO
+        ) {
+            repository.getProfile()?.name?.trim().orEmpty()
+        }
     }
 
     Scaffold(
@@ -119,23 +136,16 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(onClick = onProfileClick)
                     ) {
                         Text(
-                            text = "Ledger",
+                            text = if (profileName.isNotBlank()) profileName else "Ledger",
                             style = MaterialTheme.typography.headlineLarge,
                             color = MaterialTheme.colorScheme.onBackground
                         )
 
-                        Spacer(
-                            modifier = Modifier.height(4.dp)
-                        )
-
-                        Text(
-                            text = "Your business, organized.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
 
                     Box {

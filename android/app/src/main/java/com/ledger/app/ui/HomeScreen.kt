@@ -312,6 +312,7 @@ fun HomeScreen(
                 ) { party ->
                     PartyCard(
                         party = party,
+                        balance = uiState.partyBalances[party.id] ?: 0.0,
                         onClick = {
                             onPartyClick(party)
                         }
@@ -507,6 +508,7 @@ fun HomeScreen(
 @Composable
 private fun PartyCard(
     party: PartyEntity,
+    balance: Double,
     onClick: () -> Unit
 ) {
     Card(
@@ -577,10 +579,18 @@ private fun PartyCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-
             }
 
+            Text(
+                text = "₹${String.format("%.2f", kotlin.math.abs(balance))}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (balance >= 0) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
+            )
         }
     }
 }

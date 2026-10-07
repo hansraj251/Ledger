@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class LedgerUiState(
     val parties: List<PartyEntity> = emptyList(),
+    val partyBalances: Map<Long, Double> = emptyMap(),
     val entries: List<LedgerEntryEntity> = emptyList(),
     val selectedPartyId: Long? = null,
     val balance: Double = 0.0,
@@ -60,8 +61,15 @@ class LedgerViewModel(
                 dataSource.getParties()
             }
 
+            val partyBalances = withContext(Dispatchers.IO) {
+                parties.associate { party ->
+                    party.id to dataSource.getBalance(party.id)
+                }
+            }
+
             _uiState.value = _uiState.value.copy(
                 parties = parties,
+                partyBalances = partyBalances,
                 isLoading = false,
                 errorMessage = ""
             )

@@ -212,11 +212,6 @@ fun PartyLedgerScreen(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Transaction history",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-
-                        Text(
                             text = if (uiState.entries.isEmpty()) {
                                 "No activity recorded yet"
                             } else {
@@ -227,20 +222,6 @@ fun PartyLedgerScreen(
                         )
                     }
 
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(50.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = "Ledger",
-                            modifier = Modifier.padding(
-                                horizontal = 11.dp,
-                                vertical = 6.dp
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
                 }
             }
 

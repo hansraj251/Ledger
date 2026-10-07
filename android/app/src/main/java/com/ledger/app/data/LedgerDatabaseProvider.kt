@@ -10,6 +10,13 @@ object LedgerDatabaseProvider {
     @Volatile
     private var instance: LedgerDatabase? = null
 
+    fun close() {
+        synchronized(this) {
+            instance?.close()
+            instance = null
+        }
+    }
+
     fun get(context: Context): LedgerDatabase {
         return instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(

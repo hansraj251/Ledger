@@ -50,7 +50,8 @@ fun HomeScreen(
     viewModel: LedgerViewModel,
     onPartyClick: (PartyEntity) -> Unit,
     onProfileClick: () -> Unit,
-    onSyncClick: () -> Unit
+    onSyncClick: () -> Unit,
+    onRestoreClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -126,6 +127,13 @@ fun HomeScreen(
                     Text("Sync")
                 },
                 onClick = onSyncClick
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Text("Restore")
+                },
+                onClick = onRestoreClick
             )
 
             DropdownMenuItem(

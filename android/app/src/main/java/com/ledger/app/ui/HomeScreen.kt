@@ -568,32 +568,9 @@ private fun PartyCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(
-                    modifier = Modifier.height(7.dp)
-                )
 
-                Surface(
-                    shape = RoundedCornerShape(50.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(
-                        text = "Open ledger",
-                        modifier = Modifier.padding(
-                            horizontal = 9.dp,
-                            vertical = 4.dp
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                }
             }
 
-            Icon(
-                imageVector = Icons.Outlined.ArrowForwardIos,
-                contentDescription = null,
-                modifier = Modifier.size(17.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

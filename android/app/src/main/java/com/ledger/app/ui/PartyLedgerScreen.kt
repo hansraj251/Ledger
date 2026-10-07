@@ -834,7 +834,7 @@ private fun BalanceHero(
             )
 
             Text(
-                text = "₹%.2f".format(abs(balance)),
+                text = "₹${formatAmount(abs(balance))}",
                 style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
@@ -1141,6 +1141,14 @@ private fun EmptyTransactionState() {
     }
 }
 
+internal fun formatAmount(amount: Double): String {
+    return if (amount % 1.0 == 0.0) {
+        amount.toLong().toString()
+    } else {
+        amount.toString().trimEnd('0').trimEnd('.')
+    }
+}
+
 internal fun transactionAmountLabel(
     entry: LedgerEntryEntity
 ): String {
@@ -1150,7 +1158,7 @@ internal fun transactionAmountLabel(
         "-"
     }
 
-    return "$prefix₹%.2f".format(abs(entry.amount))
+    return "$prefix₹${formatAmount(abs(entry.amount))}"
 }
 
 internal fun transactionDateTimeLabel(

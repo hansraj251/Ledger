@@ -106,6 +106,12 @@ fun HomeScreen(
         .filter { it < 0.0 }
         .sumOf { kotlin.math.abs(it) }
 
+    val headerNameColor = if (payable > receivable) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+
     var showAddPartyDialog by remember {
         mutableStateOf(false)
     }
@@ -151,7 +157,7 @@ fun HomeScreen(
                         Text(
                             text = if (profileName.isNotBlank()) profileName else "Ledger",
                             style = MaterialTheme.typography.headlineLarge,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = headerNameColor
                         )
 
                     }
@@ -546,7 +552,7 @@ private fun BalanceSummaryCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "₹${String.format("%.2f", amount)}",
+                text = "₹${formatAmount(amount)}",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = amountColor
@@ -632,7 +638,7 @@ private fun PartyCard(
             }
 
             Text(
-                text = "₹${String.format("%.2f", kotlin.math.abs(balance))}",
+                text = "₹${formatAmount(kotlin.math.abs(balance))}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (balance >= 0) {

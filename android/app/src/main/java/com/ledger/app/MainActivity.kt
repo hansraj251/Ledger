@@ -1,5 +1,20 @@
 package com.ledger.app
 
+import androidx.compose.material.icons.filled.ArrowBack
+
+import androidx.compose.foundation.background
+
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Phone
+
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -121,9 +136,6 @@ class MainActivity : ComponentActivity() {
                     ProfileScreen(
                         onBack = {
                             showProfileScreen = false
-                        },
-                        onConnectGoogleDrive = {
-                            connectGoogleDrive()
                         }
                     )
                 } else if (selectedParty == null) {
@@ -861,59 +873,484 @@ private fun InitialGoogleDriveSetupScreen(
 
 @androidx.compose.runtime.Composable
 private fun ProfileScreen(
-    onBack: () -> Unit,
-    onConnectGoogleDrive: () -> Unit
+    onBack: () -> Unit
 ) {
-    Scaffold { paddingValues ->
-        Column(
-            modifier = Modifier.padding(
-                paddingValues
-            )
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val preferences = androidx.compose.runtime.remember {
+        context.getSharedPreferences(
+            "ledger_profile",
+            android.content.Context.MODE_PRIVATE
+        )
+    }
+
+    var isEditing by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    var name by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            preferences.getString("name", "") ?: ""
+        )
+    }
+
+    var mobile by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            preferences.getString("mobile", "") ?: ""
+        )
+    }
+
+    var editName by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(name)
+    }
+
+    var editMobile by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(mobile)
+    }
+
+    val initials = name
+        .trim()
+        .split(Regex("\\s+"))
+        .filter {
+            it.isNotBlank()
+        }
+        .take(2)
+        .joinToString("") {
+            it.first().uppercase()
+        }
+        .ifBlank {
+            "U"
+        }
+
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            androidx.compose.material3.Surface(
+                tonalElevation = 3.dp
+            ) {
+                androidx.compose.foundation.layout.Row(
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(
+                                horizontal = 16.dp,
+                                vertical = 10.dp
+                            ),
+                    verticalAlignment =
+                        androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.IconButton(
+                        onClick = onBack
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = androidx.compose.material.icons.Icons.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+
+                    androidx.compose.foundation.layout.Column(
+                        modifier =
+                            androidx.compose.ui.Modifier
+                                .weight(1f)
+                                .padding(start = 4.dp)
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "Profile",
+                            style =
+                                androidx.compose.material3.MaterialTheme
+                                    .typography
+                                    .titleLarge,
+                            fontWeight =
+                                androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+
+                        androidx.compose.material3.Text(
+                            text = "Your personal details",
+                            style =
+                                androidx.compose.material3.MaterialTheme
+                                    .typography
+                                    .bodySmall
+                        )
+                    }
+                }
+            }
+        }
+    ) { paddingValues ->
+
+        androidx.compose.foundation.lazy.LazyColumn(
+            modifier =
+                androidx.compose.ui.Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 16.dp),
+            verticalArrangement =
+                androidx.compose.foundation.layout.Arrangement.spacedBy(
+                    14.dp
+                ),
+            contentPadding =
+                androidx.compose.foundation.layout.PaddingValues(
+                    top = 16.dp,
+                    bottom = 24.dp
+                )
         ) {
-            Text(
-                text = "Profile",
-                style = MaterialTheme.typography.headlineMedium
-            )
 
-            Spacer(
-                modifier = Modifier.height(24.dp)
-            )
+            item {
+                androidx.compose.material3.Card(
+                    modifier =
+                        androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape =
+                        androidx.compose.material3.MaterialTheme
+                            .shapes
+                            .extraLarge,
+                    elevation =
+                        androidx.compose.material3.CardDefaults
+                            .cardElevation(
+                                defaultElevation = 2.dp
+                            )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier =
+                            androidx.compose.ui.Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                        horizontalAlignment =
+                            androidx.compose.ui.Alignment.CenterHorizontally
+                    ) {
 
-            Text(
-                text = "Backup",
-                style = MaterialTheme.typography.titleMedium
-            )
+                        androidx.compose.foundation.layout.Box(
+                            modifier =
+                                androidx.compose.ui.Modifier
+                                    .size(88.dp)
+                                    .clip(
+                                        androidx.compose.foundation.shape
+                                            .CircleShape
+                                    )
+                                    .background(
+                                        androidx.compose.material3.MaterialTheme
+                                            .colorScheme
+                                            .primaryContainer
+                                    ),
+                            contentAlignment =
+                                androidx.compose.ui.Alignment.Center
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = initials,
+                                style =
+                                    androidx.compose.material3.MaterialTheme
+                                        .typography
+                                        .headlineMedium,
+                                fontWeight =
+                                    androidx.compose.ui.text.font.FontWeight.Bold,
+                                color =
+                                    androidx.compose.material3.MaterialTheme
+                                        .colorScheme
+                                        .onPrimaryContainer
+                            )
+                        }
 
-            Spacer(
-                modifier = Modifier.height(8.dp)
-            )
+                        androidx.compose.foundation.layout.Spacer(
+                            modifier =
+                                androidx.compose.ui.Modifier.height(14.dp)
+                        )
 
-            Text(
-                text = "Google Drive",
-                style = MaterialTheme.typography.bodyLarge
-            )
+                        androidx.compose.material3.Text(
+                            text =
+                                name.ifBlank {
+                                    "Your Name"
+                                },
+                            style =
+                                androidx.compose.material3.MaterialTheme
+                                    .typography
+                                    .titleLarge,
+                            fontWeight =
+                                androidx.compose.ui.text.font.FontWeight.Bold
+                        )
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+                        androidx.compose.foundation.layout.Spacer(
+                            modifier =
+                                androidx.compose.ui.Modifier.height(4.dp)
+                        )
 
-            AssistChip(
-                onClick = onConnectGoogleDrive,
-                label = {
-                    Text("Connect Google Drive")
+                        androidx.compose.material3.Text(
+                            text =
+                                mobile.ifBlank {
+                                    "Add your mobile number"
+                                },
+                            style =
+                                androidx.compose.material3.MaterialTheme
+                                    .typography
+                                    .bodyMedium
+                        )
+                    }
                 }
-            )
+            }
 
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+            item {
+                androidx.compose.material3.Card(
+                    modifier =
+                        androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape =
+                        androidx.compose.material3.MaterialTheme
+                            .shapes
+                            .large
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier =
+                            androidx.compose.ui.Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                        verticalArrangement =
+                            androidx.compose.foundation.layout.Arrangement
+                                .spacedBy(14.dp)
+                    ) {
 
-            AssistChip(
-                onClick = onBack,
-                label = {
-                    Text("Back")
+                        androidx.compose.foundation.layout.Row(
+                            modifier =
+                                androidx.compose.ui.Modifier.fillMaxWidth(),
+                            verticalAlignment =
+                                androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.layout.Column(
+                                modifier =
+                                    androidx.compose.ui.Modifier.weight(1f)
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = "Personal Details",
+                                    style =
+                                        androidx.compose.material3.MaterialTheme
+                                            .typography
+                                            .titleMedium,
+                                    fontWeight =
+                                        androidx.compose.ui.text.font.FontWeight
+                                            .Bold
+                                )
+
+                                androidx.compose.material3.Text(
+                                    text = "Manage your name and mobile number",
+                                    style =
+                                        androidx.compose.material3.MaterialTheme
+                                            .typography
+                                            .bodySmall
+                                )
+                            }
+
+                            if (!isEditing) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = {
+                                        editName = name
+                                        editMobile = mobile
+                                        isEditing = true
+                                    }
+                                ) {
+                                    androidx.compose.material3.Text(
+                                        text = "Edit",
+                                        fontWeight =
+                                            androidx.compose.ui.text.font.FontWeight
+                                                .Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        if (isEditing) {
+                            androidx.compose.material3.OutlinedTextField(
+                                value = editName,
+                                onValueChange = {
+                                    editName = it
+                                },
+                                modifier =
+                                    androidx.compose.ui.Modifier.fillMaxWidth(),
+                                label = {
+                                    androidx.compose.material3.Text(
+                                        "Name"
+                                    )
+                                },
+                                singleLine = true,
+                                leadingIcon = {
+                                    androidx.compose.material3.Icon(
+                                        imageVector =
+                                            androidx.compose.material.icons.Icons
+                                                .Outlined
+                                                .Person,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+
+                            androidx.compose.material3.OutlinedTextField(
+                                value = editMobile,
+                                onValueChange = {
+                                    editMobile = it
+                                },
+                                modifier =
+                                    androidx.compose.ui.Modifier.fillMaxWidth(),
+                                label = {
+                                    androidx.compose.material3.Text(
+                                        "Mobile Number"
+                                    )
+                                },
+                                singleLine = true,
+                                leadingIcon = {
+                                    androidx.compose.material3.Icon(
+                                        imageVector =
+                                            androidx.compose.material.icons.Icons
+                                                .Outlined
+                                                .Phone,
+                                        contentDescription = null
+                                    )
+                                }
+                            )
+
+                            androidx.compose.foundation.layout.Row(
+                                modifier =
+                                    androidx.compose.ui.Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                    androidx.compose.foundation.layout.Arrangement
+                                        .spacedBy(10.dp)
+                            ) {
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = {
+                                        editName = name
+                                        editMobile = mobile
+                                        isEditing = false
+                                    },
+                                    modifier =
+                                        androidx.compose.ui.Modifier.weight(1f)
+                                ) {
+                                    androidx.compose.material3.Text(
+                                        "Cancel"
+                                    )
+                                }
+
+                                androidx.compose.material3.Button(
+                                    onClick = {
+                                        val cleanName =
+                                            editName.trim()
+
+                                        val cleanMobile =
+                                            editMobile.trim()
+
+                                        if (cleanName.isNotBlank()) {
+                                            name = cleanName
+                                            mobile = cleanMobile
+
+                                            preferences.edit()
+                                                .putString(
+                                                    "name",
+                                                    cleanName
+                                                )
+                                                .putString(
+                                                    "mobile",
+                                                    cleanMobile
+                                                )
+                                                .apply()
+
+                                            isEditing = false
+                                        }
+                                    },
+                                    modifier =
+                                        androidx.compose.ui.Modifier.weight(1f)
+                                ) {
+                                    androidx.compose.material3.Text(
+                                        "Save Changes",
+                                        fontWeight =
+                                            androidx.compose.ui.text.font.FontWeight
+                                                .Bold
+                                    )
+                                }
+                            }
+                        } else {
+                            ProfileDetailRow(
+                                icon =
+                                    androidx.compose.material.icons.Icons
+                                        .Outlined
+                                        .Person,
+                                label = "Name",
+                                value =
+                                    name.ifBlank {
+                                        "Not added"
+                                    }
+                            )
+
+                            ProfileDetailRow(
+                                icon =
+                                    androidx.compose.material.icons.Icons
+                                        .Outlined
+                                        .Phone,
+                                label = "Mobile Number",
+                                value =
+                                    mobile.ifBlank {
+                                        "Not added"
+                                    }
+                            )
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun ProfileDetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
+    androidx.compose.foundation.layout.Row(
+        modifier =
+            androidx.compose.ui.Modifier.fillMaxWidth(),
+        verticalAlignment =
+            androidx.compose.ui.Alignment.CenterVertically
+    ) {
+        androidx.compose.material3.Surface(
+            shape =
+                androidx.compose.foundation.shape.CircleShape,
+            color =
+                androidx.compose.material3.MaterialTheme
+                    .colorScheme
+                    .secondaryContainer,
+            modifier =
+                androidx.compose.ui.Modifier.size(42.dp)
+        ) {
+            androidx.compose.foundation.layout.Box(
+                contentAlignment =
+                    androidx.compose.ui.Alignment.Center
+            ) {
+                androidx.compose.material3.Icon(
+                    imageVector = icon,
+                    contentDescription = null
+                )
+            }
+        }
+
+        androidx.compose.foundation.layout.Spacer(
+            modifier =
+                androidx.compose.ui.Modifier.width(14.dp)
+        )
+
+        androidx.compose.foundation.layout.Column(
+            modifier =
+                androidx.compose.ui.Modifier.weight(1f)
+        ) {
+            androidx.compose.material3.Text(
+                text = label,
+                style =
+                    androidx.compose.material3.MaterialTheme
+                        .typography
+                        .labelMedium
+            )
+
+            androidx.compose.material3.Text(
+                text = value,
+                style =
+                    androidx.compose.material3.MaterialTheme
+                        .typography
+                        .bodyLarge,
+                fontWeight =
+                    androidx.compose.ui.text.font.FontWeight.Medium
             )
         }
     }
 }
+

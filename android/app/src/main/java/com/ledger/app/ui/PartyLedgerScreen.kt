@@ -702,7 +702,7 @@ private fun TransactionComposer(
                         onTypeChange(EntryType.CREDIT)
                     },
                     label = {
-                        Text("Credit")
+                        Text("You Gave")
                     }
                 )
 
@@ -712,7 +712,7 @@ private fun TransactionComposer(
                         onTypeChange(EntryType.DEBIT)
                     },
                     label = {
-                        Text("Debit")
+                        Text("You Got")
                     }
                 )
             }
@@ -767,9 +767,9 @@ private fun TransactionComposer(
 
                 Text(
                     text = if (selectedType == EntryType.CREDIT) {
-                        "Add credit"
+                        "Add"
                     } else {
-                        "Add debit"
+                        "Add"
                     }
                 )
             }
@@ -834,7 +834,7 @@ private fun TransactionCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = if (isCredit) "Credit received" else "Debit paid",
+                    text = if (isCredit) "You Gave" else "You Got",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )

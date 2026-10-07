@@ -105,40 +105,17 @@ fun HomeScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    showAddPartyDialog = true
-                },
+        topBar = {
+            Surface(
                 modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 8.dp),
-                shape = RoundedCornerShape(18.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                tonalElevation = 3.dp
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.PersonAdd,
-                    contentDescription = "Add party"
-                )
-            }
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                top = 18.dp,
-                bottom = 110.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
@@ -232,7 +209,37 @@ fun HomeScreen(
                     }
                 }
             }
-
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    showAddPartyDialog = true
+                },
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp),
+                shape = RoundedCornerShape(18.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PersonAdd,
+                    contentDescription = "Add party"
+                )
+            }
+        }
+    ) { paddingValues ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                top = 18.dp,
+                bottom = 110.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
             item {
                 OutlinedTextField(
                     value = uiState.searchQuery,

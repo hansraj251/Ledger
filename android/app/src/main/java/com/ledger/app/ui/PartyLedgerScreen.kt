@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -80,6 +81,10 @@ fun PartyLedgerScreen(
     }
 
     var showEditPartyDialog by remember {
+        mutableStateOf(false)
+    }
+
+    var showDeletePartyDialog by remember {
         mutableStateOf(false)
     }
 
@@ -145,6 +150,12 @@ fun PartyLedgerScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
+            }
+
             item {
                 BalanceHero(
                     balance = uiState.balance
@@ -304,6 +315,52 @@ fun PartyLedgerScreen(
                             showEditPartyDialog = false
                         }
                     }
+                },
+                onDelete = {
+                    showEditPartyDialog = false
+                    showDeletePartyDialog = true
+                }
+            )
+        }
+
+        if (showDeletePartyDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeletePartyDialog = false
+                },
+                title = {
+                    Text("Delete Party?")
+                },
+                text = {
+                    Text(
+                        "This will permanently delete ${currentParty.name} and all ledger entries for this party."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                viewModel.deleteParty(currentParty)
+                                showDeletePartyDialog = false
+                                onBack()
+                            }
+                        }
+                    ) {
+                        Text(
+                            text = "Delete",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDeletePartyDialog = false
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
                 }
             )
         }
@@ -387,7 +444,8 @@ private fun EditPartyDialog(
     onNameChange: (String) -> Unit,
     onMobileChange: (String) -> Unit,
     onDismiss: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onDelete: () -> Unit
 ) {
     Dialog(
         onDismissRequest = onDismiss,
@@ -435,6 +493,17 @@ private fun EditPartyDialog(
                     },
                     singleLine = true
                 )
+
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Delete Party",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),

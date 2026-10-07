@@ -124,6 +124,20 @@ class LedgerViewModel(
         )
     }
 
+
+    suspend fun deleteParty(
+        party: PartyEntity
+    ) {
+        withContext(Dispatchers.IO) {
+            dataSource.deleteParty(party)
+        }
+
+        loadParties()
+        _uiState.value = _uiState.value.copy(
+            errorMessage = ""
+        )
+    }
+
     suspend fun addParty(
         name: String,
         mobile: String

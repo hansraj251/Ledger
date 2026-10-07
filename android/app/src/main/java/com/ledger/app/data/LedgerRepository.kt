@@ -40,6 +40,12 @@ class LedgerRepository(
         partyDao.update(party)
     }
 
+    override fun deleteParty(
+        party: PartyEntity
+    ) {
+        partyDao.delete(party)
+    }
+
     override fun updateEntry(
         entry: LedgerEntryEntity
     ) {

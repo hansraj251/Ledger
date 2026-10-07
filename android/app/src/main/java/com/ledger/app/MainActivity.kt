@@ -23,6 +23,7 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -878,6 +879,10 @@ private fun InitialGoogleDriveSetupScreen(
 private fun ProfileScreen(
     onBack: () -> Unit
 ) {
+    BackHandler {
+        onBack()
+    }
+
     val context =
         androidx.compose.ui.platform.LocalContext.current
 

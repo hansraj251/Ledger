@@ -300,24 +300,6 @@ fun HomeScreen(
                 )
             }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Your parties",
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleLarge
-                    )
-
-                    Text(
-                        text = "${uiState.filteredParties.size}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
 
             if (uiState.isLoading) {
                 item {

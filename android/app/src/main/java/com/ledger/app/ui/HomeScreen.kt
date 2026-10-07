@@ -49,7 +49,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 fun HomeScreen(
     viewModel: LedgerViewModel,
     onPartyClick: (PartyEntity) -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onSyncClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -121,6 +122,13 @@ fun HomeScreen(
                         }
                     ) {
                         DropdownMenuItem(
+                text = {
+                    Text("Sync")
+                },
+                onClick = onSyncClick
+            )
+
+            DropdownMenuItem(
                             text = {
                                 Text("Profile")
                             },

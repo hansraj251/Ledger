@@ -18,8 +18,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.android.gms.auth.api.identity.Identity
 import com.ledger.app.backup.GoogleDriveAuthorization
+import com.ledger.app.backup.GoogleDriveBackup
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
@@ -30,6 +32,8 @@ import com.ledger.app.ui.PartyLedgerScreen
 class MainActivity : ComponentActivity() {
 
     private lateinit var googleDriveAuthorization: GoogleDriveAuthorization
+    private lateinit var googleDriveBackup: GoogleDriveBackup
+    private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
     override fun onCreate(
         savedInstanceState: Bundle?
@@ -42,9 +46,16 @@ class MainActivity : ComponentActivity() {
             this
         )
 
+        googleDriveBackup = GoogleDriveBackup(
+            applicationContext
+        )
+
         val database = LedgerDatabaseProvider.get(
             applicationContext
         )
+
+        ledgerSqliteDatabase =
+            database.openHelper.writableDatabase
 
         val repository = LedgerRepository(
             database
@@ -83,6 +94,9 @@ class MainActivity : ComponentActivity() {
                         },
                         onProfileClick = {
                             showProfileScreen = true
+                        },
+                        onSyncClick = {
+                            syncGoogleDrive()
                         }
                     )
                 } else {
@@ -138,8 +152,102 @@ class MainActivity : ComponentActivity() {
             }
     }
 
+    private fun syncGoogleDrive() {
+        Toast.makeText(
+            this,
+            "Syncing backup...",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        googleDriveAuthorization
+            .authorize()
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    try {
+                        val pendingIntent =
+                            result.pendingIntent
+
+                        if (pendingIntent == null) {
+                            Toast.makeText(
+                                this,
+                                "Google Drive authorization is required.",
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            return@addOnSuccessListener
+                        }
+
+                        startIntentSenderForResult(
+                            pendingIntent.intentSender,
+                            GOOGLE_DRIVE_SYNC_REQUEST_CODE,
+                            null,
+                            0,
+                            0,
+                            0
+                        )
+
+                        Toast.makeText(
+                            this,
+                            "Complete Google Drive authorization, then tap Sync again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } catch (error: Exception) {
+                        Toast.makeText(
+                            this,
+                            "Unable to open Google Drive authorization.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    return@addOnSuccessListener
+                }
+
+                val accessToken =
+                    result.accessToken
+
+                if (accessToken.isNullOrBlank()) {
+                    Toast.makeText(
+                        this,
+                        "Google Drive access token is unavailable.",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    return@addOnSuccessListener
+                }
+
+                googleDriveBackup.sync(
+                    ledgerSqliteDatabase,
+                    accessToken
+                ) { syncResult ->
+                    syncResult
+                        .onSuccess {
+                            Toast.makeText(
+                                this,
+                                "Backup synced to Google Drive.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        .onFailure { error ->
+                            Toast.makeText(
+                                this,
+                                "Backup failed: ${error.message ?: "Unknown error"}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                }
+            }
+            .addOnFailureListener { error ->
+                Toast.makeText(
+                    this,
+                    "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+    }
+
     companion object {
         private const val GOOGLE_DRIVE_AUTH_REQUEST_CODE = 9001
+        private const val GOOGLE_DRIVE_SYNC_REQUEST_CODE = 9002
     }
 }
 

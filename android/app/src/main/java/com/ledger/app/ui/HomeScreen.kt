@@ -118,7 +118,7 @@ fun HomeScreen(
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Add,
+                    imageVector = Icons.Outlined.PersonAdd,
                     contentDescription = "Add party"
                 )
             }
@@ -231,15 +231,6 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
-
-            item {
-                OverviewCard(
-                    partyCount = uiState.parties.size,
-                    onAddParty = {
-                        showAddPartyDialog = true
-                    }
-                )
             }
 
             item {
@@ -490,115 +481,6 @@ fun HomeScreen(
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OverviewCard(
-    partyCount: Int,
-    onAddParty: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 0.dp
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(22.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    modifier = Modifier.size(44.dp),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.16f)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Group,
-                            contentDescription = null,
-                            tint = Color.White
-                        )
-                    }
-                }
-
-                Spacer(
-                    modifier = Modifier.size(12.dp)
-                )
-
-                Column {
-                    Text(
-                        text = "Ledger overview",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White
-                    )
-
-                    Text(
-                        text = "Keep every customer and supplier in one place",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.76f)
-                    )
-                }
-            }
-
-            Spacer(
-                modifier = Modifier.height(24.dp)
-            )
-
-            Text(
-                text = "$partyCount",
-                style = MaterialTheme.typography.displaySmall,
-                color = Color.White
-            )
-
-            Text(
-                text = if (partyCount == 1) "party in your ledger" else "parties in your ledger",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.78f)
-            )
-
-            Spacer(
-                modifier = Modifier.height(18.dp)
-            )
-
-            Surface(
-                onClick = onAddParty,
-                shape = RoundedCornerShape(14.dp),
-                color = Color.White,
-                contentColor = MaterialTheme.colorScheme.primary
-            ) {
-                Row(
-                    modifier = Modifier.padding(
-                        horizontal = 16.dp,
-                        vertical = 11.dp
-                    ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.PersonAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(19.dp)
-                    )
-
-                    Spacer(
-                        modifier = Modifier.size(8.dp)
-                    )
-
-                    Text(
-                        text = "Add party",
-                        fontWeight = FontWeight.SemiBold
-                    )
                 }
             }
         }

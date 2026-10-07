@@ -32,6 +32,7 @@ import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
+import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
 import com.ledger.app.ui.PartyLedgerScreen
 
@@ -74,7 +75,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            MaterialTheme {
+            LedgerTheme {
                 var showRestoreDialog by remember {
                     mutableStateOf(false)
                 }

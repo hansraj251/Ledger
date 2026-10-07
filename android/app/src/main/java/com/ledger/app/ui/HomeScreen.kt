@@ -98,6 +98,14 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    val receivable = uiState.partyBalances.values
+        .filter { it > 0.0 }
+        .sum()
+
+    val payable = uiState.partyBalances.values
+        .filter { it < 0.0 }
+        .sumOf { kotlin.math.abs(it) }
+
     var showAddPartyDialog by remember {
         mutableStateOf(false)
     }
@@ -248,8 +256,29 @@ fun HomeScreen(
                 top = 18.dp,
                 bottom = 110.dp
             ),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    BalanceSummaryCard(
+                        title = "Receivable",
+                        amount = receivable,
+                        modifier = Modifier.weight(1f),
+                        amountColor = MaterialTheme.colorScheme.primary
+                    )
+
+                    BalanceSummaryCard(
+                        title = "Payable",
+                        amount = payable,
+                        modifier = Modifier.weight(1f),
+                        amountColor = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
             item {
                 OutlinedTextField(
                     value = uiState.searchQuery,
@@ -501,6 +530,45 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BalanceSummaryCard(
+    title: String,
+    amount: Double,
+    modifier: Modifier = Modifier,
+    amountColor: Color
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "₹${String.format("%.2f", amount)}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = amountColor
+            )
         }
     }
 }

@@ -31,6 +31,10 @@ interface LedgerDataSource {
         entry: LedgerEntryEntity
     )
 
+    fun deleteEntry(
+        entry: LedgerEntryEntity
+    )
+
     fun addEntry(
         partyId: Long,
         amount: Double,

@@ -64,6 +64,12 @@ class LedgerRepository(
         ledgerEntryDao.update(entry)
     }
 
+    override fun deleteEntry(
+        entry: LedgerEntryEntity
+    ) {
+        ledgerEntryDao.delete(entry)
+    }
+
     override fun addEntry(
         partyId: Long,
         amount: Double,

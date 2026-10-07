@@ -211,6 +211,23 @@ class LedgerViewModel(
         }
     }
 
+    suspend fun deleteEntry(
+        entry: LedgerEntryEntity
+    ) {
+        try {
+            withContext(Dispatchers.IO) {
+                dataSource.deleteEntry(entry)
+            }
+
+            loadEntries(entry.partyId)
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message
+                    ?: "Unable to delete transaction"
+            )
+        }
+    }
+
     suspend fun updateEntry(
         entry: LedgerEntryEntity,
         amount: Double,

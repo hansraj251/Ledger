@@ -108,6 +108,14 @@ fun PartyLedgerScreen(
         mutableStateOf(EntryType.CREDIT)
     }
 
+    var editingEntry by remember {
+        mutableStateOf<LedgerEntryEntity?>(null)
+    }
+
+    var showDeleteEntryDialog by remember {
+        mutableStateOf(false)
+    }
+
     LaunchedEffect(party.id) {
         viewModel.loadEntries(party.id)
     }
@@ -249,7 +257,11 @@ fun PartyLedgerScreen(
                 ) { entry ->
                     TransactionCard(
                         entry = entry,
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                        modifier = Modifier
+                            .padding(horizontal = 20.dp)
+                            .clickable {
+                                editingEntry = entry
+                            }
                     )
                 }
             }
@@ -302,6 +314,78 @@ fun PartyLedgerScreen(
                     showDeletePartyDialog = true
                 }
             )
+        }
+
+        editingEntry?.let { entry ->
+            EditTransactionDialog(
+                entry = entry,
+                onDismiss = {
+                    editingEntry = null
+                },
+                onDelete = {
+                    showDeleteEntryDialog = true
+                },
+                onSave = { newAmount, newType, newNote ->
+                    scope.launch {
+                        viewModel.updateEntry(
+                            entry = entry,
+                            amount = newAmount,
+                            type = newType,
+                            note = newNote
+                        )
+
+                        if (viewModel.uiState.value.errorMessage.isEmpty()) {
+                            editingEntry = null
+                        }
+                    }
+                }
+            )
+        }
+
+        if (showDeleteEntryDialog) {
+            val entry = editingEntry
+
+            if (entry != null) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showDeleteEntryDialog = false
+                    },
+                    title = {
+                        Text("Delete Transaction?")
+                    },
+                    text = {
+                        Text(
+                            "This transaction will be permanently deleted."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    viewModel.deleteEntry(entry)
+                                    showDeleteEntryDialog = false
+                                    editingEntry = null
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = "Delete",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showDeleteEntryDialog = false
+                            }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
 
         if (showDeletePartyDialog) {
@@ -414,6 +498,155 @@ private fun PartyHeader(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun EditTransactionDialog(
+    entry: LedgerEntryEntity,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onSave: (Double, EntryType, String) -> Unit
+) {
+    var amount by remember(entry.id) {
+        mutableStateOf(entry.amount.toString())
+    }
+
+    var note by remember(entry.id) {
+        mutableStateOf(entry.note)
+    }
+
+    var selectedType by remember(entry.id) {
+        mutableStateOf(entry.type)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Edit Transaction",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = "Update transaction details",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Amount")
+                    },
+                    singleLine = true
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    FilterChip(
+                        selected = selectedType == EntryType.CREDIT,
+                        onClick = {
+                            selectedType = EntryType.CREDIT
+                        },
+                        label = {
+                            Text("You Gave")
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    FilterChip(
+                        selected = selectedType == EntryType.DEBIT,
+                        onClick = {
+                            selectedType = EntryType.DEBIT
+                        },
+                        label = {
+                            Text("You Got")
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text("Note")
+                    },
+                    minLines = 2,
+                    maxLines = 4
+                )
+
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Delete Transaction",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(0.85f)
+                            .height(52.dp)
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            val parsedAmount = amount.toDoubleOrNull()
+
+                            if (parsedAmount != null && parsedAmount > 0.0) {
+                                onSave(
+                                    parsedAmount,
+                                    selectedType,
+                                    note.trim()
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .height(52.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = "Save Changes",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

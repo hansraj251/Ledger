@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.pdf.PdfRenderer
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -133,7 +135,7 @@ fun PartyReportScreen(
                 }
 
                 if (reportFile != null) {
-                    Button(
+                    IconButton(
                         onClick = {
                             try {
                                 val message = downloadPartyReportPdf(
@@ -158,12 +160,47 @@ fun PartyReportScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Download,
-                            contentDescription = null
+                            contentDescription = "Download report"
                         )
+                    }
 
-                        Text(
-                            text = "Download",
-                            modifier = Modifier.padding(start = 6.dp)
+                    IconButton(
+                        onClick = {
+                            try {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context,
+                                    "${context.packageName}.fileprovider",
+                                    reportFile!!
+                                )
+
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    putExtra(
+                                        Intent.EXTRA_SUBJECT,
+                                        "${party.name} Ledger Report"
+                                    )
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        shareIntent,
+                                        "Share report"
+                                    )
+                                )
+                            } catch (error: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    error.message ?: "Share failed",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Share,
+                            contentDescription = "Share report"
                         )
                     }
                 }

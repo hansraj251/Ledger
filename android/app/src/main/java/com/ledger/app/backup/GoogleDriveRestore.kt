@@ -14,6 +14,12 @@ class GoogleDriveRestore(
     context: Context
 ) {
 
+    data class BackupMetadata(
+        val fileId: String,
+        val modifiedTime: String
+    )
+
+
     companion object {
         private const val PREFERENCES_NAME = "ledger_backup"
         private const val FILE_ID_KEY = "google_drive_file_id"
@@ -118,11 +124,11 @@ class GoogleDriveRestore(
     ) {
         Thread {
             try {
-                val fileId = findBackupFileId(accessToken)
+                val metadata = findBackupMetadataBlocking(accessToken)
 
                 mainHandler.post {
                     callback(
-                        Result.success(fileId)
+                        Result.success(metadata?.fileId)
                     )
                 }
             } catch (error: Exception) {
@@ -135,9 +141,32 @@ class GoogleDriveRestore(
         }.start()
     }
 
-    private fun findBackupFileId(
+    fun findBackupMetadata(
+        accessToken: String,
+        callback: (Result<BackupMetadata?>) -> Unit
+    ) {
+        Thread {
+            try {
+                val metadata = findBackupMetadataBlocking(accessToken)
+
+                mainHandler.post {
+                    callback(
+                        Result.success(metadata)
+                    )
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    callback(
+                        Result.failure(error)
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun findBackupMetadataBlocking(
         accessToken: String
-    ): String? {
+    ): BackupMetadata? {
         val encodedQuery =
             URLEncoder.encode(
                 "name = 'Ledger Backup.db' and trashed = false",
@@ -146,7 +175,7 @@ class GoogleDriveRestore(
 
         val encodedFields =
             URLEncoder.encode(
-                "files(id,name,mimeType)",
+                "files(id,name,mimeType,modifiedTime)",
                 "UTF-8"
             )
 
@@ -203,9 +232,21 @@ class GoogleDriveRestore(
                 return null
             }
 
-            return files
-                .getJSONObject(0)
-                .getString("id")
+            val file = files.getJSONObject(0)
+
+            val fileId = file.getString("id")
+            val modifiedTime = file.optString("modifiedTime")
+
+            if (modifiedTime.isBlank()) {
+                throw IllegalStateException(
+                    "Google Drive backup modifiedTime is unavailable."
+                )
+            }
+
+            return BackupMetadata(
+                fileId = fileId,
+                modifiedTime = modifiedTime
+            )
         } finally {
             connection.disconnect()
         }

@@ -142,6 +142,15 @@ class MainActivity : ComponentActivity() {
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                },
+                onRemoteBackupNewer = { fileId, modifiedTime, accessToken ->
+                    runOnUiThread {
+                        performAutomaticRemoteRestore(
+                            fileId = fileId,
+                            modifiedTime = modifiedTime,
+                            accessToken = accessToken
+                        )
+                    }
                 }
             )
 
@@ -321,6 +330,111 @@ class MainActivity : ComponentActivity() {
      * Manual and automatic backup requests are serialized by
      * GoogleDriveSyncCoordinator. No direct Drive upload is started here.
      */
+
+    private fun performAutomaticRemoteRestore(
+        fileId: String,
+        modifiedTime: String,
+        accessToken: String
+    ) {
+        Toast.makeText(
+            this,
+            "Newer Google Drive backup found. Restoring...",
+            Toast.LENGTH_LONG
+        ).show()
+
+        googleDriveRestore.restore(
+            accessToken = accessToken,
+            fileIdOverride = fileId
+        ) { restoreResult ->
+            restoreResult
+                .onSuccess {
+                    try {
+                        val validatedFile =
+                            googleDriveRestore.getValidatedBackupFile()
+
+                        LedgerDatabaseProvider.close()
+
+                        val databaseFile =
+                            getDatabasePath(
+                                LedgerDatabaseProvider.DATABASE_NAME
+                            )
+
+                        val walFile =
+                            File(databaseFile.path + "-wal")
+
+                        val shmFile =
+                            File(databaseFile.path + "-shm")
+
+                        val journalFile =
+                            File(databaseFile.path + "-journal")
+
+                        databaseFile.delete()
+                        walFile.delete()
+                        shmFile.delete()
+                        journalFile.delete()
+
+                        validatedFile.copyTo(
+                            databaseFile,
+                            overwrite = true
+                        )
+
+                        validatedFile.delete()
+
+                        googleDriveSyncCoordinator
+                            .markRemoteBackupSynced(
+                                modifiedTime
+                            )
+
+                        Toast.makeText(
+                            this,
+                            "Newer backup restored successfully.",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        window.decorView.postDelayed(
+                            {
+                                val launchIntent =
+                                    packageManager
+                                        .getLaunchIntentForPackage(
+                                            packageName
+                                        )
+
+                                finishAffinity()
+
+                                if (launchIntent != null) {
+                                    launchIntent.addFlags(
+                                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                                            Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    )
+
+                                    startActivity(launchIntent)
+                                }
+                            },
+                            500
+                        )
+                    } catch (error: Exception) {
+                        googleDriveSyncCoordinator
+                            .resumeAfterRemoteRestoreFailure()
+
+                        Toast.makeText(
+                            this,
+                            "Automatic restore failed: ${error.message ?: "Unknown error"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                .onFailure { error ->
+                    googleDriveSyncCoordinator
+                        .resumeAfterRemoteRestoreFailure()
+
+                    Toast.makeText(
+                        this,
+                        "Automatic restore failed: ${error.message ?: "Unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+        }
+    }
 
     private fun performGoogleDriveRestore() {
         googleDriveSyncCoordinator.pause()

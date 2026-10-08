@@ -3,6 +3,7 @@ package com.ledger.app.backup
 import android.content.Context
 import android.content.IntentSender
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 
 class GoogleDriveSyncCoordinator(
@@ -13,16 +14,23 @@ class GoogleDriveSyncCoordinator(
     private val onAuthorizationRequired: ((IntentSender) -> Unit)? = null,
     private val onSyncStarted: (() -> Unit)? = null,
     private val onSyncSuccess: (() -> Unit)? = null,
-    private val onSyncFailure: ((Throwable) -> Unit)? = null
+    private val onSyncFailure: ((Throwable) -> Unit)? = null,
+    private val onRemoteBackupNewer:
+        ((String, String, String) -> Unit)? = null
 ) {
     companion object {
         private const val PREFS_NAME = "ledger_google_drive_sync"
         private const val PENDING_GENERATION = "pending_generation"
         private const val COMPLETED_GENERATION = "completed_generation"
+        private const val LAST_SYNCED_DRIVE_MODIFIED_TIME =
+            "last_synced_drive_modified_time"
     }
 
+    private val applicationContext =
+        context.applicationContext
+
     private val prefs =
-        context.applicationContext.getSharedPreferences(
+        applicationContext.getSharedPreferences(
             PREFS_NAME,
             Context.MODE_PRIVATE
         )
@@ -61,23 +69,145 @@ class GoogleDriveSyncCoordinator(
     }
 
     fun resume() {
-        val shouldStart = synchronized(lock) {
-            paused = false
-
-            if (
-                !running &&
-                generation.get() > completedGeneration
-            ) {
+        val shouldCheckRemote = synchronized(lock) {
+            if (running) {
+                false
+            } else {
+                paused = true
                 running = true
                 true
-            } else {
-                false
             }
         }
 
+        if (shouldCheckRemote) {
+            checkRemoteBackupBeforeSync()
+        }
+    }
+
+    private fun checkRemoteBackupBeforeSync() {
+        authorization
+            .authorize()
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    synchronized(lock) {
+                        running = false
+                    }
+                    return@addOnSuccessListener
+                }
+
+                val accessToken = result.accessToken
+
+                if (accessToken.isNullOrBlank()) {
+                    finishStartupCheck(true)
+                    return@addOnSuccessListener
+                }
+
+                val restore =
+                    GoogleDriveRestore(applicationContext)
+
+                restore.findBackupMetadata(accessToken) { result ->
+                    result
+                        .onSuccess { metadata ->
+                            if (metadata == null) {
+                                finishStartupCheck(true)
+                                return@onSuccess
+                            }
+
+                            val remote =
+                                runCatching {
+                                    Instant.parse(
+                                        metadata.modifiedTime
+                                    )
+                                }.getOrNull()
+
+                            if (remote == null) {
+                                finishStartupCheck(true)
+                                return@onSuccess
+                            }
+
+                            val localText =
+                                prefs.getString(
+                                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
+                                    null
+                                )
+
+                            val local =
+                                localText?.let {
+                                    runCatching {
+                                        Instant.parse(it)
+                                    }.getOrNull()
+                                }
+
+                            if (
+                                local != null &&
+                                remote.isAfter(local)
+                            ) {
+                                synchronized(lock) {
+                                    paused = true
+                                    running = false
+                                }
+
+                                onRemoteBackupNewer?.invoke(
+                                    metadata.fileId,
+                                    metadata.modifiedTime,
+                                    accessToken
+                                )
+                            } else {
+                                finishStartupCheck(true)
+                            }
+                        }
+                        .onFailure {
+                            finishStartupCheck(true)
+                        }
+                }
+            }
+            .addOnFailureListener {
+                // Drive unavailable must never block local app startup.
+                finishStartupCheck(true)
+            }
+    }
+
+    private fun finishStartupCheck(
+        startPendingSync: Boolean
+    ) {
+        val shouldStart = synchronized(lock) {
+            paused = false
+            running = false
+
+            startPendingSync &&
+                generation.get() > completedGeneration
+        }
+
         if (shouldStart) {
+            synchronized(lock) {
+                if (running || paused) {
+                    return@synchronized
+                }
+                running = true
+            }
+
             startSync(manual = false)
         }
+    }
+
+    fun markRemoteBackupSynced(
+        modifiedTime: String
+    ) {
+        prefs.edit()
+            .putString(
+                LAST_SYNCED_DRIVE_MODIFIED_TIME,
+                modifiedTime
+            )
+            .apply()
+
+        synchronized(lock) {
+            paused = false
+            running = false
+        }
+    }
+
+    fun resumeAfterRemoteRestoreFailure() {
+        finishStartupCheck(true)
     }
 
     private fun requestSync(manual: Boolean) {
@@ -211,11 +341,45 @@ class GoogleDriveSyncCoordinator(
             return
         }
 
+        if (success) {
+            refreshLastSyncedDriveModifiedTime()
+        }
+
         onSyncSuccess?.invoke()
 
         if (startNext) {
             startSync(manual = false)
         }
+    }
+
+    private fun refreshLastSyncedDriveModifiedTime() {
+        authorization
+            .authorize()
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    return@addOnSuccessListener
+                }
+
+                val token =
+                    result.accessToken
+                        ?: return@addOnSuccessListener
+
+                val restore =
+                    GoogleDriveRestore(applicationContext)
+
+                restore.findBackupMetadata(token) { result ->
+                    result.onSuccess { metadata ->
+                        metadata?.modifiedTime?.let {
+                            prefs.edit()
+                                .putString(
+                                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
+                                    it
+                                )
+                                .apply()
+                        }
+                    }
+                }
+            }
     }
 
     private fun persistPendingGeneration() {

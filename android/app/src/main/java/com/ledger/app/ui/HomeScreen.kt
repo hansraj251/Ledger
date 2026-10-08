@@ -185,7 +185,10 @@ fun HomeScreen(
                             onDismissRequest = {
                                 showMenu = false
                             },
-                            modifier = Modifier.width(240.dp)
+                            modifier = Modifier
+                                .width(250.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
                         ) {
                             DropdownMenuItem(
                                 text = {

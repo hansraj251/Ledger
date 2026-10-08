@@ -126,6 +126,8 @@ class LedgerViewModel(
 
             false
         }
+
+        onDataChanged()
     }
 
     fun setSearchQuery(
@@ -148,6 +150,8 @@ class LedgerViewModel(
         _uiState.value = _uiState.value.copy(
             errorMessage = ""
         )
+
+        onDataChanged()
     }
 
     suspend fun addParty(
@@ -179,6 +183,8 @@ class LedgerViewModel(
                     ?: "Unable to add party"
             )
         }
+
+        onDataChanged()
     }
 
     suspend fun loadEntries(

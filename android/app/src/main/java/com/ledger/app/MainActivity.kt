@@ -214,6 +214,9 @@ class MainActivity : ComponentActivity() {
                     ProfileScreen(
                         onBack = {
                             showProfileScreen = false
+                        },
+                        onProfileSaved = {
+                            googleDriveSyncCoordinator.requestAutoSync()
                         }
                     )
                 } else if (selectedParty == null) {
@@ -974,7 +977,8 @@ private fun InitialGoogleDriveSetupScreen(
 
 @androidx.compose.runtime.Composable
 private fun ProfileScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onProfileSaved: () -> Unit
 ) {
     BackHandler {
         onBack()
@@ -1378,6 +1382,7 @@ private fun ProfileScreen(
                                                     name = cleanName
                                                     mobile = cleanMobile
                                                     isEditing = false
+                                            onProfileSaved()
                                                 }
                                             }
                                         }

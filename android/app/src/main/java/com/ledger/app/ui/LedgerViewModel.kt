@@ -41,7 +41,8 @@ data class LedgerUiState(
 }
 
 class LedgerViewModel(
-    private val dataSource: LedgerDataSource
+    private val dataSource: LedgerDataSource,
+    private val onDataChanged: () -> Unit = {}
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -221,6 +222,7 @@ class LedgerViewModel(
             }
 
             loadEntries(entry.partyId)
+            onDataChanged()
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message
@@ -258,6 +260,7 @@ class LedgerViewModel(
             }
 
             loadEntries(entry.partyId)
+            onDataChanged()
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message
@@ -294,6 +297,7 @@ class LedgerViewModel(
             }
 
             loadEntries(partyId)
+            onDataChanged()
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 
 import android.content.Intent
+import android.content.IntentSender
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -47,6 +48,7 @@ import java.io.File
 import com.ledger.app.backup.GoogleDriveAuthorization
 import com.ledger.app.backup.GoogleDriveBackup
 import com.ledger.app.backup.GoogleDriveRestore
+import com.ledger.app.backup.GoogleDriveSyncCoordinator
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
@@ -60,6 +62,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var googleDriveAuthorization: GoogleDriveAuthorization
     private lateinit var googleDriveBackup: GoogleDriveBackup
     private lateinit var googleDriveRestore: GoogleDriveRestore
+    private lateinit var googleDriveSyncCoordinator: GoogleDriveSyncCoordinator
     private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
 
@@ -88,6 +91,59 @@ class MainActivity : ComponentActivity() {
 
         ledgerSqliteDatabase =
             database.openHelper.writableDatabase
+
+        googleDriveSyncCoordinator =
+            GoogleDriveSyncCoordinator(
+                context = applicationContext,
+                authorization = googleDriveAuthorization,
+                backup = googleDriveBackup,
+                database = ledgerSqliteDatabase,
+                onAuthorizationRequired = { intentSender ->
+                    try {
+                        startIntentSenderForResult(
+                            intentSender,
+                            GOOGLE_DRIVE_SYNC_REQUEST_CODE,
+                            null,
+                            0,
+                            0,
+                            0
+                        )
+                    } catch (error: Exception) {
+                        Toast.makeText(
+                            this,
+                            "Unable to open Google Drive authorization.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                onSyncStarted = {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this,
+                            "Syncing backup...",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                onSyncSuccess = {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this,
+                            "Backup synced to Google Drive.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                },
+                onSyncFailure = { error ->
+                    runOnUiThread {
+                        Toast.makeText(
+                            this,
+                            "Backup failed: ${error.message ?: "Unknown error"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            )
 
         val repository = LedgerRepository(
             database
@@ -119,8 +175,17 @@ class MainActivity : ComponentActivity() {
 
                 val viewModel = remember {
                     LedgerViewModel(
-                        repository
+                        repository,
+                        onDataChanged = {
+                            googleDriveSyncCoordinator.requestAutoSync()
+                        }
                     )
+                }
+
+                LaunchedEffect(initialDriveSetupRequired) {
+                    if (!initialDriveSetupRequired) {
+                        googleDriveSyncCoordinator.resume()
+                    }
                 }
 
                 if (initialDriveSetupRequired) {
@@ -152,7 +217,7 @@ class MainActivity : ComponentActivity() {
                             showProfileScreen = true
                         },
                         onSyncClick = {
-                            syncGoogleDrive()
+                            googleDriveSyncCoordinator.requestManualSync()
                         },
                         onRestoreClick = {
                             showRestoreDialog = true
@@ -252,100 +317,14 @@ class MainActivity : ComponentActivity() {
             }
     }
 
-    private fun syncGoogleDrive() {
-        Toast.makeText(
-            this,
-            "Syncing backup...",
-            Toast.LENGTH_SHORT
-        ).show()
-
-        googleDriveAuthorization
-            .authorize()
-            .addOnSuccessListener { result ->
-                if (result.hasResolution()) {
-                    try {
-                        val pendingIntent =
-                            result.pendingIntent
-
-                        if (pendingIntent == null) {
-                            Toast.makeText(
-                                this,
-                                "Google Drive authorization is required.",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            return@addOnSuccessListener
-                        }
-
-                        startIntentSenderForResult(
-                            pendingIntent.intentSender,
-                            GOOGLE_DRIVE_SYNC_REQUEST_CODE,
-                            null,
-                            0,
-                            0,
-                            0
-                        )
-
-                        Toast.makeText(
-                            this,
-                            "Complete Google Drive authorization, then tap Sync again.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    } catch (error: Exception) {
-                        Toast.makeText(
-                            this,
-                            "Unable to open Google Drive authorization.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-
-                    return@addOnSuccessListener
-                }
-
-                val accessToken =
-                    result.accessToken
-
-                if (accessToken.isNullOrBlank()) {
-                    Toast.makeText(
-                        this,
-                        "Google Drive access token is unavailable.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    return@addOnSuccessListener
-                }
-
-                googleDriveBackup.sync(
-                    ledgerSqliteDatabase,
-                    accessToken
-                ) { syncResult ->
-                    syncResult
-                        .onSuccess {
-                            Toast.makeText(
-                                this,
-                                "Backup synced to Google Drive.",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                        .onFailure { error ->
-                            Toast.makeText(
-                                this,
-                                "Backup failed: ${error.message ?: "Unknown error"}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                }
-            }
-            .addOnFailureListener { error ->
-                Toast.makeText(
-                    this,
-                    "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-    }
+    /*
+     * Manual and automatic backup requests are serialized by
+     * GoogleDriveSyncCoordinator. No direct Drive upload is started here.
+     */
 
     private fun performGoogleDriveRestore() {
+        googleDriveSyncCoordinator.pause()
+
         Toast.makeText(
             this,
             "Downloading backup...",
@@ -467,6 +446,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
             .addOnFailureListener { error ->
+                googleDriveSyncCoordinator.resume()
+
                 Toast.makeText(
                     this,
                     "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
@@ -752,6 +733,8 @@ class MainActivity : ComponentActivity() {
                 500
             )
         } catch (error: Exception) {
+            googleDriveSyncCoordinator.resume()
+
             Toast.makeText(
                 this,
                 "Restore failed: ${

@@ -1,5 +1,8 @@
 package com.ledger.app.ui
 
+import android.app.DatePickerDialog
+import android.content.Context
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -53,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -63,6 +67,7 @@ import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 
@@ -75,6 +80,11 @@ fun PartyLedgerScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    var transactionDate by remember {
+        mutableStateOf(System.currentTimeMillis())
+    }
+
 
     var currentParty by remember {
         mutableStateOf(party)
@@ -174,12 +184,16 @@ fun PartyLedgerScreen(
                 TransactionComposer(
                     amount = amount,
                     note = note,
+                    transactionDate = transactionDate,
                     selectedType = selectedType,
                     onAmountChange = {
                         amount = it
                     },
                     onNoteChange = {
                         note = it
+                    },
+                    onTransactionDateChange = {
+                        transactionDate = it
                     },
                     onTypeChange = {
                         selectedType = it
@@ -193,7 +207,8 @@ fun PartyLedgerScreen(
                                     partyId = party.id,
                                     amount = parsedAmount,
                                     type = selectedType,
-                                    note = note
+                                    note = note,
+                                    transactionDate = transactionDate
                                 )
 
                                 if (viewModel.uiState.value.errorMessage.isEmpty()) {
@@ -325,13 +340,14 @@ fun PartyLedgerScreen(
                 onDelete = {
                     showDeleteEntryDialog = true
                 },
-                onSave = { newAmount, newType, newNote ->
+                onSave = { newAmount, newType, newNote, newTransactionDate ->
                     scope.launch {
                         viewModel.updateEntry(
                             entry = entry,
                             amount = newAmount,
                             type = newType,
-                            note = newNote
+                            note = newNote,
+                            transactionDate = newTransactionDate
                         )
 
                         if (viewModel.uiState.value.errorMessage.isEmpty()) {
@@ -507,7 +523,7 @@ private fun EditTransactionDialog(
     entry: LedgerEntryEntity,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onSave: (Double, EntryType, String) -> Unit
+    onSave: (Double, EntryType, String, Long) -> Unit
 ) {
     var amount by remember(entry.id) {
         mutableStateOf(entry.amount.toString())
@@ -520,6 +536,18 @@ private fun EditTransactionDialog(
     var selectedType by remember(entry.id) {
         mutableStateOf(entry.type)
     }
+
+    var transactionDate by remember(entry.id) {
+        mutableStateOf(
+            if (entry.transactionDate > 0L) {
+                entry.transactionDate
+            } else {
+                entry.createdAt
+            }
+        )
+    }
+
+    val context = LocalContext.current
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -585,6 +613,38 @@ private fun EditTransactionDialog(
                     )
                 }
 
+                Box(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = formatTransactionDate(transactionDate),
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        enabled = true,
+                        singleLine = true,
+                        label = {
+                            Text("Date")
+                        },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                            ) {
+                                showTransactionDatePicker(
+                                    context = context,
+                                    initialDate = transactionDate,
+                                    onDateSelected = { transactionDate = it }
+                                )
+                            }
+                    )
+                }
+
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -631,7 +691,8 @@ private fun EditTransactionDialog(
                                 onSave(
                                     parsedAmount,
                                     selectedType,
-                                    note.trim()
+                                    note.trim(),
+                                    transactionDate
                                 )
                             }
                         },
@@ -861,12 +922,16 @@ private fun BalanceHero(
 private fun TransactionComposer(
     amount: String,
     note: String,
+    transactionDate: Long,
     selectedType: EntryType,
     onAmountChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onTransactionDateChange: (Long) -> Unit,
     onTypeChange: (EntryType) -> Unit,
     onAdd: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -944,6 +1009,40 @@ private fun TransactionComposer(
                 },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
             )
+
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = formatTransactionDate(transactionDate),
+                    onValueChange = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    readOnly = true,
+                    enabled = true,
+                    singleLine = true,
+                    label = {
+                        Text("Date")
+                    },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember {
+                                androidx.compose.foundation.interaction.MutableInteractionSource()
+                            }
+                        ) {
+                            showTransactionDatePicker(
+                                context = context,
+                                initialDate = transactionDate,
+                                onDateSelected = onTransactionDateChange
+                            )
+                        }
+                )
+            }
 
             OutlinedTextField(
                 value = note,
@@ -1164,10 +1263,51 @@ internal fun transactionAmountLabel(
 internal fun transactionDateTimeLabel(
     entry: LedgerEntryEntity
 ): String {
+    val date = if (entry.transactionDate > 0L) {
+        entry.transactionDate
+    } else {
+        entry.createdAt
+    }
+
     return SimpleDateFormat(
-        "dd MMM yyyy, hh:mm a",
+        "dd MMM yyyy",
         Locale.ENGLISH
-    ).format(
-        Date(entry.createdAt)
-    )
+    ).format(Date(date))
 }
+
+internal fun formatTransactionDate(timestamp: Long): String {
+    return SimpleDateFormat(
+        "dd MMM yyyy",
+        Locale.ENGLISH
+    ).format(Date(timestamp))
+}
+
+private fun showTransactionDatePicker(
+    context: Context,
+    initialDate: Long,
+    onDateSelected: (Long) -> Unit
+) {
+    val calendar = Calendar.getInstance().apply {
+        timeInMillis = initialDate
+    }
+
+    DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val selected = Calendar.getInstance().apply {
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                set(Calendar.HOUR_OF_DAY, 12)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            onDateSelected(selected.timeInMillis)
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    ).show()
+}
+

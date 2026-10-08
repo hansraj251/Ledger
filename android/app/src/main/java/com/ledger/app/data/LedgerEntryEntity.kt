@@ -26,5 +26,6 @@ data class LedgerEntryEntity(
     val amount: Double,
     val type: EntryType,
     val note: String = "",
+    val transactionDate: Long = System.currentTimeMillis(),
     val createdAt: Long = System.currentTimeMillis()
 )

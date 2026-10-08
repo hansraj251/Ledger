@@ -39,7 +39,8 @@ interface LedgerDataSource {
         partyId: Long,
         amount: Double,
         type: EntryType,
-        note: String = ""
+        note: String = "",
+        transactionDate: Long = System.currentTimeMillis()
     ): LedgerEntryEntity
 
     fun getEntries(

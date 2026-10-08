@@ -232,7 +232,8 @@ class LedgerViewModel(
         entry: LedgerEntryEntity,
         amount: Double,
         type: com.ledger.app.data.EntryType,
-        note: String
+        note: String,
+        transactionDate: Long
     ) {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
@@ -245,7 +246,8 @@ class LedgerViewModel(
             val updatedEntry = entry.copy(
                 amount = amount,
                 type = type,
-                note = note
+                note = note,
+                transactionDate = transactionDate
             )
 
             withContext(Dispatchers.IO) {
@@ -265,7 +267,8 @@ class LedgerViewModel(
         partyId: Long,
         amount: Double,
         type: com.ledger.app.data.EntryType,
-        note: String
+        note: String,
+        transactionDate: Long
     ) {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
@@ -280,7 +283,8 @@ class LedgerViewModel(
                     partyId = partyId,
                     amount = amount,
                     type = type,
-                    note = note.trim()
+                    note = note.trim(),
+                    transactionDate = transactionDate
                 )
             }
 

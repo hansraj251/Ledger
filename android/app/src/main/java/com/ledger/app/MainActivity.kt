@@ -66,6 +66,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var googleDriveSyncCoordinator: GoogleDriveSyncCoordinator
     private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
+    private var initialDriveSetupCompletion: (() -> Unit)? = null
+
 
     override fun onCreate(
         savedInstanceState: Bundle?
@@ -204,10 +206,16 @@ class MainActivity : ComponentActivity() {
                         isRunning = initialDriveSetupRunning,
                         onConnect = {
                             initialDriveSetupRunning = true
+
+                            initialDriveSetupCompletion = {
+                                initialDriveSetupRunning = false
+                                initialDriveSetupRequired = false
+                            }
+
                             performInitialGoogleDriveSetup(
                                 onComplete = {
-                                    initialDriveSetupRunning = false
-                                    initialDriveSetupRequired = false
+                                    initialDriveSetupCompletion?.invoke()
+                                    initialDriveSetupCompletion = null
                                 }
                             )
                         }
@@ -847,9 +855,14 @@ class MainActivity : ComponentActivity() {
         ) {
             if (resultCode == RESULT_OK) {
                 continueInitialGoogleDriveSetup(
-                    onComplete = {}
+                    onComplete = {
+                        initialDriveSetupCompletion?.invoke()
+                        initialDriveSetupCompletion = null
+                    }
                 )
             } else {
+                initialDriveSetupCompletion?.invoke()
+                initialDriveSetupCompletion = null
                 Toast.makeText(
                     this,
                     "Google Drive connection is required.",

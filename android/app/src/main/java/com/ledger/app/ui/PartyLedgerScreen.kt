@@ -33,11 +33,14 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -105,6 +108,10 @@ fun PartyLedgerScreen(
         mutableStateOf(false)
     }
 
+    var showReport by remember {
+        mutableStateOf(false)
+    }
+
     var showDeletePartyDialog by remember {
         mutableStateOf(false)
     }
@@ -145,6 +152,17 @@ fun PartyLedgerScreen(
         onBack()
     }
 
+    if (showReport) {
+        PartyReportScreen(
+            party = currentParty,
+            entries = uiState.entries,
+            onBack = {
+                showReport = false
+            }
+        )
+        return
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -162,6 +180,9 @@ fun PartyLedgerScreen(
                         editPartyName = currentParty.name
                         editPartyMobile = currentParty.mobile
                         showEditPartyDialog = true
+                    },
+                    onReport = {
+                        showReport = true
                     }
                 )
                 }
@@ -483,8 +504,12 @@ fun PartyLedgerScreen(
 private fun PartyHeader(
     party: PartyEntity,
     onBack: () -> Unit,
-    onEdit: () -> Unit
+    onEdit: () -> Unit,
+    onReport: () -> Unit
 ) {
+    var showMenu by remember {
+        mutableStateOf(false)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -545,6 +570,42 @@ private fun PartyHeader(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        Box {
+            IconButton(
+                onClick = {
+                    showMenu = true
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.MoreVert,
+                    contentDescription = "More options"
+                )
+            }
+
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = {
+                    showMenu = false
+                }
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text("Reports")
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.ReceiptLong,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onReport()
+                    }
+                )
+            }
         }
     }
 }

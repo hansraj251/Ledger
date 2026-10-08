@@ -75,6 +75,7 @@ fun HomeScreen(
     viewModel: LedgerViewModel,
     onPartyClick: (PartyEntity) -> Unit,
     onProfileClick: () -> Unit,
+    onReportsClick: () -> Unit,
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -209,6 +210,34 @@ fun HomeScreen(
                                 onClick = {
                                     showMenu = false
                                     onProfileClick()
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Reports",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "View all parties report",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Storage,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onReportsClick()
                                 }
                             )
 

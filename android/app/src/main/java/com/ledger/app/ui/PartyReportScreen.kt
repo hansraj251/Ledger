@@ -240,7 +240,7 @@ fun PartyReportScreen(
 }
 
 @Composable
-private fun PdfPreview(
+internal fun PdfPreview(
     file: File,
     modifier: Modifier = Modifier
 ) {

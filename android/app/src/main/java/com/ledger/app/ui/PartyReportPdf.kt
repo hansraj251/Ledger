@@ -291,7 +291,7 @@ private fun moneySigned(value: Double): String {
     }
 }
 
-private fun formatRate(rate: Double): String {
+internal fun formatRate(rate: Double): String {
     return if (rate == rate.toLong().toDouble()) {
         rate.toLong().toString()
     } else {
@@ -301,7 +301,7 @@ private fun formatRate(rate: Double): String {
     }
 }
 
-private class ReportPdfWriter(
+internal class ReportPdfWriter(
     private val pdf: PdfDocument,
     private val dateFormat: SimpleDateFormat,
     private val dateTimeFormat: SimpleDateFormat

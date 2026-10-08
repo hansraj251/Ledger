@@ -53,6 +53,7 @@ import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
+import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
 import com.ledger.app.ui.PartyLedgerScreen
@@ -179,6 +180,10 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(false)
                 }
 
+                var showAllPartiesReport by remember {
+                    mutableStateOf(false)
+                }
+
                 val viewModel = remember {
                     LedgerViewModel(
                         repository,
@@ -207,6 +212,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     )
+                } else if (showAllPartiesReport) {
+                    AllPartiesReportScreen(
+                        repository = repository,
+                        onBack = {
+                            showAllPartiesReport = false
+                        }
+                    )
                 } else if (showProfileScreen) {
                     ProfileScreen(
                         onBack = {
@@ -224,6 +236,9 @@ class MainActivity : ComponentActivity() {
                         },
                         onProfileClick = {
                             showProfileScreen = true
+                        },
+                        onReportsClick = {
+                            showAllPartiesReport = true
                         }
                     )
                 } else {

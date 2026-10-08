@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
+import com.ledger.app.data.LedgerDatabaseProvider
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -67,10 +68,18 @@ fun PartyReportScreen(
 
         try {
             reportFile = withContext(Dispatchers.IO) {
+                val database = LedgerDatabaseProvider.get(context)
+                val profileName = database.profileDao()
+                    .getProfile()
+                    ?.name
+                    ?.trim()
+                    .orEmpty()
+
                 createPartyReportPdf(
                     context = context,
                     party = party,
-                    entries = entries
+                    entries = entries,
+                    profileName = profileName
                 )
             }
         } catch (error: Exception) {

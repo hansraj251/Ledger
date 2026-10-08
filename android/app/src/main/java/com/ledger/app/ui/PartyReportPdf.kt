@@ -31,7 +31,8 @@ private const val BOTTOM = 800f
 internal fun createPartyReportPdf(
     context: Context,
     party: PartyEntity,
-    entries: List<LedgerEntryEntity>
+    entries: List<LedgerEntryEntity>,
+    profileName: String = ""
 ): File {
     val pdf = PdfDocument()
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -92,7 +93,7 @@ internal fun createPartyReportPdf(
 
     writer.startPage()
 
-    writer.title("Party Ledger Report")
+
     writer.subtitle(party.name)
 
     if (party.mobile.isNotBlank()) {
@@ -105,10 +106,13 @@ internal fun createPartyReportPdf(
 
     writer.section("Account Summary")
 
-    writer.summaryRow("Total You Gave", money(gave))
-    writer.summaryRow("Interest on You Gave", money(gaveInterest))
-    writer.summaryRow("Total You Got", money(got))
-    writer.summaryRow("Interest on You Got", money(gotInterest))
+    val gaveLabel = "${profileName.trim().ifEmpty { "You" }} Gave"
+    val gotLabel = "${party.name.trim()} Gave"
+
+    writer.summaryRow("Total $gaveLabel", money(gave))
+    writer.summaryRow("Interest on $gaveLabel", money(gaveInterest))
+    writer.summaryRow("Total $gotLabel", money(got))
+    writer.summaryRow("Interest on $gotLabel", money(gotInterest))
     writer.summaryRow("Current Balance", moneySigned(netBalance), bold = true)
 
     writer.space(14f)
@@ -142,9 +146,9 @@ internal fun createPartyReportPdf(
 
             val total = entry.amount + interest
             val type = if (entry.type == EntryType.CREDIT) {
-                "YOU GAVE"
+                gaveLabel.uppercase()
             } else {
-                "YOU GOT"
+                gotLabel.uppercase()
             }
 
             writer.transactionHeader(
@@ -180,6 +184,7 @@ internal fun createPartyReportPdf(
             }
 
             writer.separator()
+            writer.space(8f)
         }
     }
 

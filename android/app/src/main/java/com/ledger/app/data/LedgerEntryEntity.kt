@@ -27,5 +27,6 @@ data class LedgerEntryEntity(
     val type: EntryType,
     val note: String = "",
     val transactionDate: Long = System.currentTimeMillis(),
+    val interestRate: Double = 0.0,
     val createdAt: Long = System.currentTimeMillis()
 )

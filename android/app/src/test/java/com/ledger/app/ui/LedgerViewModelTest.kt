@@ -86,11 +86,17 @@ class LedgerViewModelTest {
             entries[index] = entry
         }
 
+        override fun deleteEntry(entry: LedgerEntryEntity) {
+            entries.removeAll { it.id == entry.id }
+        }
+
         override fun addEntry(
             partyId: Long,
             amount: Double,
             type: EntryType,
-            note: String
+            note: String,
+            transactionDate: Long,
+            interestRate: Double
         ): LedgerEntryEntity {
             require(
                 parties.any {
@@ -104,7 +110,9 @@ class LedgerViewModelTest {
                 partyId = partyId,
                 amount = amount,
                 type = type,
-                note = note
+                note = note,
+                transactionDate = transactionDate,
+                interestRate = interestRate
             )
             entries.add(entry)
             return entry
@@ -238,7 +246,9 @@ class LedgerViewModelTest {
             partyId = 1,
             amount = 750.0,
             type = EntryType.CREDIT,
-            note = "Sale"
+            note = "Sale",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -296,7 +306,9 @@ class LedgerViewModelTest {
             partyId = 1,
             amount = 0.0,
             type = EntryType.DEBIT,
-            note = ""
+            note = "",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -317,7 +329,9 @@ class LedgerViewModelTest {
             partyId = 999,
             amount = 500.0,
             type = EntryType.CREDIT,
-            note = ""
+            note = "",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -367,7 +381,9 @@ class LedgerViewModelTest {
             partyId = 1,
             amount = 1000.0,
             type = EntryType.CREDIT,
-            note = "Credit sale"
+            note = "Credit sale",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -393,7 +409,9 @@ class LedgerViewModelTest {
             partyId = 1,
             amount = 400.0,
             type = EntryType.DEBIT,
-            note = "Payment received"
+            note = "Payment received",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -419,14 +437,18 @@ class LedgerViewModelTest {
             partyId = 1,
             amount = 1500.0,
             type = EntryType.CREDIT,
-            note = "Sale"
+            note = "Sale",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         viewModel.addEntry(
             partyId = 1,
             amount = 500.0,
             type = EntryType.DEBIT,
-            note = "Payment"
+            note = "Payment",
+            transactionDate = System.currentTimeMillis(),
+            interestRate = 0.0
         )
 
         assertEquals(
@@ -485,7 +507,9 @@ class LedgerViewModelTest {
             entry = entry,
             amount = 750.0,
             type = EntryType.DEBIT,
-            note = "Updated"
+            note = "Updated",
+            transactionDate = entry.transactionDate,
+            interestRate = entry.interestRate
         )
 
         viewModel.loadEntries(
@@ -544,7 +568,9 @@ class LedgerViewModelTest {
             entry = entry,
             amount = 800.0,
             type = EntryType.CREDIT,
-            note = "Changed"
+            note = "Changed",
+            transactionDate = entry.transactionDate,
+            interestRate = entry.interestRate
         )
 
         viewModel.loadEntries(

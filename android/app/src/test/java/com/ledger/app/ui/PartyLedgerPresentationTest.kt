@@ -18,7 +18,7 @@ class PartyLedgerPresentationTest {
         )
 
         assertEquals(
-            "+₹750.00",
+            "+₹750",
             transactionAmountLabel(entry)
         )
     }
@@ -34,7 +34,7 @@ class PartyLedgerPresentationTest {
         )
 
         assertEquals(
-            "-₹500.00",
+            "-₹500",
             transactionAmountLabel(entry)
         )
     }
@@ -47,11 +47,12 @@ class PartyLedgerPresentationTest {
             amount = 250.0,
             type = EntryType.CREDIT,
             note = "Payment",
+            transactionDate = 0L,
             createdAt = 0L
         )
 
         assertEquals(
-            "01 Jan 1970, 05:30 AM",
+            "01 Jan 1970",
             transactionDateTimeLabel(entry)
         )
     }

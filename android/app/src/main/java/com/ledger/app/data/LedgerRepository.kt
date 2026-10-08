@@ -75,7 +75,8 @@ class LedgerRepository(
         amount: Double,
         type: EntryType,
         note: String,
-        transactionDate: Long
+        transactionDate: Long,
+        interestRate: Double
     ): LedgerEntryEntity {
         require(amount > 0) {
             "Amount must be greater than zero"
@@ -90,7 +91,8 @@ class LedgerRepository(
             amount = amount,
             type = type,
             note = note,
-            transactionDate = transactionDate
+            transactionDate = transactionDate,
+            interestRate = interestRate
         )
 
         val id = ledgerEntryDao.insert(entry)

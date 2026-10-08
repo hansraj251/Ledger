@@ -3,6 +3,7 @@ package com.ledger.app.ui
 import androidx.lifecycle.ViewModel
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.calculateLedgerBalance
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -191,9 +192,7 @@ class LedgerViewModel(
                 dataSource.getEntries(partyId)
             }
 
-            val balance = withContext(Dispatchers.IO) {
-                dataSource.getBalance(partyId)
-            }
+            val balance = calculateLedgerBalance(entries)
 
             _uiState.value = _uiState.value.copy(
                 entries = entries,
@@ -233,7 +232,8 @@ class LedgerViewModel(
         amount: Double,
         type: com.ledger.app.data.EntryType,
         note: String,
-        transactionDate: Long
+        transactionDate: Long,
+        interestRate: Double
     ) {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
@@ -247,7 +247,8 @@ class LedgerViewModel(
                 amount = amount,
                 type = type,
                 note = note,
-                transactionDate = transactionDate
+                transactionDate = transactionDate,
+                interestRate = interestRate
             )
 
             withContext(Dispatchers.IO) {
@@ -268,7 +269,8 @@ class LedgerViewModel(
         amount: Double,
         type: com.ledger.app.data.EntryType,
         note: String,
-        transactionDate: Long
+        transactionDate: Long = System.currentTimeMillis(),
+        interestRate: Double = 0.0
     ) {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
@@ -284,7 +286,8 @@ class LedgerViewModel(
                     amount = amount,
                     type = type,
                     note = note.trim(),
-                    transactionDate = transactionDate
+                    transactionDate = transactionDate,
+                    interestRate = interestRate
                 )
             }
 

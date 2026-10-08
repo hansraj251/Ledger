@@ -1,4 +1,7 @@
 package com.ledger.app.ui
+import com.ledger.app.data.calculateEntryTotal
+import com.ledger.app.data.calculateTransactionInterest
+import com.ledger.app.data.transactionInterestDays
 
 import android.app.DatePickerDialog
 import android.content.Context
@@ -83,6 +86,14 @@ fun PartyLedgerScreen(
 
     var transactionDate by remember {
         mutableStateOf(System.currentTimeMillis())
+    }
+
+    var interestRate by remember {
+        mutableStateOf(0.0)
+    }
+
+    var showInterestDialog by remember {
+        mutableStateOf(false)
     }
 
 
@@ -185,6 +196,10 @@ fun PartyLedgerScreen(
                     amount = amount,
                     note = note,
                     transactionDate = transactionDate,
+                    interestRate = interestRate,
+                    onInterestClick = {
+                        showInterestDialog = true
+                    },
                     selectedType = selectedType,
                     onAmountChange = {
                         amount = it
@@ -208,12 +223,14 @@ fun PartyLedgerScreen(
                                     amount = parsedAmount,
                                     type = selectedType,
                                     note = note,
-                                    transactionDate = transactionDate
+                                    transactionDate = transactionDate,
+                                    interestRate = interestRate
                                 )
 
                                 if (viewModel.uiState.value.errorMessage.isEmpty()) {
                                     amount = ""
                                     note = ""
+                                    interestRate = 0.0
                                 }
                             }
                         }
@@ -331,6 +348,19 @@ fun PartyLedgerScreen(
             )
         }
 
+        if (showInterestDialog) {
+            InterestRateDialog(
+                initialRate = interestRate,
+                onDismiss = {
+                    showInterestDialog = false
+                },
+                onSave = { rate ->
+                    interestRate = rate
+                    showInterestDialog = false
+                }
+            )
+        }
+
         editingEntry?.let { entry ->
             EditTransactionDialog(
                 entry = entry,
@@ -340,14 +370,15 @@ fun PartyLedgerScreen(
                 onDelete = {
                     showDeleteEntryDialog = true
                 },
-                onSave = { newAmount, newType, newNote, newTransactionDate ->
+                onSave = { newAmount, newType, newNote, newTransactionDate, newInterestRate ->
                     scope.launch {
                         viewModel.updateEntry(
                             entry = entry,
                             amount = newAmount,
                             type = newType,
                             note = newNote,
-                            transactionDate = newTransactionDate
+                            transactionDate = newTransactionDate,
+                            interestRate = newInterestRate
                         )
 
                         if (viewModel.uiState.value.errorMessage.isEmpty()) {
@@ -523,7 +554,7 @@ private fun EditTransactionDialog(
     entry: LedgerEntryEntity,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onSave: (Double, EntryType, String, Long) -> Unit
+    onSave: (Double, EntryType, String, Long, Double) -> Unit
 ) {
     var amount by remember(entry.id) {
         mutableStateOf(entry.amount.toString())
@@ -535,6 +566,14 @@ private fun EditTransactionDialog(
 
     var selectedType by remember(entry.id) {
         mutableStateOf(entry.type)
+    }
+
+    var interestRate by remember(entry.id) {
+        mutableStateOf(entry.interestRate)
+    }
+
+    var showInterestDialog by remember(entry.id) {
+        mutableStateOf(false)
     }
 
     var transactionDate by remember(entry.id) {
@@ -645,6 +684,35 @@ private fun EditTransactionDialog(
                     )
                 }
 
+                FilterChip(
+                    selected = interestRate > 0.0,
+                    onClick = {
+                        showInterestDialog = true
+                    },
+                    label = {
+                        Text(
+                            if (interestRate > 0.0) {
+                                "Int. ${formatInterestRate(interestRate)}%"
+                            } else {
+                                "Int."
+                            }
+                        )
+                    }
+                )
+
+                if (showInterestDialog) {
+                    InterestRateDialog(
+                        initialRate = interestRate,
+                        onDismiss = {
+                            showInterestDialog = false
+                        },
+                        onSave = { rate ->
+                            interestRate = rate
+                            showInterestDialog = false
+                        }
+                    )
+                }
+
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
@@ -692,7 +760,8 @@ private fun EditTransactionDialog(
                                     parsedAmount,
                                     selectedType,
                                     note.trim(),
-                                    transactionDate
+                                    transactionDate,
+                                    interestRate
                                 )
                             }
                         },
@@ -923,6 +992,8 @@ private fun TransactionComposer(
     amount: String,
     note: String,
     transactionDate: Long,
+    interestRate: Double,
+    onInterestClick: () -> Unit,
     selectedType: EntryType,
     onAmountChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
@@ -992,6 +1063,20 @@ private fun TransactionComposer(
                     },
                     label = {
                         Text("You Got")
+                    }
+                )
+
+                FilterChip(
+                    selected = interestRate > 0.0,
+                    onClick = onInterestClick,
+                    label = {
+                        Text(
+                            if (interestRate > 0.0) {
+                                "Int. ${formatInterestRate(interestRate)}%"
+                            } else {
+                                "Int."
+                            }
+                        )
                     }
                 )
             }
@@ -1175,12 +1260,50 @@ private fun TransactionCard(
                 )
             }
 
-            Text(
-                text = transactionAmountLabel(entry),
-                color = accent,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+            val accruedInterest = calculateTransactionInterest(
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt
             )
+
+            val interestDays = transactionInterestDays(
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt
+            )
+
+            val total = calculateEntryTotal(entry)
+
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = if (isCredit) {
+                        "+₹${formatAmount(kotlin.math.abs(entry.amount))}"
+                    } else {
+                        "-₹${formatAmount(kotlin.math.abs(entry.amount))}"
+                    },
+                    color = accent,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (entry.interestRate > 0.0) {
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = "Int. ${formatInterestRate(entry.interestRate)}% p.a.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = "$interestDays days • +₹${formatAmount(accruedInterest)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }
@@ -1241,11 +1364,7 @@ private fun EmptyTransactionState() {
 }
 
 internal fun formatAmount(amount: Double): String {
-    return if (amount % 1.0 == 0.0) {
-        amount.toLong().toString()
-    } else {
-        amount.toString().trimEnd('0').trimEnd('.')
-    }
+    return kotlin.math.round(amount).toLong().toString()
 }
 
 internal fun transactionAmountLabel(
@@ -1280,6 +1399,107 @@ internal fun formatTransactionDate(timestamp: Long): String {
         "dd MMM yyyy",
         Locale.ENGLISH
     ).format(Date(timestamp))
+}
+
+@Composable
+private fun InterestRateDialog(
+    initialRate: Double,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit
+) {
+    var rateText by remember(initialRate) {
+        mutableStateOf(
+            if (initialRate == 0.0) "" else formatInterestRate(initialRate)
+        )
+    }
+
+    val rate = rateText.toDoubleOrNull()
+    val validRate = rate != null && rate >= 0.0 && rate <= 100.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Set Interest Rate")
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Annual interest rate. Interest is calculated daily from the transaction date to today.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = rateText,
+                    onValueChange = { value ->
+                        val normalized = value.replace(",", ".")
+                        val dotIndex = normalized.indexOf('.')
+
+                        val valid =
+                            normalized.isEmpty() ||
+                            (
+                                normalized.count { it == '.' } <= 1 &&
+                                normalized.all { it.isDigit() || it == '.' } &&
+                                (
+                                    dotIndex == -1 ||
+                                    normalized.length - dotIndex - 1 <= 2
+                                ) &&
+                                (
+                                    dotIndex == -1 ||
+                                    dotIndex <= 3
+                                ) &&
+                                (normalized.toDoubleOrNull() ?: 0.0) <= 100.0
+                            )
+
+                        if (valid) {
+                            rateText = normalized
+                        }
+                    },
+                    singleLine = true,
+                    label = {
+                        Text("Rate per year")
+                    },
+                    suffix = {
+                        Text("% p.a.")
+                    },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    )
+                )
+
+                Text(
+                    text = "Default: 0%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(rate ?: 0.0)
+                },
+                enabled = validRate
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+internal fun formatInterestRate(rate: Double): String {
+    return if (rate % 1.0 == 0.0) {
+        rate.toInt().toString()
+    } else {
+        String.format(Locale.ENGLISH, "%.2f", rate)
+    }
 }
 
 private fun showTransactionDatePicker(

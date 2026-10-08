@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
         LedgerDatabaseMarker::class,
         ProfileEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

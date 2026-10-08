@@ -40,7 +40,8 @@ interface LedgerDataSource {
         amount: Double,
         type: EntryType,
         note: String = "",
-        transactionDate: Long = System.currentTimeMillis()
+        transactionDate: Long = System.currentTimeMillis(),
+        interestRate: Double = 0.0
     ): LedgerEntryEntity
 
     fun getEntries(

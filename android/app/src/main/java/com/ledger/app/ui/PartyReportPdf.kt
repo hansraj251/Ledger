@@ -42,9 +42,9 @@ internal fun createPartyReportPdf(
     val writer = ReportPdfWriter(pdf, dateFormat, dateTimeFormat)
 
     val orderedEntries = entries.sortedWith(
-        compareBy<LedgerEntryEntity> {
+        compareByDescending<LedgerEntryEntity> {
             if (it.transactionDate > 0L) it.transactionDate else it.createdAt
-        }.thenBy { it.id }
+        }.thenByDescending { it.id }
     )
 
     val gave = orderedEntries

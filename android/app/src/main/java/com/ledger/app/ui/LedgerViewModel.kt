@@ -117,6 +117,7 @@ class LedgerViewModel(
                 errorMessage = ""
             )
 
+            onDataChanged()
             true
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
@@ -126,8 +127,6 @@ class LedgerViewModel(
 
             false
         }
-
-        onDataChanged()
     }
 
     fun setSearchQuery(

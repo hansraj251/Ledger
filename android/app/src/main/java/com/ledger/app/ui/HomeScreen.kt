@@ -184,21 +184,60 @@ fun HomeScreen(
                             expanded = showMenu,
                             onDismissRequest = {
                                 showMenu = false
-                            }
+                            },
+                            modifier = Modifier.width(240.dp)
                         ) {
-                            
-                            
                             DropdownMenuItem(
                                 text = {
-                                    Text("Profile & settings")
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Profile & settings",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Manage your profile",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 },
                                 onClick = {
                                     showMenu = false
                                     onProfileClick()
                                 }
                             )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Add Party",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Create a new party",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.PersonAdd,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showAddPartyDialog = true
+                                }
+                            )
                         }
-                    }
+}
                 }
             }
         },

@@ -75,8 +75,6 @@ fun HomeScreen(
     viewModel: LedgerViewModel,
     onPartyClick: (PartyEntity) -> Unit,
     onProfileClick: () -> Unit,
-    onSyncClick: () -> Unit,
-    onRestoreClick: () -> Unit
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -188,38 +186,8 @@ fun HomeScreen(
                                 showMenu = false
                             }
                         ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text("Sync to Google Drive")
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.CloudDone,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onSyncClick()
-                                }
-                            )
-
-                            DropdownMenuItem(
-                                text = {
-                                    Text("Restore backup")
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Storage,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onRestoreClick()
-                                }
-                            )
-
+                            
+                            
                             DropdownMenuItem(
                                 text = {
                                     Text("Profile & settings")

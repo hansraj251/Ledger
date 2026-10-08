@@ -160,9 +160,6 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LedgerTheme {
-                var showRestoreDialog by remember {
-                    mutableStateOf(false)
-                }
 
                 var initialDriveSetupRequired by remember {
                     mutableStateOf(
@@ -227,12 +224,6 @@ class MainActivity : ComponentActivity() {
                         },
                         onProfileClick = {
                             showProfileScreen = true
-                        },
-                        onSyncClick = {
-                            googleDriveSyncCoordinator.requestManualSync()
-                        },
-                        onRestoreClick = {
-                            showRestoreDialog = true
                         }
                     )
                 } else {
@@ -245,46 +236,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                if (showRestoreDialog) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = {
-                            showRestoreDialog = false
-                        },
-                        title = {
-                            androidx.compose.material3.Text(
-                                "Restore backup?"
-                            )
-                        },
-                        text = {
-                            androidx.compose.material3.Text(
-                                "This will replace the current Ledger data with the Google Drive backup. Current local changes will be lost."
-                            )
-                        },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(
-                                onClick = {
-                                    showRestoreDialog = false
-                                    performGoogleDriveRestore()
-                                }
-                            ) {
-                                androidx.compose.material3.Text(
-                                    "Restore"
-                                )
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(
-                                onClick = {
-                                    showRestoreDialog = false
-                                }
-                            ) {
-                                androidx.compose.material3.Text(
-                                    "Cancel"
-                                )
-                            }
-                        }
-                    )
-                }
             }
         }
     }

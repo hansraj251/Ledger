@@ -64,7 +64,9 @@ class LedgerViewModel(
 
             val partyBalances = withContext(Dispatchers.IO) {
                 parties.associate { party ->
-                    party.id to dataSource.getBalance(party.id)
+                    party.id to calculateLedgerBalance(
+                        dataSource.getEntries(party.id)
+                    )
                 }
             }
 

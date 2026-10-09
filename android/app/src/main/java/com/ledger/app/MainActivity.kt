@@ -243,7 +243,8 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
-                        onPartiesClick = { showDailyExpenseScreen = false }
+                        onPartiesClick = { showDailyExpenseScreen = false },
+                        onProfileClick = { showProfileScreen = true }
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(
@@ -1121,6 +1122,13 @@ private fun ProfileScreen(
 
             item {
                 androidx.compose.material3.Card(
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    ),
                     modifier =
                         androidx.compose.ui.Modifier.fillMaxWidth(),
                     shape =
@@ -1213,6 +1221,13 @@ private fun ProfileScreen(
 
             item {
                 androidx.compose.material3.Card(
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    ),
                     modifier =
                         androidx.compose.ui.Modifier.fillMaxWidth(),
                     shape =

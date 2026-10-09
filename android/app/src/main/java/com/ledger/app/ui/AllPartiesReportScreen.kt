@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import androidx.activity.compose.BackHandler
+
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +49,8 @@ internal fun AllPartiesReportScreen(
     repository: LedgerRepository,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
+
     val context = LocalContext.current
 
     var reportFile by remember {

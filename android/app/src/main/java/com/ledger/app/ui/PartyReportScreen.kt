@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -51,6 +52,8 @@ fun PartyReportScreen(
     records: List<com.ledger.app.data.InterestAccountEntryEntity>,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
+
     val context = androidx.compose.ui.platform.LocalContext.current
 
     var reportFile by remember {

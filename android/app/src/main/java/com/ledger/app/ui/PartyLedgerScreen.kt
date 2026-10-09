@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -644,9 +646,10 @@ private fun PartyHeader(
 
             DropdownMenu(
                 expanded = showMenu,
-                onDismissRequest = {
-                    showMenu = false
-                }
+                onDismissRequest = { showMenu = false },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.White)
             ) {
                 DropdownMenuItem(
                     text = {

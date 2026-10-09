@@ -173,8 +173,8 @@ fun HomeScreen(
                         Surface(
                             modifier = Modifier.size(46.dp),
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 2.dp,
+                            color = Color.White,
+                            tonalElevation = 0.dp,
                             shadowElevation = 1.dp
                         ) {
                             IconButton(
@@ -197,7 +197,7 @@ fun HomeScreen(
                             modifier = Modifier
                                 .width(250.dp)
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .background(Color.White)
                         ) {
                             DropdownMenuItem(
                                 text = {

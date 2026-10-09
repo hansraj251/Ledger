@@ -164,7 +164,8 @@ fun LedgerBottomNavigation(
 
 @Composable
 fun DailyExpenseScreen(
-    onPartiesClick: () -> Unit
+    onPartiesClick: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
     val context = LocalContext.current
     val database = remember(context) {
@@ -247,8 +248,8 @@ fun DailyExpenseScreen(
                         Surface(
                             modifier = Modifier.size(46.dp),
                             shape = androidx.compose.foundation.shape.CircleShape,
-                            color = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 2.dp,
+                            color = androidx.compose.ui.graphics.Color.White,
+                            tonalElevation = 0.dp,
                             shadowElevation = 1.dp
                         ) {
                             IconButton(onClick = { showMenu = true }) {
@@ -265,27 +266,50 @@ fun DailyExpenseScreen(
                             modifier = Modifier
                                 .width(250.dp)
                                 .clip(RoundedCornerShape(20.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                                .background(androidx.compose.ui.graphics.Color.White)
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Today's records") },
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Profile & settings",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Manage your profile",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     showMenu = false
-                                    showAllDates = false
+                                    onProfileClick()
                                 }
                             )
+
                             DropdownMenuItem(
-                                text = { Text("All records") },
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Add Expense",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Record a new expense",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     showMenu = false
-                                    showAllDates = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Parties") },
-                                onClick = {
-                                    showMenu = false
-                                    onPartiesClick()
+                                    editingExpense = null
+                                    showExpenseDialog = true
                                 }
                             )
                         }

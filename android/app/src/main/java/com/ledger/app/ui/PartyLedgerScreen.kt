@@ -1,4 +1,10 @@
 package com.ledger.app.ui
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
+import androidx.compose.material.icons.outlined.DeleteOutline
+
+import androidx.compose.foundation.BorderStroke
 import com.ledger.app.data.calculateEntryTotal
 import com.ledger.app.data.calculateTransactionInterest
 import com.ledger.app.data.transactionInterestDays
@@ -685,8 +691,13 @@ private fun EditTransactionDialog(
         mutableStateOf(entry.interestRate)
     }
 
-    var showInterestDialog by remember(entry.id) {
-        mutableStateOf(false)
+    var showInterestInput by remember(entry.id) {
+        mutableStateOf(entry.interestRate > 0.0)
+    }
+    var interestRateText by remember(entry.id) {
+        mutableStateOf(
+            if (entry.interestRate > 0.0) formatInterestRate(entry.interestRate) else ""
+        )
     }
 
     var transactionDate by remember(entry.id) {
@@ -710,6 +721,7 @@ private fun EditTransactionDialog(
         Surface(
             modifier = Modifier.fillMaxWidth(0.92f),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
+            color = androidx.compose.ui.graphics.Color.White,
             tonalElevation = 6.dp
         ) {
             Column(
@@ -727,16 +739,52 @@ private fun EditTransactionDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Amount")
-                    },
-                    singleLine = true
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
+                        singleLine = true,
+                        label = { Text("Amount") },
+                        prefix = { Text("₹ ") },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                    )
+
+                    if (showInterestInput) {
+                        OutlinedTextField(
+                            value = interestRateText,
+                            onValueChange = { value ->
+                                val normalized = value.replace(",", ".")
+                                val dotIndex = normalized.indexOf('.')
+                                val valid = normalized.isEmpty() ||
+                                    (
+                                        normalized.count { it == '.' } <= 1 &&
+                                        normalized.all { it.isDigit() || it == '.' } &&
+                                        (dotIndex == -1 ||
+                                            normalized.length - dotIndex - 1 <= 2) &&
+                                        (dotIndex == -1 || dotIndex <= 3) &&
+                                        (normalized.toDoubleOrNull() ?: 0.0) <= 100.0
+                                    )
+                                if (valid) {
+                                    interestRateText = normalized
+                                    interestRate = normalized.toDoubleOrNull() ?: 0.0
+                                }
+                            },
+                            modifier = Modifier.weight(0.85f),
+                            singleLine = true,
+                            label = { Text("Rate (%)") },
+                            suffix = { Text("%") },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                        )
+                    }
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -750,6 +798,18 @@ private fun EditTransactionDialog(
                         label = {
                             Text("You Gave")
                         },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
+                            labelColor = androidx.compose.ui.graphics.Color(0xFF475569),
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedType == EntryType.CREDIT,
+                            borderColor = androidx.compose.ui.graphics.Color(0xFFCBD5E1),
+                            selectedBorderColor = MaterialTheme.colorScheme.primary
+                        ),
                         modifier = Modifier.weight(1f)
                     )
 
@@ -761,12 +821,42 @@ private fun EditTransactionDialog(
                         label = {
                             Text("You Got")
                         },
+                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
+                            labelColor = androidx.compose.ui.graphics.Color(0xFF475569),
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selectedType == EntryType.DEBIT,
+                            borderColor = androidx.compose.ui.graphics.Color(0xFFCBD5E1),
+                            selectedBorderColor = MaterialTheme.colorScheme.primary
+                        ),
                         modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = interestRate > 0.0,
+                        onClick = { showInterestInput = !showInterestInput },
+                        label = {
+                            Text(
+                                if (interestRate > 0.0) {
+                                    "Int. ${formatInterestRate(interestRate)}%"
+                                } else {
+                                    "Int."
+                                }
+                            )
+                        }
                     )
                 }
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
                         value = formatTransactionDate(transactionDate),
@@ -797,50 +887,43 @@ private fun EditTransactionDialog(
                     )
                 }
 
-                FilterChip(
-                    selected = interestRate > 0.0,
-                    onClick = {
-                        showInterestDialog = true
-                    },
-                    label = {
-                        Text(
-                            if (interestRate > 0.0) {
-                                "Int. ${formatInterestRate(interestRate)}%"
-                            } else {
-                                "Int."
-                            }
-                        )
-                    }
-                )
-
-                if (showInterestDialog) {
-                    InterestRateDialog(
-                        initialRate = interestRate,
-                        onDismiss = {
-                            showInterestDialog = false
-                        },
-                        onSave = { rate ->
-                            interestRate = rate
-                            showInterestDialog = false
-                        }
-                    )
-                }
 
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Note")
+                    modifier = Modifier.weight(1.15f),
+                    singleLine = true,
+                    label = { Text("Note") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null
+                        )
                     },
-                    minLines = 2,
-                    maxLines = 4
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                 )
+                }
 
-                TextButton(
+
+
+                OutlinedButton(
                     onClick = onDelete,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.error
+                    ),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
+                    Icon(
+                        imageVector = Icons.Outlined.DeleteOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.size(8.dp))
                     Text(
                         text = "Delete Transaction",
                         color = MaterialTheme.colorScheme.error,

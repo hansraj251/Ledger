@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -206,7 +207,14 @@ fun DailyExpenseScreen(
                 },
                 shape = RoundedCornerShape(18.dp)
             ) {
-                Icon(Icons.Outlined.Add, contentDescription = "Add expense")
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Outlined.Add, contentDescription = null)
+                    Text("Add Expense", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     ) { padding ->
@@ -314,8 +322,16 @@ fun DailyExpenseScreen(
             } else {
                 items(expenses, key = { it.id }) { expense ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                editingExpense = expense
+                                showExpenseDialog = true
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        )
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(14.dp),
@@ -326,46 +342,45 @@ fun DailyExpenseScreen(
                                 color = MaterialTheme.colorScheme.secondaryContainer
                             ) {
                                 Icon(
-                                    Icons.Outlined.AccountBalanceWallet,
-                                    contentDescription = null,
+                                    imageVector = expenseCategoryIcon(expense.category),
+                                    contentDescription = expense.category,
                                     modifier = Modifier.padding(11.dp),
                                     tint = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
                             Column(
-                                modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 12.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
                             ) {
-                                Text(expense.category, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    expense.note.ifBlank { expenseDateText(expense.expenseDate) },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    expense.category,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
                                 )
                                 if (expense.note.isNotBlank()) {
                                     Text(
-                                        expenseDateText(expense.expenseDate),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        expense.note,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
                                     )
                                 }
                                 Text(
-                                    expenseMoney(expense.amount),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.error
+                                    expenseDateText(expense.expenseDate),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Column {
-                                IconButton(onClick = {
-                                    editingExpense = expense
-                                    showExpenseDialog = true
-                                }) {
-                                    Icon(Icons.Outlined.Edit, contentDescription = "Edit expense")
-                                }
-                                IconButton(onClick = { deletingExpense = expense }) {
-                                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "Delete expense")
-                                }
-                            }
+                            Text(
+                                expenseMoney(expense.amount),
+                                modifier = Modifier.padding(start = 8.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error,
+                                maxLines = 1
+                            )
                         }
                     }
                 }
@@ -377,6 +392,10 @@ fun DailyExpenseScreen(
         ExpenseEditorDialog(
             initial = editingExpense,
             onDismiss = { showExpenseDialog = false },
+            onDelete = {
+                deletingExpense = editingExpense
+                showExpenseDialog = false
+            },
             onSave = { amount, category, note, date ->
                 val old = editingExpense
                 scope.launch {
@@ -433,6 +452,7 @@ fun DailyExpenseScreen(
 private fun ExpenseEditorDialog(
     initial: DailyExpenseEntity?,
     onDismiss: () -> Unit,
+    onDelete: () -> Unit,
     onSave: (Double, String, String, Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -554,48 +574,84 @@ private fun ExpenseEditorDialog(
                     }
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        val c = Calendar.getInstance().apply { timeInMillis = date }
-                        DatePickerDialog(
-                            context,
-                            { _, year, month, day ->
-                                val selected = Calendar.getInstance()
-                                selected.set(year, month, day, 12, 0, 0)
-                                selected.set(Calendar.MILLISECOND, 0)
-                                date = selected.timeInMillis
-                            },
-                            c.get(Calendar.YEAR),
-                            c.get(Calendar.MONTH),
-                            c.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Outlined.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(19.dp)
+                    Box(modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = {
+                            val c = Calendar.getInstance().apply { timeInMillis = date }
+                            DatePickerDialog(
+                                context,
+                                { _, year, month, day ->
+                                    val selected = Calendar.getInstance()
+                                    selected.set(year, month, day, 12, 0, 0)
+                                    selected.set(Calendar.MILLISECOND, 0)
+                                    date = selected.timeInMillis
+                                },
+                                c.get(Calendar.YEAR),
+                                c.get(Calendar.MONTH),
+                                c.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(Modifier.size(9.dp))
+                        Text("Date: ${expenseDateText(date)}")
+                    }
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Note") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.EditNote, contentDescription = null)
+                        },
+                        singleLine = true
                     )
-                    Spacer(Modifier.size(9.dp))
-                    Text("Date: ${expenseDateText(date)}")
+                    }
                 }
-
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Note (optional)") },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.EditNote, contentDescription = null)
-                    },
-                    singleLine = true
-                )
 
                 if (error.isNotBlank()) {
                     Text(error, color = MaterialTheme.colorScheme.error)
+                }
+
+                if (initial != null) {
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.error
+                        ),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            Icons.Outlined.DeleteOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.size(8.dp))
+                        Text(
+                            text = "Delete Expense",
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 Row(

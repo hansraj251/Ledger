@@ -1995,11 +1995,7 @@ private fun TransactionCard(
                 horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = if (isCredit) {
-                        "+₹${formatAmount(kotlin.math.abs(entry.amount))}"
-                    } else {
-                        "-₹${formatAmount(kotlin.math.abs(entry.amount))}"
-                    },
+                    text = "₹${formatAmount(kotlin.math.abs(entry.amount))}",
                     color = accent,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -2015,7 +2011,7 @@ private fun TransactionCard(
                     )
 
                     Text(
-                        text = "$interestDays days • +₹${formatAmount(accruedInterest)}",
+                        text = "$interestDays days • ₹${formatAmount(accruedInterest)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2081,19 +2077,15 @@ private fun EmptyTransactionState() {
 }
 
 internal fun formatAmount(amount: Double): String {
-    return kotlin.math.round(amount).toLong().toString()
+    return java.text.NumberFormat
+        .getIntegerInstance(java.util.Locale("en", "IN"))
+        .format(kotlin.math.round(amount).toLong())
 }
 
 internal fun transactionAmountLabel(
     entry: LedgerEntryEntity
 ): String {
-    val prefix = if (entry.type == EntryType.CREDIT) {
-        "+"
-    } else {
-        "-"
-    }
-
-    return "$prefix₹${formatAmount(abs(entry.amount))}"
+    return "₹${formatAmount(abs(entry.amount))}"
 }
 
 internal fun transactionDateTimeLabel(

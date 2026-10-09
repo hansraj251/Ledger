@@ -1,5 +1,10 @@
 package com.ledger.app.ui
 
+import androidx.compose.material.icons.filled.ArrowBack
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+
 
 import androidx.compose.foundation.layout.width
 
@@ -200,6 +205,7 @@ fun DailyExpenseScreen(
     var deletingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var showCategoryChart by remember { mutableStateOf(false) }
 
     LaunchedEffect(showMonthRecords, selectedMonthStart, refreshKey) {
         isLoading = true
@@ -316,6 +322,12 @@ fun DailyExpenseScreen(
         )
     }
 
+    if (showCategoryChart) {
+        ExpenseCategoryChartScreen(
+            expenses = expenses,
+            onBack = { showCategoryChart = false }
+        )
+    } else {
     Scaffold(
         topBar = {
             Surface(
@@ -328,6 +340,7 @@ fun DailyExpenseScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(top = 6.dp)
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -454,7 +467,7 @@ fun DailyExpenseScreen(
         ) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().clickable { showCategoryChart = true },
                     shape = RoundedCornerShape(22.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -696,6 +709,7 @@ fun DailyExpenseScreen(
                 TextButton(onClick = { deletingExpense = null }) { Text("Cancel") }
             }
         )
+    }
     }
 }
 
@@ -1084,5 +1098,183 @@ private fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics.
         "Bills" -> Icons.Outlined.ReceiptLong
         "Clothing" -> Icons.Outlined.Checkroom
         else -> Icons.Outlined.Category
+    }
+}
+
+
+@Composable
+private fun ExpenseCategoryChartScreen(
+    expenses: List<DailyExpenseEntity>,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+
+    val categoryTotals = remember(expenses) {
+        expenses
+            .groupBy { it.category.trim().ifBlank { "Uncategorized" } }
+            .map { (category, entries) ->
+                category to entries.sumOf { it.amount }
+            }
+            .sortedByDescending { it.second }
+    }
+
+    val totalAmount = categoryTotals.sumOf { it.second }
+
+    val chartColors = listOf(
+        androidx.compose.ui.graphics.Color(0xFF3978F6),
+        androidx.compose.ui.graphics.Color(0xFF19A974),
+        androidx.compose.ui.graphics.Color(0xFFFF9F43),
+        androidx.compose.ui.graphics.Color(0xFF9B59B6),
+        androidx.compose.ui.graphics.Color(0xFFE05260),
+        androidx.compose.ui.graphics.Color(0xFF00A8A8),
+        androidx.compose.ui.graphics.Color(0xFF6C7A89),
+        androidx.compose.ui.graphics.Color(0xFFD4A017)
+    )
+
+    Scaffold(
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(
+                        "Expense Breakdown",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Category-wise report",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 12.dp,
+                bottom = 24.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(Modifier.padding(20.dp)) {
+                        Text(
+                            "TOTAL EXPENSE",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            expenseMoney(totalAmount),
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "${expenses.size} ${if (expenses.size == 1) "record" else "records"} · ${categoryTotals.size} categories",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+
+            if (categoryTotals.isEmpty()) {
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Text(
+                            "Is period mein koi expense record nahi hai.",
+                            modifier = Modifier.padding(24.dp)
+                        )
+                    }
+                }
+            } else {
+                item {
+                    Text(
+                        "CATEGORY DETAILS",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                items(categoryTotals) { entry ->
+                    val index = categoryTotals.indexOf(entry)
+                    val percentage = if (totalAmount > 0.0) {
+                        entry.second / totalAmount * 100.0
+                    } else {
+                        0.0
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(chartColors[index % chartColors.size])
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    entry.first,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    String.format(
+                                        Locale.getDefault(),
+                                        "%.1f%% of total",
+                                        percentage
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                expenseMoney(entry.second),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

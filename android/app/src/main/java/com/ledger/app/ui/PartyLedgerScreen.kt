@@ -8,7 +8,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 
 import androidx.compose.foundation.BorderStroke
 import com.ledger.app.data.calculateEntryTotal
-import com.ledger.app.data.calculateTransactionInterest
 import com.ledger.app.data.transactionInterestDays
 
 import android.app.DatePickerDialog
@@ -80,6 +79,7 @@ import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateInterestPosition
 import com.ledger.app.data.calculateInterestAccountPosition
+import com.ledger.app.data.calculateTransactionInterest
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -1254,6 +1254,8 @@ private fun InterestAccountScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val position = calculateInterestAccountPosition(transactions, records)
+    val totalPaidInterest = records.sumOf { it.amount }
+    val totalInterest = position.payable + position.receivable + totalPaidInterest
     var editingRecordId by remember { mutableStateOf<Long?>(null) }
     var recordToDelete by remember { mutableStateOf<InterestAccountEntryEntity?>(null) }
     val validationRecords = records.filterNot { it.id == editingRecordId }
@@ -1360,6 +1362,52 @@ private fun InterestAccountScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.outlineVariant
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Total Int.", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "₹${formatAmount(totalInterest)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, MaterialTheme.colorScheme.outlineVariant
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Total Paid Int.", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "₹${formatAmount(totalPaidInterest)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Card(

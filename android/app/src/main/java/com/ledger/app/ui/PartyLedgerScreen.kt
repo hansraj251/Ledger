@@ -261,7 +261,9 @@ var showDeletePartyDialog by remember {
             item {
                 BalanceHero(
                     balance = uiState.balance,
-                    onClick = { showInterestAccount = true }
+                    hasInterest = uiState.entries.any { it.interestRate > 0.0 } ||
+                        uiState.interestAccountEntries.isNotEmpty(),
+                    onInterestClick = { showInterestAccount = true }
                 )
             }
 
@@ -1000,7 +1002,8 @@ private fun EditPartyDialog(
 @Composable
 private fun BalanceHero(
     balance: Double,
-    onClick: () -> Unit
+    hasInterest: Boolean,
+    onInterestClick: () -> Unit
 ) {
     val positive = balance > 0
     val negative = balance < 0
@@ -1020,8 +1023,7 @@ private fun BalanceHero(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .clickable(onClick = onClick),
+            .padding(horizontal = 20.dp),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -1072,6 +1074,42 @@ private fun BalanceHero(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                if (hasInterest) {
+                    Surface(
+                        modifier = Modifier.clickable(onClick = onInterestClick),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.07f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(
+                                horizontal = 13.dp,
+                                vertical = 7.dp
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ReceiptLong,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Int.",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
             }
 

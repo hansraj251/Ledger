@@ -187,9 +187,27 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(false)
                 }
 
-                var showDailyExpenseScreen by remember { mutableStateOf(false) }
+                val mainPagePrefs = remember {
+                    this@MainActivity.getSharedPreferences(
+                        "ledger_main_page",
+                        android.content.Context.MODE_PRIVATE
+                    )
+                }
 
-                BackHandler(enabled = showDailyExpenseScreen) { showDailyExpenseScreen = false }
+                var showDailyExpenseScreen by remember {
+                    mutableStateOf(
+                        mainPagePrefs.getBoolean("show_daily_expense", false)
+                    )
+                }
+
+                fun setDailyExpenseScreenVisible(visible: Boolean) {
+                    showDailyExpenseScreen = visible
+                    mainPagePrefs.edit()
+                        .putBoolean("show_daily_expense", visible)
+                        .apply()
+                }
+
+                BackHandler(enabled = showDailyExpenseScreen) { setDailyExpenseScreenVisible(false) }
 
                 val viewModel = remember {
                     LedgerViewModel(
@@ -243,7 +261,7 @@ class MainActivity : ComponentActivity() {
                     )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
-                        onPartiesClick = { showDailyExpenseScreen = false },
+                        onPartiesClick = { setDailyExpenseScreenVisible(false) },
                         onProfileClick = { showProfileScreen = true }
                     )
                 } else if (selectedParty == null) {
@@ -258,7 +276,7 @@ class MainActivity : ComponentActivity() {
                         onReportsClick = {
                             showAllPartiesReport = true
                         },
-                        onDailyExpenseClick = { showDailyExpenseScreen = true }
+                        onDailyExpenseClick = { setDailyExpenseScreenVisible(true) }
                     )
                 } else {
                     PartyLedgerScreen(

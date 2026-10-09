@@ -565,8 +565,8 @@ private fun ExpenseEditorDialog(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(26.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            color = androidx.compose.ui.graphics.Color.White,
+            tonalElevation = 0.dp
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
@@ -615,7 +615,8 @@ private fun ExpenseEditorDialog(
                         )
                     },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    shape = RoundedCornerShape(15.dp)
                 )
 
                 Surface(
@@ -623,7 +624,13 @@ private fun ExpenseEditorDialog(
                         .fillMaxWidth()
                         .clickable { showCategoryPage = true },
                     shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                    color = androidx.compose.ui.graphics.Color.White,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
@@ -668,46 +675,56 @@ private fun ExpenseEditorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
-                    OutlinedButton(
-                        onClick = {
-                            val c = Calendar.getInstance().apply { timeInMillis = date }
-                            DatePickerDialog(
-                                context,
-                                { _, year, month, day ->
-                                    val selected = Calendar.getInstance()
-                                    selected.set(year, month, day, 12, 0, 0)
-                                    selected.set(Calendar.MILLISECOND, 0)
-                                    date = selected.timeInMillis
-                                },
-                                c.get(Calendar.YEAR),
-                                c.get(Calendar.MONTH),
-                                c.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(19.dp)
+                        OutlinedTextField(
+                            value = expenseDateText(date),
+                            onValueChange = {},
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
+                            singleLine = true,
+                            label = {
+                                Text("Date")
+                            },
+                            shape = RoundedCornerShape(15.dp)
                         )
-                        Spacer(Modifier.size(9.dp))
-                        Text("Date: ${expenseDateText(date)}")
-                    }
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember {
+                                        androidx.compose.foundation.interaction.MutableInteractionSource()
+                                    }
+                                ) {
+                                    val c = Calendar.getInstance().apply {
+                                        timeInMillis = date
+                                    }
+                                    DatePickerDialog(
+                                        context,
+                                        { _, year, month, day ->
+                                            val selected = Calendar.getInstance()
+                                            selected.set(year, month, day, 12, 0, 0)
+                                            selected.set(Calendar.MILLISECOND, 0)
+                                            date = selected.timeInMillis
+                                        },
+                                        c.get(Calendar.YEAR),
+                                        c.get(Calendar.MONTH),
+                                        c.get(Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }
+                        )
                     }
                     Box(modifier = Modifier.weight(1f)) {
-                    OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Note") },
-                        leadingIcon = {
-                            Icon(Icons.Outlined.EditNote, contentDescription = null)
-                        },
-                        singleLine = true
-                    )
+                        OutlinedTextField(
+                            value = note,
+                            onValueChange = { note = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Note") },
+                            leadingIcon = {
+                                Icon(Icons.Outlined.Edit, contentDescription = null)
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(15.dp)
+                        )
                     }
                 }
 

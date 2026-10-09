@@ -133,20 +133,7 @@ internal fun createPartyReportPdf(
         recordedInterestGot > 0.0 ||
         recordedInterestGave > 0.0
 
-    val balanceLabel = when {
-        netBalance > 0.0 ->
-            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${party.name.trim()} Will Pay"
-        netBalance < 0.0 ->
-            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${profileName.trim().ifEmpty { "You" }} Will Pay"
-        else ->
-            if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
-    }
 
-    writer.summaryRow(
-        balanceLabel,
-        money(kotlin.math.abs(netBalance)),
-        bold = true
-    )
 
 
     if (accruedInterest.receivable > 0.0) {
@@ -185,6 +172,21 @@ internal fun createPartyReportPdf(
             money(remainingInterest.payable)
         )
     }
+
+    val balanceLabel = when {
+        netBalance > 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${party.name.trim()} Will Pay"
+        netBalance < 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${profileName.trim().ifEmpty { "You" }} Will Pay"
+        else ->
+            if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
+    }
+
+    writer.summaryRow(
+        balanceLabel,
+        money(kotlin.math.abs(netBalance)),
+        bold = true
+    )
 
     writer.space(14f)
 

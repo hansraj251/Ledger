@@ -114,6 +114,16 @@ private fun expenseMoney(amount: Double): String =
 private fun expenseDateText(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
 
+private fun startOfExpenseMonth(timestamp: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = timestamp
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
 private fun startOfToday(): Long =
     Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
@@ -176,7 +186,14 @@ fun DailyExpenseScreen(
 
     var expenses by remember { mutableStateOf<List<DailyExpenseEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var showAllDates by remember { mutableStateOf(false) }
+    var showMonthRecords by remember { mutableStateOf(false) }
+    var selectedMonthStart by remember {
+        mutableStateOf(startOfExpenseMonth(System.currentTimeMillis()))
+    }
+    var showMonthPicker by remember { mutableStateOf(false) }
+    var pickerYear by remember {
+        mutableStateOf(Calendar.getInstance().get(Calendar.YEAR))
+    }
     var refreshKey by remember { mutableStateOf(0) }
     var showExpenseDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
@@ -184,15 +201,18 @@ fun DailyExpenseScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
 
-    LaunchedEffect(showAllDates, refreshKey) {
+    LaunchedEffect(showMonthRecords, selectedMonthStart, refreshKey) {
         isLoading = true
         expenses = withContext(Dispatchers.IO) {
             val all = dao.getAll()
-            if (showAllDates) all else {
-                val start = startOfToday()
-                val end = start + 24L * 60 * 60 * 1000
-                all.filter { it.expenseDate >= start && it.expenseDate < end }
-            }
+            val start = if (showMonthRecords) selectedMonthStart else startOfToday()
+            val end = Calendar.getInstance().apply {
+                timeInMillis = start
+                if (showMonthRecords) add(Calendar.MONTH, 1)
+                else add(Calendar.DAY_OF_MONTH, 1)
+            }.timeInMillis
+
+            all.filter { it.expenseDate >= start && it.expenseDate < end }
         }
         isLoading = false
     }
@@ -210,6 +230,90 @@ fun DailyExpenseScreen(
                     expense.amount.toString().contains(query, ignoreCase = true)
             }
         }
+    }
+
+
+    if (showMonthPicker) {
+        val monthNames = listOf(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        )
+
+        AlertDialog(
+            onDismissRequest = { showMonthPicker = false },
+            title = { Text("Select month") },
+            text = {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { pickerYear-- }) {
+                            Text("‹")
+                        }
+                        Text(pickerYear.toString())
+                        TextButton(onClick = { pickerYear++ }) {
+                            Text("›")
+                        }
+                    }
+
+                    (0..11 step 3).forEach { rowStart ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            (rowStart until rowStart + 3).forEach { month ->
+                                val calendar = Calendar.getInstance().apply {
+                                    timeInMillis = selectedMonthStart
+                                }
+                                val selected =
+                                    calendar.get(Calendar.YEAR) == pickerYear &&
+                                    calendar.get(Calendar.MONTH) == month
+
+                                val chooseMonth = {
+                                    selectedMonthStart = Calendar.getInstance().apply {
+                                        clear()
+                                        set(pickerYear, month, 1, 0, 0, 0)
+                                    }.timeInMillis
+                                    showMonthRecords = true
+                                    showMonthPicker = false
+                                }
+
+                                if (selected) {
+                                    Button(
+                                        onClick = { chooseMonth() },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 2.dp,
+                                            vertical = 8.dp
+                                        )
+                                    ) {
+                                        Text(monthNames[month])
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { chooseMonth() },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 2.dp,
+                                            vertical = 8.dp
+                                        )
+                                    ) {
+                                        Text(monthNames[month])
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMonthPicker = false }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -358,7 +462,7 @@ fun DailyExpenseScreen(
                 ) {
                     Column(Modifier.padding(20.dp)) {
                         Text(
-                            if (showAllDates) "TOTAL EXPENSES" else "TODAY'S EXPENSE",
+                            if (showMonthRecords) "MONTHLY EXPENSE" else "TODAY'S EXPENSE",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -380,29 +484,51 @@ fun DailyExpenseScreen(
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (!showAllDates) {
+                    if (!showMonthRecords) {
                         Button(
-                            onClick = { showAllDates = false },
+                            onClick = { showMonthRecords = false },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Today") }
+                        ) {
+                            Text("Today")
+                        }
                     } else {
                         OutlinedButton(
-                            onClick = { showAllDates = false },
+                            onClick = { showMonthRecords = false },
                             modifier = Modifier.weight(1f)
-                        ) { Text("Today") }
+                        ) {
+                            Text("Today")
+                        }
                     }
-                    if (showAllDates) {
+
+                    if (showMonthRecords) {
                         Button(
-                            onClick = { showAllDates = true },
+                            onClick = {
+                                pickerYear = Calendar.getInstance()
+                                    .apply { timeInMillis = selectedMonthStart }
+                                    .get(Calendar.YEAR)
+                                showMonthPicker = true
+                            },
                             modifier = Modifier.weight(1f)
-                        ) { Text("All records") }
+                        ) {
+                            Text(
+                                SimpleDateFormat("MMM yyyy", Locale.getDefault())
+                                    .format(Date(selectedMonthStart))
+                            )
+                        }
                     } else {
                         OutlinedButton(
-                            onClick = { showAllDates = true },
+                            onClick = {
+                                selectedMonthStart =
+                                    startOfExpenseMonth(System.currentTimeMillis())
+                                showMonthRecords = true
+                            },
                             modifier = Modifier.weight(1f)
-                        ) { Text("All records") }
+                        ) {
+                            Text("This Month")
+                        }
                     }
                 }
             }

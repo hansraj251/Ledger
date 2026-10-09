@@ -94,11 +94,13 @@ fun PartyLedgerScreen(
         mutableStateOf(System.currentTimeMillis())
     }
 
-    var interestRate by remember {
-        mutableStateOf(0.0)
+    var interestRateText by remember {
+        mutableStateOf("")
     }
+    val interestRate = interestRateText.toDoubleOrNull()
+        ?.takeIf { it in 0.0..100.0 } ?: 0.0
 
-    var showInterestDialog by remember {
+    var showInterestInput by remember {
         mutableStateOf(false)
     }
 
@@ -273,8 +275,13 @@ var showDeletePartyDialog by remember {
                     note = note,
                     transactionDate = transactionDate,
                     interestRate = interestRate,
+                    interestRateText = interestRateText,
+                    showInterestInput = showInterestInput,
                     onInterestClick = {
-                        showInterestDialog = true
+                        showInterestInput = !showInterestInput
+                    },
+                    onInterestRateChange = {
+                        interestRateText = it
                     },
                     selectedType = selectedType,
                     onAmountChange = {
@@ -306,7 +313,8 @@ var showDeletePartyDialog by remember {
                                 if (viewModel.uiState.value.errorMessage.isEmpty()) {
                                     amount = ""
                                     note = ""
-                                    interestRate = 0.0
+                                    interestRateText = ""
+                                    showInterestInput = false
                                 }
                             }
                         }
@@ -424,18 +432,6 @@ var showDeletePartyDialog by remember {
             )
         }
 
-        if (showInterestDialog) {
-            InterestRateDialog(
-                initialRate = interestRate,
-                onDismiss = {
-                    showInterestDialog = false
-                },
-                onSave = { rate ->
-                    interestRate = rate
-                    showInterestDialog = false
-                }
-            )
-        }
 
         editingEntry?.let { entry ->
             EditTransactionDialog(
@@ -1375,7 +1371,7 @@ private fun InterestAccountScreen(
                         OutlinedTextField(
                             value = noteText,
                             onValueChange = { noteText = it },
-                            label = { Text("Note (optional)") },
+                            label = { Text("Note") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true
                         )
@@ -1510,7 +1506,10 @@ private fun TransactionComposer(
     note: String,
     transactionDate: Long,
     interestRate: Double,
+    interestRateText: String,
+    showInterestInput: Boolean,
     onInterestClick: () -> Unit,
+    onInterestRateChange: (String) -> Unit,
     selectedType: EntryType,
     onAmountChange: (String) -> Unit,
     onNoteChange: (String) -> Unit,
@@ -1598,22 +1597,57 @@ private fun TransactionComposer(
                 )
             }
 
-            OutlinedTextField(
-                value = amount,
-                onValueChange = onAmountChange,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = {
-                    Text("Amount")
-                },
-                prefix = {
-                    Text("₹ ")
-                },
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
-            )
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = onAmountChange,
+                    modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
+                    singleLine = true,
+                    label = { Text("Amount") },
+                    prefix = { Text("₹ ") },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                )
 
+                if (showInterestInput) {
+                    OutlinedTextField(
+                        value = interestRateText,
+                        onValueChange = { value ->
+                            val normalized = value.replace(",", ".")
+                            val dotIndex = normalized.indexOf('.')
+                            val valid = normalized.isEmpty() ||
+                                (
+                                    normalized.count { it == '.' } <= 1 &&
+                                    normalized.all { it.isDigit() || it == '.' } &&
+                                    (dotIndex == -1 ||
+                                        normalized.length - dotIndex - 1 <= 2) &&
+                                    (dotIndex == -1 || dotIndex <= 3) &&
+                                    (normalized.toDoubleOrNull() ?: 0.0) <= 100.0
+                                )
+                            if (valid) onInterestRateChange(normalized)
+                        },
+                        modifier = Modifier.weight(0.85f),
+                        singleLine = true,
+                        label = { Text("Rate (%)") },
+                        suffix = { Text("%") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             Box(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.weight(1f)
             ) {
                 OutlinedTextField(
                     value = formatTransactionDate(transactionDate),
@@ -1649,10 +1683,10 @@ private fun TransactionComposer(
             OutlinedTextField(
                 value = note,
                 onValueChange = onNoteChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1.15f),
                 singleLine = true,
                 label = {
-                    Text("Note (optional)")
+                    Text("Note")
                 },
                 leadingIcon = {
                     Icon(
@@ -1662,6 +1696,7 @@ private fun TransactionComposer(
                 },
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
             )
+            }
 
             Button(
                 onClick = onAdd,

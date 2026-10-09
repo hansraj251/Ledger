@@ -128,13 +128,30 @@ internal fun createPartyReportPdf(
 
     writer.summaryRow("Total $gaveLabel", money(gave))
     writer.summaryRow("Total $gotLabel", money(got))
-    writer.summaryRow("Current Balance", moneySigned(netBalance), bold = true)
+    val hasInterest = accruedInterest.receivable > 0.0 ||
+        accruedInterest.payable > 0.0 ||
+        recordedInterestGot > 0.0 ||
+        recordedInterestGave > 0.0
 
-    writer.space(6f)
-    writer.section("Interest Account Summary")
+    val balanceLabel = when {
+        netBalance > 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${party.name.trim()} Will Pay"
+        netBalance < 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${profileName.trim().ifEmpty { "You" }} Will Pay"
+        else ->
+            if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
+    }
+
+    writer.summaryRow(
+        balanceLabel,
+        money(kotlin.math.abs(netBalance)),
+        bold = true
+    )
+
+
     if (accruedInterest.receivable > 0.0) {
         writer.summaryRow(
-            "Total Interest $gotLabel",
+            "Total Interest of ${party.name.trim()}",
             money(accruedInterest.receivable)
         )
     }
@@ -146,13 +163,13 @@ internal fun createPartyReportPdf(
     }
     if (remainingInterest.receivable > 0.0) {
         writer.summaryRow(
-            "Remaining Interest $gotLabel",
+            "Remaining Interest of ${party.name.trim()}",
             money(remainingInterest.receivable)
         )
     }
     if (accruedInterest.payable > 0.0) {
         writer.summaryRow(
-            "Total Interest $gaveLabel",
+            "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
             money(accruedInterest.payable)
         )
     }
@@ -164,7 +181,7 @@ internal fun createPartyReportPdf(
     }
     if (remainingInterest.payable > 0.0) {
         writer.summaryRow(
-            "Remaining Interest $gaveLabel",
+            "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
             money(remainingInterest.payable)
         )
     }

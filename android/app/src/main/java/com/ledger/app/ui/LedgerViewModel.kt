@@ -6,6 +6,7 @@ import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateLedgerBalance
 import com.ledger.app.data.calculateInterestAccountPosition
+import com.ledger.app.data.calculateInterestPosition
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -55,6 +56,21 @@ class LedgerViewModel(
     val uiState: StateFlow<LedgerUiState> =
         _uiState.asStateFlow()
 
+    private fun calculateAdjustedBalance(
+        entries: List<LedgerEntryEntity>,
+        records: List<InterestAccountEntryEntity>,
+        asOf: Long = System.currentTimeMillis()
+    ): Double {
+        val originalBalance = calculateLedgerBalance(entries, asOf)
+        val accrued = calculateInterestPosition(entries, asOf)
+        val remaining = calculateInterestAccountPosition(entries, records, asOf)
+
+        val accruedNet = accrued.receivable - accrued.payable
+        val remainingNet = remaining.receivable - remaining.payable
+
+        return originalBalance - accruedNet + remainingNet
+    }
+
     suspend fun loadParties() {
         _uiState.value = _uiState.value.copy(
             isLoading = true,
@@ -68,9 +84,10 @@ class LedgerViewModel(
 
             val partyBalances = withContext(Dispatchers.IO) {
                 parties.associate { party ->
-                    party.id to calculateLedgerBalance(
-                        dataSource.getEntries(party.id)
-                    )
+                    val entries = dataSource.getEntries(party.id)
+                    val records = dataSource.getInterestAccountEntries(party.id)
+
+                    party.id to calculateAdjustedBalance(entries, records)
                 }
             }
 
@@ -199,14 +216,17 @@ class LedgerViewModel(
         )
 
         try {
-            val entries = withContext(Dispatchers.IO) {
-                dataSource.getEntries(partyId)
+            val (entries, records) = withContext(Dispatchers.IO) {
+                dataSource.getEntries(partyId) to
+                    dataSource.getInterestAccountEntries(partyId)
             }
 
-            val balance = calculateLedgerBalance(entries)
+            val asOf = System.currentTimeMillis()
+            val balance = calculateAdjustedBalance(entries, records, asOf)
 
             _uiState.value = _uiState.value.copy(
                 entries = entries,
+                interestAccountEntries = records,
                 selectedPartyId = partyId,
                 balance = balance,
                 isLoading = false,
@@ -320,8 +340,15 @@ class LedgerViewModel(
             val records = withContext(Dispatchers.IO) {
                 dataSource.getInterestAccountEntries(partyId)
             }
-            _uiState.value = _uiState.value.copy(
-                interestAccountEntries = records
+            val current = _uiState.value
+            val updatedBalance = if (current.selectedPartyId == partyId) {
+                calculateAdjustedBalance(current.entries, records)
+            } else {
+                current.balance
+            }
+            _uiState.value = current.copy(
+                interestAccountEntries = records,
+                balance = updatedBalance
             )
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(

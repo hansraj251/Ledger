@@ -1108,6 +1108,8 @@ private fun InterestAccountScreen(
     onEdit: (Long, Double, String, String, Long) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     val position = calculateInterestAccountPosition(transactions, records)
     var editingRecordId by remember { mutableStateOf<Long?>(null) }
     val validationRecords = records.filterNot { it.id == editingRecordId }
@@ -1163,6 +1165,7 @@ private fun InterestAccountScreen(
         }
     ) { padding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
@@ -1396,6 +1399,9 @@ private fun InterestAccountScreen(
                                 )
                                 OutlinedButton(
                                     onClick = {
+                                        scope.launch {
+                                            listState.animateScrollToItem(0)
+                                        }
                                         editingRecordId = record.id
                                         selectedType = record.type
                                         amountText = record.amount.toString()

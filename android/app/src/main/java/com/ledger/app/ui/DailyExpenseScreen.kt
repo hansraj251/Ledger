@@ -113,8 +113,12 @@ private val expenseCategories = listOf(
     "Bills", "Clothing", "Other"
 )
 
-private fun expenseMoney(amount: Double): String =
-    NumberFormat.getCurrencyInstance(Locale("en", "IN")).format(amount)
+private fun expenseMoney(amount: Double): String {
+    val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
+    formatter.maximumFractionDigits = 0
+    formatter.minimumFractionDigits = 0
+    return formatter.format(amount)
+}
 
 private fun expenseDateText(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))

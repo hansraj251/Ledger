@@ -19,4 +19,7 @@ interface InterestAccountEntryDao {
             "ORDER BY transactionDate DESC, id DESC"
     )
     fun getByPartyId(partyId: Long): List<InterestAccountEntryEntity>
+
+    @Query("DELETE FROM interest_account_entries WHERE id = :entryId AND partyId = :partyId")
+    fun deleteByIdAndPartyId(entryId: Long, partyId: Long): Int
 }

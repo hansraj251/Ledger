@@ -202,6 +202,14 @@ var showDeletePartyDialog by remember {
                         transactionDate = date
                     )
                 }
+            },
+            onDelete = { recordId ->
+                scope.launch {
+                    viewModel.deleteInterestAccountEntry(
+                        partyId = currentParty.id,
+                        entryId = recordId
+                    )
+                }
             }
         )
         return
@@ -1105,13 +1113,15 @@ private fun InterestAccountScreen(
     errorMessage: String,
     onBack: () -> Unit,
     onAdd: (Double, String, String, Long) -> Unit,
-    onEdit: (Long, Double, String, String, Long) -> Unit
+    onEdit: (Long, Double, String, String, Long) -> Unit,
+    onDelete: (Long) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val position = calculateInterestAccountPosition(transactions, records)
     var editingRecordId by remember { mutableStateOf<Long?>(null) }
+    var recordToDelete by remember { mutableStateOf<InterestAccountEntryEntity?>(null) }
     val validationRecords = records.filterNot { it.id == editingRecordId }
     val validationPosition = calculateInterestAccountPosition(transactions, validationRecords)
     var selectedType by remember { mutableStateOf("GAVE") }
@@ -1133,6 +1143,46 @@ private fun InterestAccountScreen(
     val enteredAmount = amountText.trim().toDoubleOrNull()
     val exceedsPending = enteredAmount != null &&
         enteredAmount > maxRecordableAmount + 1e-9
+
+
+    recordToDelete?.let { record ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { recordToDelete = null },
+            title = { Text("Delete interest record?") },
+            text = {
+                Text(
+                    "Are you sure you want to delete this " +
+                        "${if (record.type == "GAVE") "You Gave" else "You Got"} " +
+                        "interest record of ₹${formatAmount(record.amount)}? " +
+                        "This action cannot be undone."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        onDelete(record.id)
+                        if (editingRecordId == record.id) {
+                            editingRecordId = null
+                            amountText = ""
+                            noteText = ""
+                            validationError = ""
+                        }
+                        recordToDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { recordToDelete = null }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -1208,14 +1258,6 @@ private fun InterestAccountScreen(
                         }
                     }
                 }
-            }
-
-            item {
-                Text(
-                    "These totals are calculated live from the interest on existing You Gave / You Got transactions. Saving a dated interest record does not settle or stop that interest.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
             item {
@@ -1397,20 +1439,23 @@ private fun InterestAccountScreen(
                                         MaterialTheme.colorScheme.error
                                     }
                                 )
-                                OutlinedButton(
-                                    onClick = {
-                                        scope.launch {
-                                            listState.animateScrollToItem(0)
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch { listState.animateScrollToItem(0) }
+                                            editingRecordId = record.id
+                                            selectedType = record.type
+                                            amountText = record.amount.toString()
+                                            noteText = record.note
+                                            recordDate = record.transactionDate
+                                            validationError = ""
                                         }
-                                        editingRecordId = record.id
-                                        selectedType = record.type
-                                        amountText = record.amount.toString()
-                                        noteText = record.note
-                                        recordDate = record.transactionDate
-                                        validationError = ""
+                                    ) { Text("Edit") }
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { recordToDelete = record }
+                                    ) {
+                                        Text("Delete", color = MaterialTheme.colorScheme.error)
                                     }
-                                ) {
-                                    Text("Edit")
                                 }
                             }
                         }

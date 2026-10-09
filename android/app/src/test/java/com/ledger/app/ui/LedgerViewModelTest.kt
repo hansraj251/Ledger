@@ -179,6 +179,14 @@ class LedgerViewModelTest {
             interestRecords[index] = entry
         }
 
+        override fun deleteInterestAccountEntry(entryId: Long, partyId: Long) {
+            val index = interestRecords.indexOfFirst {
+                it.id == entryId && it.partyId == partyId
+            }
+            require(index >= 0) { "Interest record no longer exists" }
+            interestRecords.removeAt(index)
+        }
+
         override fun getBalance(
             partyId: Long
         ): Double {

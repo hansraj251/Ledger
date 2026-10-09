@@ -62,6 +62,9 @@ interface LedgerDataSource {
 
     fun updateInterestAccountEntry(entry: InterestAccountEntryEntity)
 
+    fun deleteInterestAccountEntry(entryId: Long, partyId: Long)
+
+
     fun getBalance(
         partyId: Long
     ): Double

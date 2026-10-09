@@ -147,6 +147,13 @@ class LedgerRepository(
         }
     }
 
+    override fun deleteInterestAccountEntry(entryId: Long, partyId: Long) {
+        require(partyDao.getById(partyId) != null) { "Party does not exist" }
+        require(interestAccountEntryDao.deleteByIdAndPartyId(entryId, partyId) == 1) {
+            "Interest record no longer exists"
+        }
+    }
+
     override fun getBalance(
         partyId: Long
     ): Double {

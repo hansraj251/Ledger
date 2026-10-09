@@ -489,6 +489,29 @@ class LedgerViewModel(
         }
     }
 
+    suspend fun deleteInterestAccountEntry(
+        partyId: Long,
+        entryId: Long
+    ): Boolean {
+        return try {
+            withContext(Dispatchers.IO) {
+                dataSource.deleteInterestAccountEntry(
+                    entryId = entryId,
+                    partyId = partyId
+                )
+            }
+            loadInterestAccountEntries(partyId)
+            _uiState.value = _uiState.value.copy(errorMessage = "")
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to delete interest record"
+            )
+            false
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(
             errorMessage = ""

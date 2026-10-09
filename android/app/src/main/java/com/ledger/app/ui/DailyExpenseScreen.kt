@@ -70,6 +70,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ledger.app.data.DailyExpenseEntity
 import com.ledger.app.data.LedgerDatabaseProvider
 import kotlinx.coroutines.Dispatchers
@@ -222,13 +223,13 @@ fun DailyExpenseScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(52.dp),
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp),
                         leadingIcon = {
@@ -237,7 +238,7 @@ fun DailyExpenseScreen(
                                 contentDescription = "Search"
                             )
                         },
-                        placeholder = { Text("Search") }
+                        placeholder = { Text("Search", fontSize = 14.sp, lineHeight = 16.sp) }
                     )
 
                     Spacer(Modifier.width(8.dp))
@@ -305,16 +306,14 @@ fun DailyExpenseScreen(
                     editingExpense = null
                     showExpenseDialog = true
                 },
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(18.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Outlined.Add, contentDescription = null)
-                    Text("Add Expense", fontWeight = FontWeight.SemiBold)
-                }
+                Icon(
+                    imageVector = Icons.Outlined.ReceiptLong,
+                    contentDescription = "Add expense"
+                )
             }
         }
     ) { padding ->
@@ -855,33 +854,29 @@ private fun ExpenseEditorDialog(
                         ),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(expenseCategories.chunked(2)) { categoryRow ->
+                        items(expenseCategories) { item ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                categoryRow.forEach { item ->
                                     val selected = item == category
                                     Surface(
                                         modifier = Modifier
-                                            .weight(1f)
+                                            .fillMaxWidth()
                                             .clickable {
                                                 category = item
                                                 showCategoryPage = false
                                             },
                                         shape = RoundedCornerShape(18.dp),
-                                        color = if (selected)
-                                            MaterialTheme.colorScheme.primaryContainer
-                                        else
-                                            MaterialTheme.colorScheme.surfaceContainerLow,
+                                        color = androidx.compose.ui.graphics.Color.White,
                                         tonalElevation = if (selected) 2.dp else 0.dp
                                     ) {
-                                        Column(
-                                            modifier = Modifier.padding(
-                                                horizontal = 12.dp,
-                                                vertical = 16.dp
-                                            ),
-                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                                         ) {
                                             Surface(
                                                 shape = RoundedCornerShape(13.dp),
@@ -914,10 +909,6 @@ private fun ExpenseEditorDialog(
                                             )
                                         }
                                     }
-                                }
-                                if (categoryRow.size == 1) {
-                                    Spacer(Modifier.weight(1f))
-                                }
                             }
                         }
                     }

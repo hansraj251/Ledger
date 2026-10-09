@@ -147,13 +147,13 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
                         value = uiState.searchQuery,
                         onValueChange = viewModel::setSearchQuery,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(52.dp),
                         singleLine = true,
                         shape = RoundedCornerShape(16.dp),
                         leadingIcon = {
@@ -163,7 +163,7 @@ fun HomeScreen(
                             )
                         },
                         placeholder = {
-                            Text("Search")
+                            Text("Search", fontSize = 14.sp, lineHeight = 16.sp)
                         }
                     )
 
@@ -293,9 +293,6 @@ fun HomeScreen(
                 onClick = {
                     showAddPartyDialog = true
                 },
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 8.dp),
                 shape = RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
@@ -397,32 +394,14 @@ fun HomeScreen(
                         .fillMaxWidth()
                         .padding(24.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(54.dp),
-                            shape = RoundedCornerShape(17.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.PersonAdd,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(27.dp)
-                                )
-                            }
-                        }
+                    Text(
+                        text = "Add Party",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                    }
-
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
                         text = "PARTY DETAILS",
@@ -814,7 +793,7 @@ private fun AddPartyDialog(
         title = {
             Column {
                 Text(
-                    text = "Add new party",
+                    text = "Add Party",
                     style = MaterialTheme.typography.headlineSmall
                 )
 

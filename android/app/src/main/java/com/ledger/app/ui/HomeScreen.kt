@@ -141,7 +141,8 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding(),
-                tonalElevation = 3.dp
+                color = Color.Transparent,
+                tonalElevation = 0.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -149,18 +150,24 @@ fun HomeScreen(
                         .padding(horizontal = 8.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable(onClick = onProfileClick)
-                    ) {
-                        Text(
-                            text = if (profileName.isNotBlank()) profileName else "Ledger",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = headerNameColor
-                        )
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = viewModel::setSearchQuery,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search"
+                            )
+                        },
+                        placeholder = {
+                            Text("Search")
+                        }
+                    )
 
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Box {
                         Surface(
@@ -333,24 +340,7 @@ fun HomeScreen(
             }
 
             item {
-                OutlinedTextField(
-                    value = uiState.searchQuery,
-                    onValueChange = viewModel::setSearchQuery,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(17.dp)),
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = "Search"
-                        )
-                    },
-                    placeholder = {
-                        Text("Search parties or mobile number")
-                    },
-                    shape = RoundedCornerShape(17.dp)
-                )
+
             }
 
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -92,19 +93,26 @@ fun LedgerBottomNavigation(
     onPartiesClick: () -> Unit,
     onExpensesClick: () -> Unit
 ) {
-    NavigationBar {
+    NavigationBar(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 8.dp,
+        windowInsets = WindowInsets(0.dp)
+    ) {
         NavigationBarItem(
             selected = selectedTab == "parties",
             onClick = onPartiesClick,
             icon = { Icon(Icons.Outlined.Group, contentDescription = null) },
-            label = { Text("Parties") }
-        )
+            label = { Text("Parties", fontWeight = if (selectedTab == "parties") FontWeight.SemiBold else FontWeight.Normal) },
+                    )
         NavigationBarItem(
             selected = selectedTab == "expenses",
             onClick = onExpensesClick,
             icon = { Icon(Icons.Outlined.ReceiptLong, contentDescription = null) },
-            label = { Text("Daily Expense") }
-        )
+            label = { Text("Daily Expense", fontWeight = if (selectedTab == "expenses") FontWeight.SemiBold else FontWeight.Normal) },
+                    )
     }
 }
 

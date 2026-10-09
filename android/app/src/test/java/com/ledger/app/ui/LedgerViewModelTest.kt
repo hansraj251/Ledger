@@ -171,6 +171,14 @@ class LedgerViewModelTest {
             }
         }
 
+        override fun updateInterestAccountEntry(entry: InterestAccountEntryEntity) {
+            val index = interestRecords.indexOfFirst {
+                it.id == entry.id && it.partyId == entry.partyId
+            }
+            require(index >= 0) { "Interest record no longer exists" }
+            interestRecords[index] = entry
+        }
+
         override fun getBalance(
             partyId: Long
         ): Double {

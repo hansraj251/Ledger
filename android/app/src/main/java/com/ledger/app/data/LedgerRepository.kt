@@ -138,6 +138,15 @@ class LedgerRepository(
         return entry.copy(id = id)
     }
 
+    override fun updateInterestAccountEntry(entry: InterestAccountEntryEntity) {
+        require(entry.amount > 0.0) { "Interest amount must be greater than zero" }
+        require(entry.type == "GAVE" || entry.type == "GOT") { "Invalid interest entry type" }
+        require(partyDao.getById(entry.partyId) != null) { "Party does not exist" }
+        require(interestAccountEntryDao.update(entry) == 1) {
+            "Interest record no longer exists"
+        }
+    }
+
     override fun getBalance(
         partyId: Long
     ): Double {

@@ -182,16 +182,25 @@ var showDeletePartyDialog by remember {
             onBack = { showInterestAccount = false },
             onAdd = { value, type, recordNote, date ->
                 scope.launch {
-                    val saved = viewModel.addInterestAccountEntry(
+                    viewModel.addInterestAccountEntry(
                         partyId = currentParty.id,
                         amount = value,
                         type = type,
                         note = recordNote,
                         transactionDate = date
                     )
-                    if (saved) {
-                        showInterestAccount = true
-                    }
+                }
+            },
+            onEdit = { recordId, value, type, recordNote, date ->
+                scope.launch {
+                    viewModel.updateInterestAccountEntry(
+                        partyId = currentParty.id,
+                        entryId = recordId,
+                        amount = value,
+                        type = type,
+                        note = recordNote,
+                        transactionDate = date
+                    )
                 }
             }
         )
@@ -1095,11 +1104,14 @@ private fun InterestAccountScreen(
     records: List<InterestAccountEntryEntity>,
     errorMessage: String,
     onBack: () -> Unit,
-    onAdd: (Double, String, String, Long) -> Unit
+    onAdd: (Double, String, String, Long) -> Unit,
+    onEdit: (Long, Double, String, String, Long) -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val position = calculateInterestAccountPosition(transactions, records)
+    var editingRecordId by remember { mutableStateOf<Long?>(null) }
+    val validationRecords = records.filterNot { it.id == editingRecordId }
+    val validationPosition = calculateInterestAccountPosition(transactions, validationRecords)
     var selectedType by remember { mutableStateOf("GAVE") }
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
@@ -1107,9 +1119,9 @@ private fun InterestAccountScreen(
     var validationError by remember { mutableStateOf("") }
 
     val pendingLimit = if (selectedType == "GAVE") {
-        position.payable
+        validationPosition.payable
     } else {
-        position.receivable
+        validationPosition.receivable
     }
     val maxRecordableAmount =
         kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
@@ -1210,7 +1222,7 @@ private fun InterestAccountScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            "Add Interest Record",
+                            if (editingRecordId == null) "Add Interest Record" else "Edit Interest Record",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -1305,7 +1317,16 @@ private fun InterestAccountScreen(
                                     }
                                     else -> {
                                         validationError = ""
-                                        onAdd(value, selectedType, noteText.trim(), recordDate)
+                                        val recordId = editingRecordId
+                                        if (recordId == null) {
+                                            onAdd(value, selectedType, noteText.trim(), recordDate)
+                                        } else {
+                                            onEdit(
+                                                recordId, value, selectedType,
+                                                noteText.trim(), recordDate
+                                            )
+                                        }
+                                        editingRecordId = null
                                         amountText = ""
                                         noteText = ""
                                     }
@@ -1313,7 +1334,10 @@ private fun InterestAccountScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Save Interest Record")
+                            Text(
+                                if (editingRecordId == null) "Save Interest Record"
+                                else "Update Interest Record"
+                            )
                         }
                     }
                 }
@@ -1359,16 +1383,30 @@ private fun InterestAccountScreen(
                                     Text(record.note, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-                            Text(
-                                "₹${formatAmount(record.amount)}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (record.type == "GAVE") {
-                                    MaterialTheme.colorScheme.tertiary
-                                } else {
-                                    MaterialTheme.colorScheme.error
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    "₹${formatAmount(record.amount)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (record.type == "GAVE") {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    }
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        editingRecordId = record.id
+                                        selectedType = record.type
+                                        amountText = record.amount.toString()
+                                        noteText = record.note
+                                        recordDate = record.transactionDate
+                                        validationError = ""
+                                    }
+                                ) {
+                                    Text("Edit")
                                 }
-                            )
+                            }
                         }
                     }
                 }

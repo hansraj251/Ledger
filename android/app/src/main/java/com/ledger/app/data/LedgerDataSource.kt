@@ -60,6 +60,8 @@ interface LedgerDataSource {
         transactionDate: Long = System.currentTimeMillis()
     ): InterestAccountEntryEntity
 
+    fun updateInterestAccountEntry(entry: InterestAccountEntryEntity)
+
     fun getBalance(
         partyId: Long
     ): Double

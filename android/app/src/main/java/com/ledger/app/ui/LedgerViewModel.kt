@@ -395,6 +395,73 @@ class LedgerViewModel(
         }
     }
 
+    suspend fun updateInterestAccountEntry(
+        partyId: Long,
+        entryId: Long,
+        amount: Double,
+        type: String,
+        note: String,
+        transactionDate: Long
+    ): Boolean {
+        if (amount <= 0.0) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Interest amount must be greater than zero"
+            )
+            return false
+        }
+        if (type != "GAVE" && type != "GOT") {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Select Int. You Gave or Int. You Got"
+            )
+            return false
+        }
+
+        return try {
+            val (transactions, records) = withContext(Dispatchers.IO) {
+                dataSource.getEntries(partyId) to
+                    dataSource.getInterestAccountEntries(partyId)
+            }
+            val original = records.firstOrNull {
+                it.id == entryId && it.partyId == partyId
+            } ?: throw IllegalArgumentException("Interest record no longer exists")
+
+            // Exclude the old version of this record before checking its replacement.
+            val otherRecords = records.filterNot { it.id == entryId }
+            val position = calculateInterestAccountPosition(transactions, otherRecords)
+            val pendingLimit = if (type == "GAVE") position.payable else position.receivable
+            val maxRecordableAmount =
+                kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
+
+            if (amount > maxRecordableAmount + 1e-9) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ₹%.2f"
+                        .format(java.util.Locale.US, maxRecordableAmount)
+                )
+                return false
+            }
+
+            withContext(Dispatchers.IO) {
+                dataSource.updateInterestAccountEntry(
+                    original.copy(
+                        amount = amount,
+                        type = type,
+                        note = note.trim(),
+                        transactionDate = transactionDate
+                    )
+                )
+            }
+            loadInterestAccountEntries(partyId)
+            _uiState.value = _uiState.value.copy(errorMessage = "")
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to update interest record"
+            )
+            false
+        }
+    }
+
     fun clearError() {
         _uiState.value = _uiState.value.copy(
             errorMessage = ""

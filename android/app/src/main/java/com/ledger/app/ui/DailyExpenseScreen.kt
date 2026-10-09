@@ -417,7 +417,7 @@ fun DailyExpenseScreen(
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Text(
-                                            text = "Record a new expense",
+                                            text = "No expenses recorded for this period.",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -552,7 +552,12 @@ fun DailyExpenseScreen(
             } else if (visibleExpenses.isEmpty()) {
                 item {
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                editingExpense = null
+                                showExpenseDialog = true
+                            },
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Column(
@@ -577,7 +582,7 @@ fun DailyExpenseScreen(
                                 if (searchQuery.isNotBlank() && expenses.isNotEmpty())
                                     "Try another search term."
                                 else
-                                    "Tap + to record your first expense.",
+                                    "Tap to record your expense.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1208,7 +1213,7 @@ private fun ExpenseCategoryChartScreen(
                 item {
                     Card(Modifier.fillMaxWidth()) {
                         Text(
-                            "Is period mein koi expense record nahi hai.",
+                            "No expenses recorded for this period.",
                             modifier = Modifier.padding(24.dp)
                         )
                     }

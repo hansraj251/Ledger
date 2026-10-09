@@ -990,14 +990,13 @@ private fun EditPartyDialog(
 ) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false
-        )
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(0.92f),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
-            tonalElevation = 6.dp
+            shape = RoundedCornerShape(26.dp),
+            color = androidx.compose.ui.graphics.Color.White,
+            tonalElevation = 0.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -1019,26 +1018,38 @@ private fun EditPartyDialog(
                     value = name,
                     onValueChange = onNameChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Party name")
-                    },
-                    singleLine = true
+                    label = { Text("Party name") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp)
                 )
 
                 OutlinedTextField(
                     value = mobile,
                     onValueChange = onMobileChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text("Mobile number")
-                    },
-                    singleLine = true
+                    label = { Text("Mobile number") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp)
                 )
 
-                TextButton(
+                OutlinedButton(
                     onClick = onDelete,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.error
+                    ),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
+                    Icon(
+                        imageVector = Icons.Outlined.DeleteOutline,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.size(8.dp))
                     Text(
                         text = "Delete Party",
                         color = MaterialTheme.colorScheme.error,
@@ -1054,7 +1065,8 @@ private fun EditPartyDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .weight(0.85f)
-                            .height(52.dp)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "Cancel",
@@ -1067,7 +1079,7 @@ private fun EditPartyDialog(
                         modifier = Modifier
                             .weight(1.15f)
                             .height(52.dp),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "Save Changes",
@@ -1304,9 +1316,12 @@ private fun InterestAccountScreen(
 
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = androidx.compose.ui.graphics.Color.White,
         topBar = {
-            Surface(tonalElevation = 2.dp) {
+            Surface(
+                color = androidx.compose.ui.graphics.Color.White,
+                tonalElevation = 0.dp
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1347,9 +1362,11 @@ private fun InterestAccountScreen(
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    ) {
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
                         Column(Modifier.padding(14.dp)) {
                             Text("Receivable Interest", style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
@@ -1363,9 +1380,11 @@ private fun InterestAccountScreen(
                     Card(
                         modifier = Modifier.weight(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
                         Column(Modifier.padding(14.dp)) {
                             Text("Payable Interest", style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
@@ -1380,7 +1399,14 @@ private fun InterestAccountScreen(
             }
 
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1419,47 +1445,78 @@ private fun InterestAccountScreen(
                             label = { Text("Interest amount (₹)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp),
                             isError = exceedsPending,
                             supportingText = {
                                 Text("Maximum allowed: ₹$formattedMaxAmount")
                             }
                         )
-                        OutlinedButton(
-                            onClick = {
-                                val cal = Calendar.getInstance().apply {
-                                    timeInMillis = recordDate
-                                }
-                                DatePickerDialog(
-                                    context,
-                                    { _, year, month, day ->
-                                        recordDate = Calendar.getInstance().apply {
-                                            set(Calendar.YEAR, year)
-                                            set(Calendar.MONTH, month)
-                                            set(Calendar.DAY_OF_MONTH, day)
-                                            set(Calendar.HOUR_OF_DAY, 12)
-                                            set(Calendar.MINUTE, 0)
-                                            set(Calendar.SECOND, 0)
-                                            set(Calendar.MILLISECOND, 0)
-                                        }.timeInMillis
-                                    },
-                                    cal.get(Calendar.YEAR),
-                                    cal.get(Calendar.MONTH),
-                                    cal.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                "Date: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(recordDate))}"
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedTextField(
+                                    value = SimpleDateFormat(
+                                        "dd MMM yyyy",
+                                        Locale.getDefault()
+                                    ).format(Date(recordDate)),
+                                    onValueChange = {},
+                                    modifier = Modifier.fillMaxWidth(),
+                                    readOnly = true,
+                                    singleLine = true,
+                                    label = { Text("Date") },
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .clickable(
+                                            indication = null,
+                                            interactionSource = remember {
+                                                androidx.compose.foundation.interaction.MutableInteractionSource()
+                                            }
+                                        ) {
+                                            val cal = Calendar.getInstance().apply {
+                                                timeInMillis = recordDate
+                                            }
+                                            DatePickerDialog(
+                                                context,
+                                                { _, year, month, day ->
+                                                    recordDate = Calendar.getInstance().apply {
+                                                        set(Calendar.YEAR, year)
+                                                        set(Calendar.MONTH, month)
+                                                        set(Calendar.DAY_OF_MONTH, day)
+                                                        set(Calendar.HOUR_OF_DAY, 12)
+                                                        set(Calendar.MINUTE, 0)
+                                                        set(Calendar.SECOND, 0)
+                                                        set(Calendar.MILLISECOND, 0)
+                                                    }.timeInMillis
+                                                },
+                                                cal.get(Calendar.YEAR),
+                                                cal.get(Calendar.MONTH),
+                                                cal.get(Calendar.DAY_OF_MONTH)
+                                            ).show()
+                                        }
+                                )
+                            }
+
+                            OutlinedTextField(
+                                value = noteText,
+                                onValueChange = { noteText = it },
+                                modifier = Modifier.weight(1.15f),
+                                singleLine = true,
+                                label = { Text("Note") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Edit,
+                                        contentDescription = null
+                                    )
+                                },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                             )
                         }
-                        OutlinedTextField(
-                            value = noteText,
-                            onValueChange = { noteText = it },
-                            label = { Text("Note") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
                         val visibleError = validationError.ifBlank { errorMessage }
                         if (visibleError.isNotBlank()) {
                             Text(
@@ -1525,7 +1582,14 @@ private fun InterestAccountScreen(
                 }
             } else {
                 items(records, key = { it.id }) { record ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()

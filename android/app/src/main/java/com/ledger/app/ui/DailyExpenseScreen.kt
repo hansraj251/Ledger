@@ -66,6 +66,26 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ArrowForwardIos
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ShoppingCart
+import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Coffee
+import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material.icons.outlined.DirectionsBus
+import androidx.compose.material.icons.outlined.DirectionsCar
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Checkroom
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 
 private val expenseCategories = listOf(
     "Groceries", "Restaurant", "Coffee", "Shopping", "Public transit",
@@ -417,50 +437,123 @@ private fun ExpenseEditorDialog(
 ) {
     val context = LocalContext.current
     var amount by remember(initial?.id) {
-        mutableStateOf(initial?.amount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "")
+        mutableStateOf(
+            initial?.amount?.let {
+                if (it % 1.0 == 0.0) it.toLong().toString() else it.toString()
+            } ?: ""
+        )
     }
-    var category by remember(initial?.id) { mutableStateOf(initial?.category ?: expenseCategories.first()) }
+    var category by remember(initial?.id) {
+        mutableStateOf(initial?.category ?: expenseCategories.first())
+    }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
-    var date by remember(initial?.id) { mutableStateOf(initial?.expenseDate ?: System.currentTimeMillis()) }
-    var categoryExpanded by remember { mutableStateOf(false) }
+    var date by remember(initial?.id) {
+        mutableStateOf(initial?.expenseDate ?: System.currentTimeMillis())
+    }
+    var showCategoryPage by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add expense" else "Edit expense") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AccountBalanceWallet,
+                            contentDescription = null,
+                            modifier = Modifier.padding(11.dp).size(24.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (initial == null) "Add expense" else "Edit expense",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Record your spending",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it; error = "" },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Amount (₹)") },
+                    leadingIcon = {
+                        Text(
+                            "₹",
+                            modifier = Modifier.padding(start = 4.dp),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
-                Box {
-                    OutlinedTextField(
-                        value = category,
-                        onValueChange = {},
-                        modifier = Modifier.fillMaxWidth().clickable { categoryExpanded = true },
-                        readOnly = true,
-                        label = { Text("Category") }
-                    )
-                    DropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false }
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCategoryPage = true },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        expenseCategories.forEach { item ->
-                            DropdownMenuItem(
-                                text = { Text(item) },
-                                onClick = {
-                                    category = item
-                                    categoryExpanded = false
-                                }
+                        Surface(
+                            shape = RoundedCornerShape(11.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = expenseCategoryIcon(category),
+                                contentDescription = null,
+                                modifier = Modifier.padding(9.dp).size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Category",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                category,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowForwardIos,
+                            contentDescription = "Choose category",
+                            modifier = Modifier.size(17.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
+
                 OutlinedButton(
                     onClick = {
                         val c = Calendar.getInstance().apply { timeInMillis = date }
@@ -477,32 +570,203 @@ private fun ExpenseEditorDialog(
                             c.get(Calendar.DAY_OF_MONTH)
                         ).show()
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Date: ${expenseDateText(date)}") }
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.CalendarMonth,
+                        contentDescription = null,
+                        modifier = Modifier.size(19.dp)
+                    )
+                    Spacer(Modifier.size(9.dp))
+                    Text("Date: ${expenseDateText(date)}")
+                }
+
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Note (optional)") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.EditNote, contentDescription = null)
+                    },
                     singleLine = true
                 )
+
                 if (error.isNotBlank()) {
                     Text(error, color = MaterialTheme.colorScheme.error)
                 }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                val parsed = amount.trim().replace(",", "").toDoubleOrNull()
-                if (parsed == null || !parsed.isFinite() || parsed <= 0.0) {
-                    error = "Enter a valid amount greater than zero."
-                } else {
-                    onSave(parsed, category, note, date)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = {
+                            val parsed = amount.trim().replace(",", "").toDoubleOrNull()
+                            if (parsed == null || !parsed.isFinite() || parsed <= 0.0) {
+                                error = "Enter a valid amount greater than zero."
+                            } else {
+                                onSave(parsed, category, note, date)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Save")
+                    }
                 }
-            }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
         }
-    )
+    }
+
+    if (showCategoryPage) {
+        Dialog(
+            onDismissRequest = { showCategoryPage = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(0.dp),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { showCategoryPage = false }) {
+                            Icon(
+                                Icons.Outlined.ArrowBack,
+                                contentDescription = "Back to expense"
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Choose category",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Select where you spent",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = 24.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(expenseCategories.chunked(2)) { categoryRow ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                categoryRow.forEach { item ->
+                                    val selected = item == category
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                category = item
+                                                showCategoryPage = false
+                                            },
+                                        shape = RoundedCornerShape(18.dp),
+                                        color = if (selected)
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        else
+                                            MaterialTheme.colorScheme.surfaceContainerLow,
+                                        tonalElevation = if (selected) 2.dp else 0.dp
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(
+                                                horizontal = 12.dp,
+                                                vertical = 16.dp
+                                            ),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(13.dp),
+                                                color = if (selected)
+                                                    MaterialTheme.colorScheme.primary
+                                                else
+                                                    MaterialTheme.colorScheme.secondaryContainer
+                                            ) {
+                                                Icon(
+                                                    imageVector = expenseCategoryIcon(item),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.padding(11.dp).size(25.dp),
+                                                    tint = if (selected)
+                                                        MaterialTheme.colorScheme.onPrimary
+                                                    else
+                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                )
+                                            }
+                                            Text(
+                                                item,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = if (selected)
+                                                    FontWeight.Bold
+                                                else
+                                                    FontWeight.Medium,
+                                                color = if (selected)
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                                if (categoryRow.size == 1) {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector {
+    return when (category) {
+        "Groceries" -> Icons.Outlined.ShoppingCart
+        "Restaurant" -> Icons.Outlined.Restaurant
+        "Coffee" -> Icons.Outlined.Coffee
+        "Shopping" -> Icons.Outlined.ShoppingBag
+        "Public transit" -> Icons.Outlined.DirectionsBus
+        "Car" -> Icons.Outlined.DirectionsCar
+        "Utilities" -> Icons.Outlined.Bolt
+        "Health" -> Icons.Outlined.FavoriteBorder
+        "Entertainment" -> Icons.Outlined.Movie
+        "Subscriptions" -> Icons.Outlined.CreditCard
+        "Bills" -> Icons.Outlined.ReceiptLong
+        "Clothing" -> Icons.Outlined.Checkroom
+        else -> Icons.Outlined.Category
+    }
 }

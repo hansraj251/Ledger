@@ -722,7 +722,7 @@ private fun EditTransactionDialog(
             modifier = Modifier.fillMaxWidth(0.92f),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
             color = androidx.compose.ui.graphics.Color.White,
-            tonalElevation = 6.dp
+            tonalElevation = 0.dp
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -939,7 +939,8 @@ private fun EditTransactionDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .weight(0.85f)
-                            .height(52.dp)
+                            .height(52.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "Cancel",

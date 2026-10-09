@@ -389,8 +389,8 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp),
                 shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
+                color = androidx.compose.ui.graphics.Color.White,
+                tonalElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier

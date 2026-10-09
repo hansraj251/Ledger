@@ -11,6 +11,9 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
+import com.ledger.app.data.calculateInterestPosition
+import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.data.calculateTransactionInterest
 import com.ledger.app.data.transactionInterestDays
@@ -32,6 +35,7 @@ internal fun createPartyReportPdf(
     context: Context,
     party: PartyEntity,
     entries: List<LedgerEntryEntity>,
+    interestRecords: List<InterestAccountEntryEntity> = emptyList(),
     profileName: String = ""
 ): File {
     val pdf = PdfDocument()
@@ -77,19 +81,32 @@ internal fun createPartyReportPdf(
             )
         }
 
-    val netBalance = orderedEntries.sumOf { entry ->
-        val interest = calculateTransactionInterest(
-            amount = entry.amount,
-            annualRate = entry.interestRate,
-            transactionDate = entry.transactionDate,
-            createdAt = entry.createdAt,
-            
-        )
-
-        val total = entry.amount + interest
-
-        if (entry.type == EntryType.CREDIT) total else -total
+    val principalBalance = orderedEntries.sumOf { entry ->
+        if (entry.type == EntryType.CREDIT) entry.amount else -entry.amount
     }
+
+    val accruedInterest = calculateInterestPosition(
+        entries = orderedEntries,
+        asOf = today
+    )
+
+    val remainingInterest = calculateInterestAccountPosition(
+        transactions = orderedEntries,
+        records = interestRecords,
+        asOf = today
+    )
+
+    val recordedInterestGot = interestRecords
+        .filter { it.type == "GOT" }
+        .sumOf { it.amount }
+
+    val recordedInterestGave = interestRecords
+        .filter { it.type == "GAVE" }
+        .sumOf { it.amount }
+
+    val netBalance = principalBalance +
+        remainingInterest.receivable -
+        remainingInterest.payable
 
     writer.startPage()
 
@@ -114,6 +131,38 @@ internal fun createPartyReportPdf(
     writer.summaryRow("Total $gotLabel", money(got))
     writer.summaryRow("Interest on $gotLabel", money(gotInterest))
     writer.summaryRow("Current Balance", moneySigned(netBalance), bold = true)
+
+    writer.space(6f)
+    writer.section("Interest Account Summary")
+    writer.summaryRow(
+        "Accrued Interest Receivable",
+        money(accruedInterest.receivable)
+    )
+    writer.summaryRow(
+        "Interest You Got (Recorded)",
+        money(recordedInterestGot)
+    )
+    writer.summaryRow(
+        "Remaining Interest Receivable",
+        money(remainingInterest.receivable)
+    )
+    writer.summaryRow(
+        "Accrued Interest Payable",
+        money(accruedInterest.payable)
+    )
+    writer.summaryRow(
+        "Interest You Gave (Recorded)",
+        money(recordedInterestGave)
+    )
+    writer.summaryRow(
+        "Remaining Interest Payable",
+        money(remainingInterest.payable)
+    )
+    writer.summaryRow(
+        "Adjusted Current Balance",
+        moneySigned(netBalance),
+        bold = true
+    )
 
     writer.space(14f)
 
@@ -181,6 +230,47 @@ internal fun createPartyReportPdf(
 
             if (entry.note.isNotBlank()) {
                 writer.note("Note: ${entry.note}")
+            }
+
+            writer.separator()
+            writer.space(8f)
+        }
+    }
+
+    writer.space(14f)
+    writer.section("Interest Account Records (${interestRecords.size})")
+
+    val orderedInterestRecords = interestRecords.sortedWith(
+        compareByDescending<InterestAccountEntryEntity> {
+            if (it.transactionDate > 0L) it.transactionDate else it.createdAt
+        }.thenByDescending { it.id }
+    )
+
+    if (orderedInterestRecords.isEmpty()) {
+        writer.text("No interest payments or receipts recorded.", 10f, false)
+    } else {
+        orderedInterestRecords.forEachIndexed { index, record ->
+            val recordDate = if (record.transactionDate > 0L) {
+                record.transactionDate
+            } else {
+                record.createdAt
+            }
+
+            val recordType = if (record.type == "GAVE") {
+                "INTEREST YOU GAVE"
+            } else {
+                "INTEREST YOU GOT"
+            }
+
+            writer.transactionHeader(
+                number = index + 1,
+                date = dateFormat.format(Date(recordDate)),
+                type = recordType
+            )
+            writer.transactionRow("Interest Amount", money(record.amount))
+
+            if (record.note.isNotBlank()) {
+                writer.note("Note: ${record.note}")
             }
 
             writer.separator()

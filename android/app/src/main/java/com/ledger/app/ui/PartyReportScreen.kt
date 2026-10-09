@@ -48,6 +48,7 @@ import java.io.File
 fun PartyReportScreen(
     party: com.ledger.app.data.PartyEntity,
     entries: List<com.ledger.app.data.LedgerEntryEntity>,
+    records: List<com.ledger.app.data.InterestAccountEntryEntity>,
     onBack: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -64,7 +65,7 @@ fun PartyReportScreen(
         mutableStateOf<String?>(null)
     }
 
-    LaunchedEffect(party.id, entries) {
+    LaunchedEffect(party.id, entries, records) {
         isGenerating = true
         errorMessage = null
 
@@ -81,6 +82,7 @@ fun PartyReportScreen(
                     context = context,
                     party = party,
                     entries = entries,
+                    interestRecords = records,
                     profileName = profileName
                 )
             }

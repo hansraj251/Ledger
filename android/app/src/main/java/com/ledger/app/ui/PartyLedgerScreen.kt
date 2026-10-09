@@ -168,6 +168,7 @@ var showDeletePartyDialog by remember {
         PartyReportScreen(
             party = currentParty,
             entries = uiState.entries,
+            records = uiState.interestAccountEntries,
             onBack = {
                 showReport = false
             }

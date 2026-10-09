@@ -1525,7 +1525,12 @@ private fun InterestAccountScreen(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        Button(
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
                             onClick = {
                                 val value = amountText.trim().toDoubleOrNull()
                                 when {
@@ -1553,24 +1558,40 @@ private fun InterestAccountScreen(
                                     }
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                            modifier = Modifier.weight(1f)
+                        ,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)) {
                             Text(
                                 if (editingRecordId == null) "Save Interest Record"
-                                else "Update Interest Record"
+                                else "Update"
                             )
+                        }
+                            if (editingRecordId != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        recordToDelete = records.firstOrNull {
+                                            it.id == editingRecordId
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Text(
+                                        "Delete",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            item {
-                Text(
-                    "Date-wise Interest Records",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            
 
             if (records.isEmpty()) {
                 item {
@@ -1583,7 +1604,17 @@ private fun InterestAccountScreen(
             } else {
                 items(records, key = { it.id }) { record ->
                     Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                scope.launch { listState.animateScrollToItem(0) }
+                                editingRecordId = record.id
+                                selectedType = record.type
+                                amountText = record.amount.toString()
+                                noteText = record.note
+                                recordDate = record.transactionDate
+                                validationError = ""
+                            },
                     colors = CardDefaults.cardColors(
                         containerColor = androidx.compose.ui.graphics.Color.White
                     ),
@@ -1622,24 +1653,6 @@ private fun InterestAccountScreen(
                                         MaterialTheme.colorScheme.error
                                     }
                                 )
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            scope.launch { listState.animateScrollToItem(0) }
-                                            editingRecordId = record.id
-                                            selectedType = record.type
-                                            amountText = record.amount.toString()
-                                            noteText = record.note
-                                            recordDate = record.transactionDate
-                                            validationError = ""
-                                        }
-                                    ) { Text("Edit") }
-                                    androidx.compose.material3.TextButton(
-                                        onClick = { recordToDelete = record }
-                                    ) {
-                                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                                    }
-                                }
                             }
                         }
                     }

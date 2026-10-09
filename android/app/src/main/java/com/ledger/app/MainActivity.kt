@@ -53,6 +53,7 @@ import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
+import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
@@ -186,6 +187,10 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(false)
                 }
 
+                var showDailyExpenseScreen by remember { mutableStateOf(false) }
+
+                BackHandler(enabled = showDailyExpenseScreen) { showDailyExpenseScreen = false }
+
                 val viewModel = remember {
                     LedgerViewModel(
                         repository,
@@ -236,6 +241,10 @@ class MainActivity : ComponentActivity() {
                             googleDriveSyncCoordinator.requestAutoSync()
                         }
                     )
+                } else if (showDailyExpenseScreen) {
+                    DailyExpenseScreen(
+                        onPartiesClick = { showDailyExpenseScreen = false }
+                    )
                 } else if (selectedParty == null) {
                     HomeScreen(
                         viewModel = viewModel,
@@ -247,7 +256,8 @@ class MainActivity : ComponentActivity() {
                         },
                         onReportsClick = {
                             showAllPartiesReport = true
-                        }
+                        },
+                        onDailyExpenseClick = { showDailyExpenseScreen = true }
                     )
                 } else {
                     PartyLedgerScreen(

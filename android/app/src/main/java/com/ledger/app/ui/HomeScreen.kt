@@ -76,6 +76,7 @@ fun HomeScreen(
     onPartyClick: (PartyEntity) -> Unit,
     onProfileClick: () -> Unit,
     onReportsClick: () -> Unit,
+    onDailyExpenseClick: () -> Unit,
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -272,6 +273,13 @@ fun HomeScreen(
 }
                 }
             }
+        },
+        bottomBar = {
+            LedgerBottomNavigation(
+                selectedTab = "parties",
+                onPartiesClick = {},
+                onExpensesClick = onDailyExpenseClick
+            )
         },
         floatingActionButton = {
             FloatingActionButton(

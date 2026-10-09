@@ -10,6 +10,8 @@ class LedgerRepository(
 
     private val profileDao = database.profileDao()
 
+    private val interestAccountEntryDao = database.interestAccountEntryDao()
+
     override fun getProfile(): ProfileEntity? {
         return profileDao.getProfile()
     }
@@ -106,6 +108,34 @@ class LedgerRepository(
         partyId: Long
     ): List<LedgerEntryEntity> {
         return ledgerEntryDao.getByPartyId(partyId)
+    }
+
+    override fun getInterestAccountEntries(
+        partyId: Long
+    ): List<InterestAccountEntryEntity> {
+        return interestAccountEntryDao.getByPartyId(partyId)
+    }
+
+    override fun addInterestAccountEntry(
+        partyId: Long,
+        amount: Double,
+        type: String,
+        note: String,
+        transactionDate: Long
+    ): InterestAccountEntryEntity {
+        require(amount > 0.0) { "Interest amount must be greater than zero" }
+        require(type == "GAVE" || type == "GOT") { "Invalid interest entry type" }
+        require(partyDao.getById(partyId) != null) { "Party does not exist" }
+
+        val entry = InterestAccountEntryEntity(
+            partyId = partyId,
+            amount = amount,
+            type = type,
+            note = note.trim(),
+            transactionDate = transactionDate
+        )
+        val id = interestAccountEntryDao.insert(entry)
+        return entry.copy(id = id)
     }
 
     override fun getBalance(

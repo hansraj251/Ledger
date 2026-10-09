@@ -48,6 +48,18 @@ interface LedgerDataSource {
         partyId: Long
     ): List<LedgerEntryEntity>
 
+    fun getInterestAccountEntries(
+        partyId: Long
+    ): List<InterestAccountEntryEntity>
+
+    fun addInterestAccountEntry(
+        partyId: Long,
+        amount: Double,
+        type: String,
+        note: String = "",
+        transactionDate: Long = System.currentTimeMillis()
+    ): InterestAccountEntryEntity
+
     fun getBalance(
         partyId: Long
     ): Double

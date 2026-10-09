@@ -69,6 +69,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
+import com.ledger.app.data.calculateInterestPosition
+import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -112,7 +115,9 @@ fun PartyLedgerScreen(
         mutableStateOf(false)
     }
 
-    var showDeletePartyDialog by remember {
+
+    var showInterestAccount by remember { mutableStateOf(false) }
+var showDeletePartyDialog by remember {
         mutableStateOf(false)
     }
 
@@ -146,10 +151,15 @@ fun PartyLedgerScreen(
 
     LaunchedEffect(party.id) {
         viewModel.loadEntries(party.id)
+        viewModel.loadInterestAccountEntries(party.id)
     }
 
     BackHandler {
-        onBack()
+        if (showInterestAccount) {
+            showInterestAccount = false
+        } else {
+            onBack()
+        }
     }
 
     if (showReport) {
@@ -158,6 +168,31 @@ fun PartyLedgerScreen(
             entries = uiState.entries,
             onBack = {
                 showReport = false
+            }
+        )
+        return
+    }
+
+    if (showInterestAccount) {
+        InterestAccountScreen(
+            party = currentParty,
+            transactions = uiState.entries,
+            records = uiState.interestAccountEntries,
+            errorMessage = uiState.errorMessage,
+            onBack = { showInterestAccount = false },
+            onAdd = { value, type, recordNote, date ->
+                scope.launch {
+                    val saved = viewModel.addInterestAccountEntry(
+                        partyId = currentParty.id,
+                        amount = value,
+                        type = type,
+                        note = recordNote,
+                        transactionDate = date
+                    )
+                    if (saved) {
+                        showInterestAccount = true
+                    }
+                }
             }
         )
         return
@@ -208,7 +243,8 @@ fun PartyLedgerScreen(
 
             item {
                 BalanceHero(
-                    balance = uiState.balance
+                    balance = uiState.balance,
+                    onClick = { showInterestAccount = true }
                 )
             }
 
@@ -946,7 +982,8 @@ private fun EditPartyDialog(
 
 @Composable
 private fun BalanceHero(
-    balance: Double
+    balance: Double,
+    onClick: () -> Unit
 ) {
     val positive = balance > 0
     val negative = balance < 0
@@ -966,7 +1003,8 @@ private fun BalanceHero(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 20.dp)
+            .clickable(onClick = onClick),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -1044,6 +1082,297 @@ private fun BalanceHero(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+
+
+@Composable
+private fun InterestAccountScreen(
+    party: PartyEntity,
+    transactions: List<LedgerEntryEntity>,
+    records: List<InterestAccountEntryEntity>,
+    errorMessage: String,
+    onBack: () -> Unit,
+    onAdd: (Double, String, String, Long) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val position = calculateInterestAccountPosition(transactions, records)
+    var selectedType by remember { mutableStateOf("GAVE") }
+    var amountText by remember { mutableStateOf("") }
+    var noteText by remember { mutableStateOf("") }
+    var recordDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var validationError by remember { mutableStateOf("") }
+
+    val pendingLimit = if (selectedType == "GAVE") {
+        position.payable
+    } else {
+        position.receivable
+    }
+    val maxRecordableAmount =
+        kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
+    val formattedMaxAmount = String.format(
+        java.util.Locale.US, "%.2f", maxRecordableAmount
+    )
+    val enteredAmount = amountText.trim().toDoubleOrNull()
+    val exceedsPending = enteredAmount != null &&
+        enteredAmount > maxRecordableAmount + 1e-9
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            Surface(tonalElevation = 2.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Interest Account",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            party.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .navigationBarsPadding(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Receivable Interest", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "₹${formatAmount(position.receivable)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Payable Interest", style = MaterialTheme.typography.labelMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "₹${formatAmount(position.payable)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    "These totals are calculated live from the interest on existing You Gave / You Got transactions. Saving a dated interest record does not settle or stop that interest.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            "Add Interest Record",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = selectedType == "GAVE",
+                                onClick = {
+                                    selectedType = "GAVE"
+                                    validationError = ""
+                                },
+                                label = { Text("Int. You Gave") },
+                                modifier = Modifier.weight(1f)
+                            )
+                            FilterChip(
+                                selected = selectedType == "GOT",
+                                onClick = {
+                                    selectedType = "GOT"
+                                    validationError = ""
+                                },
+                                label = { Text("Int. You Got") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        OutlinedTextField(
+                            value = amountText,
+                            onValueChange = {
+                                amountText = it
+                                validationError = ""
+                            },
+                            label = { Text("Interest amount (₹)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            isError = exceedsPending,
+                            supportingText = {
+                                Text("Maximum allowed: ₹$formattedMaxAmount")
+                            }
+                        )
+                        OutlinedButton(
+                            onClick = {
+                                val cal = Calendar.getInstance().apply {
+                                    timeInMillis = recordDate
+                                }
+                                DatePickerDialog(
+                                    context,
+                                    { _, year, month, day ->
+                                        recordDate = Calendar.getInstance().apply {
+                                            set(Calendar.YEAR, year)
+                                            set(Calendar.MONTH, month)
+                                            set(Calendar.DAY_OF_MONTH, day)
+                                            set(Calendar.HOUR_OF_DAY, 12)
+                                            set(Calendar.MINUTE, 0)
+                                            set(Calendar.SECOND, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                    },
+                                    cal.get(Calendar.YEAR),
+                                    cal.get(Calendar.MONTH),
+                                    cal.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Date: ${SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(recordDate))}"
+                            )
+                        }
+                        OutlinedTextField(
+                            value = noteText,
+                            onValueChange = { noteText = it },
+                            label = { Text("Note (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        val visibleError = validationError.ifBlank { errorMessage }
+                        if (visibleError.isNotBlank()) {
+                            Text(
+                                visibleError,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val value = amountText.trim().toDoubleOrNull()
+                                when {
+                                    value == null || value <= 0.0 -> {
+                                        validationError = "Enter an amount greater than zero."
+                                    }
+                                    value > maxRecordableAmount + 1e-9 -> {
+                                        validationError =
+                                            "Amount exceeds pending interest. Maximum allowed: ₹$formattedMaxAmount"
+                                    }
+                                    else -> {
+                                        validationError = ""
+                                        onAdd(value, selectedType, noteText.trim(), recordDate)
+                                        amountText = ""
+                                        noteText = ""
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Save Interest Record")
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    "Date-wise Interest Records",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            if (records.isEmpty()) {
+                item {
+                    Text(
+                        "No interest records added yet.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            } else {
+                items(records, key = { it.id }) { record ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    if (record.type == "GAVE") "Int. You Gave" else "Int. You Got",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                                        .format(Date(record.transactionDate)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (record.note.isNotBlank()) {
+                                    Text(record.note, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text(
+                                "₹${formatAmount(record.amount)}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (record.type == "GAVE") {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

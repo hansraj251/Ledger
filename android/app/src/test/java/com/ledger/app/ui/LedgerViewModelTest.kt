@@ -3,6 +3,7 @@ package com.ledger.app.ui
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.ProfileEntity
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.runBlocking
@@ -69,6 +70,48 @@ class LedgerViewModelTest {
         override fun deleteParty(
             party: PartyEntity
         ) {
+        }
+
+        private val interestRecords = mutableListOf<InterestAccountEntryEntity>()
+
+        override fun getInterestAccountEntries(
+            partyId: Long
+        ): List<InterestAccountEntryEntity> {
+            return interestRecords
+                .filter { it.partyId == partyId }
+                .sortedWith(
+                    compareByDescending<InterestAccountEntryEntity> { it.transactionDate }
+                        .thenByDescending { it.id }
+                )
+        }
+
+        override fun addInterestAccountEntry(
+            partyId: Long,
+            amount: Double,
+            type: String,
+            note: String,
+            transactionDate: Long
+        ): InterestAccountEntryEntity {
+            require(parties.any { it.id == partyId }) {
+                "Party does not exist"
+            }
+            require(amount > 0.0) {
+                "Interest amount must be greater than zero"
+            }
+            require(type == "GAVE" || type == "GOT") {
+                "Invalid interest entry type"
+            }
+
+            val record = InterestAccountEntryEntity(
+                id = (interestRecords.size + 1).toLong(),
+                partyId = partyId,
+                amount = amount,
+                type = type,
+                note = note.trim(),
+                transactionDate = transactionDate
+            )
+            interestRecords.add(record)
+            return record
         }
 
         override fun updateEntry(

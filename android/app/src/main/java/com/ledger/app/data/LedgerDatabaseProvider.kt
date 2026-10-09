@@ -5,6 +5,30 @@ import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
+
+private val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS interest_account_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                partyId INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                type TEXT NOT NULL,
+                note TEXT NOT NULL,
+                transactionDate INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL,
+                FOREIGN KEY(partyId) REFERENCES parties(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_interest_account_entries_partyId " +
+                "ON interest_account_entries (partyId)"
+        )
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -61,7 +85,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build().also {
                 instance = it
             }

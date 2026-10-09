@@ -78,3 +78,53 @@ fun calculateLedgerBalance(
         }
     }
 }
+
+
+data class InterestPosition(
+    val receivable: Double,
+    val payable: Double
+)
+
+fun calculateInterestPosition(
+    entries: List<LedgerEntryEntity>,
+    asOf: Long = System.currentTimeMillis()
+): InterestPosition {
+    val net = entries.sumOf { entry ->
+        val interest = calculateTransactionInterest(
+            amount = entry.amount,
+            annualRate = entry.interestRate,
+            transactionDate = entry.transactionDate,
+            createdAt = entry.createdAt,
+            asOf = asOf
+        )
+        when (entry.type) {
+            EntryType.CREDIT -> interest
+            EntryType.DEBIT -> -interest
+        }
+    }
+    return InterestPosition(
+        receivable = if (net > 0.0) net else 0.0,
+        payable = if (net < 0.0) -net else 0.0
+    )
+}
+
+fun calculateInterestAccountPosition(
+    transactions: List<LedgerEntryEntity>,
+    records: List<InterestAccountEntryEntity>,
+    asOf: Long = System.currentTimeMillis()
+): InterestPosition {
+    val accrued = calculateInterestPosition(transactions, asOf)
+
+    val interestYouGot = records
+        .filter { it.type == "GOT" }
+        .sumOf { it.amount }
+
+    val interestYouGave = records
+        .filter { it.type == "GAVE" }
+        .sumOf { it.amount }
+
+    return InterestPosition(
+        receivable = (accrued.receivable - interestYouGot).coerceAtLeast(0.0),
+        payable = (accrued.payable - interestYouGave).coerceAtLeast(0.0)
+    )
+}

@@ -3,7 +3,9 @@ package com.ledger.app.ui
 import androidx.lifecycle.ViewModel
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateLedgerBalance
+import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.PartyEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,6 +17,7 @@ data class LedgerUiState(
     val parties: List<PartyEntity> = emptyList(),
     val partyBalances: Map<Long, Double> = emptyMap(),
     val entries: List<LedgerEntryEntity> = emptyList(),
+    val interestAccountEntries: List<InterestAccountEntryEntity> = emptyList(),
     val selectedPartyId: Long? = null,
     val balance: Double = 0.0,
     val searchQuery: String = "",
@@ -311,6 +314,86 @@ class LedgerViewModel(
         }
     }
 
+
+    suspend fun loadInterestAccountEntries(partyId: Long) {
+        try {
+            val records = withContext(Dispatchers.IO) {
+                dataSource.getInterestAccountEntries(partyId)
+            }
+            _uiState.value = _uiState.value.copy(
+                interestAccountEntries = records
+            )
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to load interest records"
+            )
+        }
+    }
+
+    suspend fun addInterestAccountEntry(
+        partyId: Long,
+        amount: Double,
+        type: String,
+        note: String,
+        transactionDate: Long
+    ): Boolean {
+        if (amount <= 0.0) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Interest amount must be greater than zero"
+            )
+            return false
+        }
+        if (type != "GAVE" && type != "GOT") {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Select Int. You Gave or Int. You Got"
+            )
+            return false
+        }
+
+        return try {
+            val (transactions, records) = withContext(Dispatchers.IO) {
+                dataSource.getEntries(partyId) to
+                    dataSource.getInterestAccountEntries(partyId)
+            }
+
+            val position = calculateInterestAccountPosition(transactions, records)
+            val pendingLimit = if (type == "GAVE") {
+                position.payable
+            } else {
+                position.receivable
+            }
+
+            val maxRecordableAmount =
+                kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
+
+            if (amount > maxRecordableAmount + 1e-9) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ₹%.2f"
+                        .format(java.util.Locale.US, maxRecordableAmount)
+                )
+                return false
+            }
+
+            withContext(Dispatchers.IO) {
+                dataSource.addInterestAccountEntry(
+                    partyId = partyId,
+                    amount = amount,
+                    type = type,
+                    note = note.trim(),
+                    transactionDate = transactionDate
+                )
+            }
+            loadInterestAccountEntries(partyId)
+            _uiState.value = _uiState.value.copy(errorMessage = "")
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to save interest record"
+            )
+            false
+        }
+    }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(

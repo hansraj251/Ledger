@@ -87,17 +87,18 @@ internal fun AllPartiesReportScreen(
                 val parties =
                     repository.getParties()
 
-                val entriesByParty =
-                    parties.associate { party ->
-                        party.id to repository.getEntries(
-                            party.id
-                        )
-                    }
+                val entriesByParty = parties.associate { party ->
+                    party.id to repository.getEntries(party.id)
+                }
+                val interestRecordsByParty = parties.associate { party ->
+                    party.id to repository.getInterestAccountEntries(party.id)
+                }
 
                 createAllPartiesReportPdf(
                     context = context,
                     parties = parties,
                     entriesByParty = entriesByParty,
+                    interestRecordsByParty = interestRecordsByParty,
                     profileName = profileName
                 )
             }

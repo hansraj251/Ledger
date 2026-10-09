@@ -11,9 +11,12 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.calculateTransactionInterest
+import com.ledger.app.data.calculateInterestPosition
+import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.transactionInterestDays
 import java.io.File
 import java.text.SimpleDateFormat
@@ -24,6 +27,7 @@ internal fun createAllPartiesReportPdf(
     context: Context,
     parties: List<PartyEntity>,
     entriesByParty: Map<Long, List<LedgerEntryEntity>>,
+    interestRecordsByParty: Map<Long, List<InterestAccountEntryEntity>>,
     profileName: String = ""
 ): File {
     val pdf = PdfDocument()
@@ -47,43 +51,59 @@ internal fun createAllPartiesReportPdf(
     val gaveLabel =
         "${profileName.trim().ifEmpty { "You" }} Gave"
 
+    val today = System.currentTimeMillis()
     val allEntries = parties.flatMap { party ->
         entriesByParty[party.id].orEmpty()
+    }
+    val allInterestRecords = parties.flatMap { party ->
+        interestRecordsByParty[party.id].orEmpty()
     }
 
     val totalGave = allEntries
         .filter { it.type == EntryType.CREDIT }
         .sumOf { it.amount }
-
     val totalGot = allEntries
         .filter { it.type == EntryType.DEBIT }
         .sumOf { it.amount }
 
-    val totalGaveInterest = allEntries
-        .filter { it.type == EntryType.CREDIT }
-        .sumOf {
-            calculateTransactionInterest(
-                amount = it.amount,
-                annualRate = it.interestRate,
-                transactionDate = it.transactionDate,
-                createdAt = it.createdAt
-            )
-        }
+    val accruedByParty = parties.associate { party ->
+        party.id to calculateInterestPosition(
+            entries = entriesByParty[party.id].orEmpty(),
+            asOf = today
+        )
+    }
+    val remainingByParty = parties.associate { party ->
+        party.id to calculateInterestAccountPosition(
+            transactions = entriesByParty[party.id].orEmpty(),
+            records = interestRecordsByParty[party.id].orEmpty(),
+            asOf = today
+        )
+    }
 
-    val totalGotInterest = allEntries
-        .filter { it.type == EntryType.DEBIT }
-        .sumOf {
-            calculateTransactionInterest(
-                amount = it.amount,
-                annualRate = it.interestRate,
-                transactionDate = it.transactionDate,
-                createdAt = it.createdAt
-            )
-        }
+    val totalAccruedReceivable =
+        accruedByParty.values.sumOf { it.receivable }
+    val totalAccruedPayable =
+        accruedByParty.values.sumOf { it.payable }
+    val totalRecordedGot = allInterestRecords
+        .filter { it.type == "GOT" }
+        .sumOf { it.amount }
+    val totalRecordedGave = allInterestRecords
+        .filter { it.type == "GAVE" }
+        .sumOf { it.amount }
+    val totalRemainingReceivable =
+        remainingByParty.values.sumOf { it.receivable }
+    val totalRemainingPayable =
+        remainingByParty.values.sumOf { it.payable }
 
-    val totalBalance =
-        totalGave + totalGaveInterest -
-            (totalGot + totalGotInterest)
+    val principalBalance = allEntries.sumOf { entry ->
+        if (entry.type == EntryType.CREDIT) entry.amount else -entry.amount
+    }
+    val totalBalance = principalBalance +
+        totalRemainingReceivable - totalRemainingPayable
+    val hasInterest = totalAccruedReceivable > 0.0 ||
+        totalAccruedPayable > 0.0 ||
+        totalRecordedGot > 0.0 ||
+        totalRecordedGave > 0.0
 
     fun money(value: Double): String {
         return "₹${String.format(Locale.getDefault(), "%,.0f", value)}"
@@ -110,45 +130,42 @@ internal fun createAllPartiesReportPdf(
     writer.space(8f)
 
     writer.section("Overall Summary")
+    writer.summaryRow("Total $gaveLabel", money(totalGave))
+    writer.summaryRow("Total Party Gave", money(totalGot))
 
-    writer.summaryRow(
-        "Total $gaveLabel",
-        money(totalGave)
-    )
-
-    if (totalGaveInterest > 0.0) {
-        writer.summaryRow(
-            "Interest on $gaveLabel",
-            money(totalGaveInterest)
-        )
+    if (totalAccruedReceivable > 0.0) {
+        writer.summaryRow("Total Interest Receivable", money(totalAccruedReceivable))
+    }
+    if (totalRecordedGot > 0.0) {
+        writer.summaryRow("Interest Received", money(totalRecordedGot))
+    }
+    if (totalRemainingReceivable > 0.0) {
+        writer.summaryRow("Remaining Interest Receivable", money(totalRemainingReceivable))
+    }
+    if (totalAccruedPayable > 0.0) {
+        writer.summaryRow("Total Interest Payable", money(totalAccruedPayable))
+    }
+    if (totalRecordedGave > 0.0) {
+        writer.summaryRow("Interest Paid", money(totalRecordedGave))
+    }
+    if (totalRemainingPayable > 0.0) {
+        writer.summaryRow("Remaining Interest Payable", money(totalRemainingPayable))
     }
 
-    writer.summaryRow(
-        "Total Party Gave",
-        money(totalGot)
-    )
-
-    if (totalGotInterest > 0.0) {
-        writer.summaryRow(
-            "Interest on Party Gave",
-            money(totalGotInterest)
-        )
+    val overallBalanceLabel = when {
+        totalBalance > 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - Parties Will Pay"
+        totalBalance < 0.0 ->
+            "Current Balance${if (hasInterest) " (With Int.)" else ""} - ${profileName.trim().ifEmpty { "You" }} Will Pay"
+        else ->
+            if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
     }
-
+    writer.summaryRow("Total Parties", parties.size.toString())
+    writer.summaryRow("Total Transactions", allEntries.size.toString())
     writer.summaryRow(
-        "Current Balance",
-        moneySigned(totalBalance),
+        overallBalanceLabel,
+        money(kotlin.math.abs(totalBalance)),
         bold = true
-    )
-
-    writer.summaryRow(
-        "Total Parties",
-        parties.size.toString()
-    )
-
-    writer.summaryRow(
-        "Total Transactions",
-        allEntries.size.toString()
     )
 
     writer.space(12f)
@@ -169,39 +186,31 @@ internal fun createAllPartiesReportPdf(
                 }.thenByDescending { it.id }
             )
 
-        val gave = orderedEntries
-            .filter { it.type == EntryType.CREDIT }
+        val records = interestRecordsByParty[party.id].orEmpty()
+        val accruedInterest = calculateInterestPosition(
+            entries = orderedEntries,
+            asOf = today
+        )
+        val remainingInterest = calculateInterestAccountPosition(
+            transactions = orderedEntries,
+            records = records,
+            asOf = today
+        )
+        val recordedInterestGot = records
+            .filter { it.type == "GOT" }
             .sumOf { it.amount }
-
-        val got = orderedEntries
-            .filter { it.type == EntryType.DEBIT }
+        val recordedInterestGave = records
+            .filter { it.type == "GAVE" }
             .sumOf { it.amount }
-
-        val gaveInterest = orderedEntries
-            .filter { it.type == EntryType.CREDIT }
-            .sumOf {
-                calculateTransactionInterest(
-                    amount = it.amount,
-                    annualRate = it.interestRate,
-                    transactionDate = it.transactionDate,
-                    createdAt = it.createdAt
-                )
-            }
-
-        val gotInterest = orderedEntries
-            .filter { it.type == EntryType.DEBIT }
-            .sumOf {
-                calculateTransactionInterest(
-                    amount = it.amount,
-                    annualRate = it.interestRate,
-                    transactionDate = it.transactionDate,
-                    createdAt = it.createdAt
-                )
-            }
-
-        val balance =
-            gave + gaveInterest -
-                (got + gotInterest)
+        val principalBalance = orderedEntries.sumOf { entry ->
+            if (entry.type == EntryType.CREDIT) entry.amount else -entry.amount
+        }
+        val balance = principalBalance +
+            remainingInterest.receivable - remainingInterest.payable
+        val partyHasInterest = accruedInterest.receivable > 0.0 ||
+            accruedInterest.payable > 0.0 ||
+            recordedInterestGot > 0.0 ||
+            recordedInterestGave > 0.0
 
         writer.space(8f)
 
@@ -218,41 +227,60 @@ internal fun createAllPartiesReportPdf(
         }
 
         writer.section("Account Summary")
+        val partyGaveLabel = "${party.name.trim()} Gave"
 
-        writer.summaryRow(
-            "Total $gaveLabel",
-            money(gave)
-        )
+        writer.summaryRow("Total $gaveLabel", money(
+            orderedEntries.filter { it.type == EntryType.CREDIT }.sumOf { it.amount }
+        ))
+        writer.summaryRow("Total $partyGaveLabel", money(
+            orderedEntries.filter { it.type == EntryType.DEBIT }.sumOf { it.amount }
+        ))
 
-        if (gaveInterest > 0.0) {
+        if (accruedInterest.receivable > 0.0) {
             writer.summaryRow(
-                "Interest on $gaveLabel",
-                money(gaveInterest)
+                "Total Interest of ${party.name.trim()}",
+                money(accruedInterest.receivable)
+            )
+        }
+        if (recordedInterestGot > 0.0) {
+            writer.summaryRow("Interest $partyGaveLabel", money(recordedInterestGot))
+        }
+        if (remainingInterest.receivable > 0.0) {
+            writer.summaryRow(
+                "Remaining Interest of ${party.name.trim()}",
+                money(remainingInterest.receivable)
+            )
+        }
+        if (accruedInterest.payable > 0.0) {
+            writer.summaryRow(
+                "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
+                money(accruedInterest.payable)
+            )
+        }
+        if (recordedInterestGave > 0.0) {
+            writer.summaryRow("Interest $gaveLabel", money(recordedInterestGave))
+        }
+        if (remainingInterest.payable > 0.0) {
+            writer.summaryRow(
+                "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
+                money(remainingInterest.payable)
             )
         }
 
-        writer.summaryRow(
-            "Total ${party.name.trim()} Gave",
-            money(got)
-        )
-
-        if (gotInterest > 0.0) {
-            writer.summaryRow(
-                "Interest on ${party.name.trim()} Gave",
-                money(gotInterest)
-            )
+        val balanceLabel = when {
+            balance > 0.0 ->
+                "Current Balance${if (partyHasInterest) " (With Int.)" else ""} - ${party.name.trim()} Will Pay"
+            balance < 0.0 ->
+                "Current Balance${if (partyHasInterest) " (With Int.)" else ""} - ${profileName.trim().ifEmpty { "You" }} Will Pay"
+            else ->
+                if (partyHasInterest) "Current Balance (With Int.)" else "Current Balance"
         }
-
         writer.summaryRow(
-            "Current Balance",
-            moneySigned(balance),
+            balanceLabel,
+            money(kotlin.math.abs(balance)),
             bold = true
         )
-
-        writer.summaryRow(
-            "Transactions",
-            orderedEntries.size.toString()
-        )
+        writer.summaryRow("Transactions", orderedEntries.size.toString())
 
         if (orderedEntries.isNotEmpty()) {
             writer.space(8f)
@@ -321,6 +349,42 @@ internal fun createAllPartiesReportPdf(
                     )
                 }
 
+                writer.separator()
+                writer.space(8f)
+            }
+        }
+
+        val orderedRecords = records.sortedWith(
+            compareByDescending<InterestAccountEntryEntity> {
+                if (it.transactionDate > 0L) it.transactionDate else it.createdAt
+            }.thenByDescending { it.id }
+        )
+
+        writer.space(8f)
+        writer.section("Interest Account Records (${orderedRecords.size})")
+        if (orderedRecords.isEmpty()) {
+            writer.text("No interest payments or receipts recorded.", 10f, false)
+        } else {
+            orderedRecords.forEachIndexed { recordIndex, record ->
+                val recordDate = if (record.transactionDate > 0L) {
+                    record.transactionDate
+                } else {
+                    record.createdAt
+                }
+                val recordType = if (record.type == "GAVE") {
+                    "INTEREST $gaveLabel".uppercase()
+                } else {
+                    "INTEREST $partyGaveLabel".uppercase()
+                }
+                writer.transactionHeader(
+                    number = recordIndex + 1,
+                    date = dateFormat.format(Date(recordDate)),
+                    type = recordType
+                )
+                writer.transactionRow("Interest Amount", money(record.amount))
+                if (record.note.isNotBlank()) {
+                    writer.transactionRow("Note", record.note)
+                }
                 writer.separator()
                 writer.space(8f)
             }

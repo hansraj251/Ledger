@@ -1,5 +1,15 @@
 package com.ledger.app.ui
 
+import androidx.compose.foundation.layout.width
+
+import androidx.compose.material.icons.outlined.Search
+
+import androidx.compose.material.icons.outlined.MoreVert
+
+import androidx.compose.ui.draw.clip
+
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.BorderStroke
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
@@ -155,6 +165,8 @@ fun DailyExpenseScreen(
     var showExpenseDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
     var deletingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAllDates, refreshKey) {
         isLoading = true
@@ -171,24 +183,98 @@ fun DailyExpenseScreen(
 
     val total = expenses.sumOf { it.amount }
 
+    val visibleExpenses = remember(expenses, searchQuery) {
+        val query = searchQuery.trim()
+        if (query.isBlank()) {
+            expenses
+        } else {
+            expenses.filter { expense ->
+                expense.category.contains(query, ignoreCase = true) ||
+                    expense.note.contains(query, ignoreCase = true) ||
+                    expense.amount.toString().contains(query, ignoreCase = true)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            Surface(tonalElevation = 2.dp) {
-                Column(
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding(),
+                color = androidx.compose.ui.graphics.Color.Transparent,
+                tonalElevation = 0.dp
+            ) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 15.dp)
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Daily Expense",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search"
+                            )
+                        },
+                        placeholder = { Text("Search") }
                     )
-                    Text(
-                        "Track your everyday spending",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Spacer(Modifier.width(8.dp))
+
+                    Box {
+                        Surface(
+                            modifier = Modifier.size(46.dp),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 2.dp,
+                            shadowElevation = 1.dp
+                        ) {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = "More options"
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            modifier = Modifier
+                                .width(250.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainer)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Today's records") },
+                                onClick = {
+                                    showMenu = false
+                                    showAllDates = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("All records") },
+                                onClick = {
+                                    showMenu = false
+                                    showAllDates = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Parties") },
+                                onClick = {
+                                    showMenu = false
+                                    onPartiesClick()
+                                }
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -284,17 +370,10 @@ fun DailyExpenseScreen(
                 }
             }
 
-            item {
-                Text(
-                    if (showAllDates) "All expenses" else "Today's records",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
 
             if (isLoading) {
                 item { Text("Loading expenses…", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            } else if (expenses.isEmpty()) {
+            } else if (visibleExpenses.isEmpty()) {
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -311,16 +390,25 @@ fun DailyExpenseScreen(
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(Modifier.height(12.dp))
-                            Text("No expenses yet", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Tap + to record your first expense.",
+                                if (searchQuery.isNotBlank() && expenses.isNotEmpty())
+                                    "No matching expenses"
+                                else
+                                    "No expenses yet",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (searchQuery.isNotBlank() && expenses.isNotEmpty())
+                                    "Try another search term."
+                                else
+                                    "Tap + to record your first expense.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
             } else {
-                items(expenses, key = { it.id }) { expense ->
+                items(visibleExpenses, key = { it.id }) { expense ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -330,7 +418,7 @@ fun DailyExpenseScreen(
                             },
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            containerColor = androidx.compose.ui.graphics.Color.White
                         )
                     ) {
                         Row(

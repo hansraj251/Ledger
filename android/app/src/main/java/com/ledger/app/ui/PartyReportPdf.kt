@@ -127,42 +127,47 @@ internal fun createPartyReportPdf(
     val gotLabel = "${party.name.trim()} Gave"
 
     writer.summaryRow("Total $gaveLabel", money(gave))
-    writer.summaryRow("Interest on $gaveLabel", money(gaveInterest))
     writer.summaryRow("Total $gotLabel", money(got))
-    writer.summaryRow("Interest on $gotLabel", money(gotInterest))
     writer.summaryRow("Current Balance", moneySigned(netBalance), bold = true)
 
     writer.space(6f)
     writer.section("Interest Account Summary")
-    writer.summaryRow(
-        "Accrued Interest Receivable",
-        money(accruedInterest.receivable)
-    )
-    writer.summaryRow(
-        "Interest You Got (Recorded)",
-        money(recordedInterestGot)
-    )
-    writer.summaryRow(
-        "Remaining Interest Receivable",
-        money(remainingInterest.receivable)
-    )
-    writer.summaryRow(
-        "Accrued Interest Payable",
-        money(accruedInterest.payable)
-    )
-    writer.summaryRow(
-        "Interest You Gave (Recorded)",
-        money(recordedInterestGave)
-    )
-    writer.summaryRow(
-        "Remaining Interest Payable",
-        money(remainingInterest.payable)
-    )
-    writer.summaryRow(
-        "Adjusted Current Balance",
-        moneySigned(netBalance),
-        bold = true
-    )
+    if (accruedInterest.receivable > 0.0) {
+        writer.summaryRow(
+            "Total Interest $gotLabel",
+            money(accruedInterest.receivable)
+        )
+    }
+    if (recordedInterestGot > 0.0) {
+        writer.summaryRow(
+            "Interest $gotLabel",
+            money(recordedInterestGot)
+        )
+    }
+    if (remainingInterest.receivable > 0.0) {
+        writer.summaryRow(
+            "Remaining Interest $gotLabel",
+            money(remainingInterest.receivable)
+        )
+    }
+    if (accruedInterest.payable > 0.0) {
+        writer.summaryRow(
+            "Total Interest $gaveLabel",
+            money(accruedInterest.payable)
+        )
+    }
+    if (recordedInterestGave > 0.0) {
+        writer.summaryRow(
+            "Interest $gaveLabel",
+            money(recordedInterestGave)
+        )
+    }
+    if (remainingInterest.payable > 0.0) {
+        writer.summaryRow(
+            "Remaining Interest $gaveLabel",
+            money(remainingInterest.payable)
+        )
+    }
 
     writer.space(14f)
 
@@ -257,9 +262,9 @@ internal fun createPartyReportPdf(
             }
 
             val recordType = if (record.type == "GAVE") {
-                "INTEREST YOU GAVE"
+                "INTEREST $gaveLabel".uppercase()
             } else {
-                "INTEREST YOU GOT"
+                "INTEREST $gotLabel".uppercase()
             }
 
             writer.transactionHeader(

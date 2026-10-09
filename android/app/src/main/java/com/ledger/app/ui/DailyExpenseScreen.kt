@@ -180,7 +180,8 @@ fun LedgerBottomNavigation(
 @Composable
 fun DailyExpenseScreen(
     onPartiesClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onExpenseDataChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val database = remember(context) {
@@ -415,11 +416,6 @@ fun DailyExpenseScreen(
                                         Text(
                                             text = "Add Expense",
                                             style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Text(
-                                            text = "No expenses recorded for this period.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },
@@ -689,6 +685,7 @@ fun DailyExpenseScreen(
                             )
                         }
                     }
+                    onExpenseDataChanged()
                     showExpenseDialog = false
                     refreshKey++
                 }
@@ -706,6 +703,7 @@ fun DailyExpenseScreen(
                     deletingExpense = null
                     scope.launch {
                         withContext(Dispatchers.IO) { dao.delete(expense) }
+                        onExpenseDataChanged()
                         refreshKey++
                     }
                 }) { Text("Delete") }

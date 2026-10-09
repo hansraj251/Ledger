@@ -262,7 +262,10 @@ class MainActivity : ComponentActivity() {
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
                         onPartiesClick = { setDailyExpenseScreenVisible(false) },
-                        onProfileClick = { showProfileScreen = true }
+                        onProfileClick = { showProfileScreen = true },
+                        onExpenseDataChanged = {
+                            googleDriveSyncCoordinator.requestAutoSync()
+                        }
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(

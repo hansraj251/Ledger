@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.window.Dialog
 
 import androidx.compose.ui.graphics.Color
@@ -448,11 +449,13 @@ Row(
                 Spacer(Modifier.height(12.dp))
 
                 if (selectedGroupSection == "Members") {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (members.isEmpty()) {
                         Text("No members yet. Use the three-dot menu to add a member.")
                     } else {
                         LazyColumn(
-                            modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(members, key = { it.id }) { member ->
@@ -508,8 +511,8 @@ Row(
                         }
                     }
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterEnd
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 6.dp)
                     ) {
                         FloatingActionButton(
                             onClick = {
@@ -527,20 +530,27 @@ Row(
                             )
                         }
                     }
-                } else {
 
-
+                    }
+} else {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (expenses.isEmpty()) {
                         Text("No expenses in this group yet.")
                     }
 
                     LazyColumn(
-                        modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(expenses, key = { it.id }) { expense ->
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        editingExpense = expense
+                                        showExpenseEditor = true
+                                    },
                                 shape = RoundedCornerShape(18.dp),
                                 colors = androidx.compose.material3.CardDefaults.cardColors(
                                     containerColor = androidx.compose.ui.graphics.Color.White
@@ -646,32 +656,14 @@ Row(
                                         }
                                     }
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        TextButton(onClick = {
-                                            editingExpense = expense
-                                            showExpenseEditor = true
-                                        }) {
-                                            Text("Edit")
-                                        }
-                                        TextButton(onClick = {
-                                            deletingExpense = expense
-                                        }) {
-                                            Text("Delete")
-                                        }
-                                    }
                                 }
                             }
                         }
                     }
                     // Add Expense icon above the bottom footer
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterEnd
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 6.dp)
                     ) {
                         FloatingActionButton(
                             onClick = {
@@ -689,7 +681,9 @@ Row(
                         }
                     }
 
-                }
+
+                    }
+}
 
             }
             }
@@ -851,6 +845,11 @@ Row(
             initial = editingExpense,
             initialSplits = editingExpense?.let { splits[it.id].orEmpty() }.orEmpty(),
             onDismiss = { showExpenseEditor = false },
+            onDelete = {
+                val expense = editingExpense
+                showExpenseEditor = false
+                if (expense != null) deletingExpense = expense
+            },
             onSave = { title, amount, expenseDate, note, mode, drafts ->
                 val groupId = activeGroupId ?: return@GroupExpenseEditorDialog
                 scope.launch {
@@ -1127,7 +1126,8 @@ private fun GroupExpenseEditorDialog(
     initial: GroupExpenseEntity?,
     initialSplits: List<GroupExpenseSplitEntity>,
     onDismiss: () -> Unit,
-    onSave: (String, Double, Long, String, String, List<SplitDraft>) -> Unit
+    onSave: (String, Double, Long, String, String, List<SplitDraft>) -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     var showMemberSearch by remember { mutableStateOf(false) }
     var memberSearch by remember { mutableStateOf("") }
@@ -1371,7 +1371,7 @@ if (showMemberSearch) {
                                     onValueChange = { customAmounts[member.id] = it },
                                     label = { Text("Amount") },
                                     singleLine = true,
-                                    modifier = Modifier.width(112.dp),
+                                    modifier = Modifier.height(44.dp).width(112.dp),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     shape = RoundedCornerShape(12.dp)
                                 )
@@ -1381,7 +1381,7 @@ if (showMemberSearch) {
                                     onValueChange = { shares[member.id] = it },
                                     label = { Text("Shares") },
                                     singleLine = true,
-                                    modifier = Modifier.width(112.dp),
+                                    modifier = Modifier.height(44.dp).width(112.dp),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     shape = RoundedCornerShape(12.dp)
                                 )
@@ -1396,7 +1396,44 @@ if (showMemberSearch) {
             }
         },
         confirmButton = {
-            Button(onClick = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (initial != null && onDelete != null) {
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.DeleteOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Delete expense")
+                    }
+                }
+                Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                modifier = Modifier.weight(1f),
+                onClick = {
                 val total = amountText.toDoubleOrNull()
                 val chosen = members.filter { selected.contains(it.id) }
                 if (title.trim().isEmpty()) {
@@ -1474,13 +1511,9 @@ if (showMemberSearch) {
                 }
                 error = ""
                 onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), mode, drafts)
-            }, shape = RoundedCornerShape(14.dp)) { Text("Save expense") }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(14.dp)
-            ) { Text("Cancel") }
+            }, shape = RoundedCornerShape(14.dp)) { Text("Save") }
+            }
+            }
         }
     )
 

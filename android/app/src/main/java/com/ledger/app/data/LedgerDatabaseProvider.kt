@@ -65,6 +65,53 @@ private val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+
+private val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS sharing_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS sharing_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                groupId INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS group_expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                groupId INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                amount REAL NOT NULL,
+                category TEXT NOT NULL,
+                note TEXT NOT NULL,
+                expenseDate INTEGER NOT NULL,
+                splitMode TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS group_expense_splits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                expenseId INTEGER NOT NULL,
+                memberId INTEGER NOT NULL,
+                memberNameSnapshot TEXT NOT NULL,
+                amount REAL NOT NULL,
+                shareUnits REAL NOT NULL
+            )
+        """.trimIndent())
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -121,7 +168,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .build().also {
                 instance = it
             }

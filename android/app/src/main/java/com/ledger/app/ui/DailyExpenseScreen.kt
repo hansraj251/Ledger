@@ -154,7 +154,8 @@ private fun startOfToday(): Long =
 fun LedgerBottomNavigation(
     selectedTab: String,
     onPartiesClick: () -> Unit,
-    onExpensesClick: () -> Unit
+    onExpensesClick: () -> Unit,
+    onGroupSharingClick: () -> Unit = {}
 ) {
     NavigationBar(
         modifier = Modifier
@@ -173,8 +174,14 @@ fun LedgerBottomNavigation(
                 indicatorColor = Color(0xFFE3F2FD)
             ),
             icon = { Icon(Icons.Outlined.Group, contentDescription = null) },
-            label = { Text("Parties", fontWeight = if (selectedTab == "parties") FontWeight.SemiBold else FontWeight.Normal) },
-                    )
+            label = {
+                Text(
+                    "Parties",
+                    fontWeight = if (selectedTab == "parties") FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+        )
+
         NavigationBarItem(
             selected = selectedTab == "expenses",
             onClick = onExpensesClick,
@@ -184,8 +191,15 @@ fun LedgerBottomNavigation(
                 indicatorColor = Color(0xFFE3F2FD)
             ),
             icon = { Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null) },
-            label = { Text("Daily Expense", fontWeight = if (selectedTab == "expenses") FontWeight.SemiBold else FontWeight.Normal) },
-                    )
+            label = {
+                Text(
+                    "Daily Expense",
+                    fontWeight = if (selectedTab == "expenses") FontWeight.SemiBold else FontWeight.Normal
+                )
+            }
+        )
+
+
     }
 }
 
@@ -194,6 +208,7 @@ private const val FREE_EXPENSE_LIMIT = 20
 @Composable
 fun DailyExpenseScreen(
     onPartiesClick: () -> Unit,
+    onGroupSharingClick: () -> Unit,
     onProfileClick: () -> Unit,
     onExpenseDataChanged: () -> Unit,
     isPremium: Boolean,
@@ -501,6 +516,7 @@ fun DailyExpenseScreen(
                                 }
                             )
 
+
                             DropdownMenuItem(
                                 text = {
                                     Column(
@@ -526,7 +542,8 @@ fun DailyExpenseScreen(
             LedgerBottomNavigation(
                 selectedTab = "expenses",
                 onPartiesClick = onPartiesClick,
-                onExpensesClick = {}
+                onExpensesClick = {},
+                onGroupSharingClick = onGroupSharingClick
             )
         },
         floatingActionButton = {
@@ -877,6 +894,8 @@ fun DailyExpenseScreen(
             }
         )
     }
+
+
 
 }
 

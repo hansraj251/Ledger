@@ -57,6 +57,7 @@ import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
 import com.ledger.app.ui.DailyExpenseScreen
+import com.ledger.app.ui.GroupSharingScreen
 import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
@@ -216,14 +217,23 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                fun setDailyExpenseScreenVisible(visible: Boolean) {
+
+                var showGroupSharingScreen by remember { mutableStateOf(false) }
+                var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
+fun setDailyExpenseScreenVisible(visible: Boolean) {
                     showDailyExpenseScreen = visible
                     mainPagePrefs.edit()
                         .putBoolean("show_daily_expense", visible)
                         .apply()
                 }
 
-                BackHandler(enabled = showDailyExpenseScreen) { setDailyExpenseScreenVisible(false) }
+                BackHandler(enabled = showDailyExpenseScreen || showGroupSharingScreen) {
+                    if (showGroupSharingScreen) {
+                        showGroupSharingScreen = false
+                    } else {
+                        setDailyExpenseScreenVisible(false)
+                    }
+                }
 
                 val viewModel = remember {
                     LedgerViewModel(
@@ -281,9 +291,29 @@ class MainActivity : ComponentActivity() {
             launchPremiumPurchase()
         }
     )
+                } else if (showGroupSharingScreen) {
+                    GroupSharingScreen(
+                        initialGroupId = selectedSharingGroupId,
+                        onBack = {
+                            showGroupSharingScreen = false
+                            selectedSharingGroupId = null
+                        },
+                        onPartiesClick = {
+                            showGroupSharingScreen = false
+                            setDailyExpenseScreenVisible(false)
+                        },
+                        onExpensesClick = {
+                            showGroupSharingScreen = false
+                            setDailyExpenseScreenVisible(true)
+                        }
+                    )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
                         onPartiesClick = { setDailyExpenseScreenVisible(false) },
+                        onGroupSharingClick = {
+                            setDailyExpenseScreenVisible(false)
+                            showGroupSharingScreen = true
+                        },
                         onProfileClick = { showProfileScreen = true },
                         onExpenseDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
@@ -304,6 +334,14 @@ class MainActivity : ComponentActivity() {
                             showAllPartiesReport = true
                         },
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
+                        onGroupClick = { groupId ->
+                            selectedSharingGroupId = groupId
+                            showGroupSharingScreen = true
+                        },
+                        onGroupSharingClick = {
+                            setDailyExpenseScreenVisible(false)
+                            showGroupSharingScreen = true
+                        },
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
                         onUpgradeClick = { launchPremiumPurchase() }

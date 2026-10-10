@@ -79,6 +79,8 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onReportsClick: () -> Unit,
     onDailyExpenseClick: () -> Unit,
+    onGroupSharingClick: () -> Unit,
+    onGroupClick: (Long) -> Unit,
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit,
@@ -102,6 +104,15 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val sharingGroupDao = remember(context) {
+        LedgerDatabaseProvider.get(context).sharingGroupDao()
+    }
+    var sharingGroups by remember {
+        mutableStateOf(emptyList<com.ledger.app.data.SharingGroupEntity>())
+    }
+    var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
+    var newGroupName by rememberSaveable { mutableStateOf("") }
+    var isSavingGroup by remember { mutableStateOf(false) }
 
     val receivable = uiState.partyBalances.values
         .filter { it > 0.0 }
@@ -134,6 +145,12 @@ fun HomeScreen(
         }
     }
 
+
+    LaunchedEffect(Unit) {
+        sharingGroups = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            sharingGroupDao.getAll()
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadParties()
@@ -292,6 +309,35 @@ fun HomeScreen(
                                     requestAddParty()
                                 }
                             )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = "Add Group",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            text = "Create or manage shared groups",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Group,
+                                        contentDescription = null
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    newGroupName = ""
+                                    showCreateGroupDialog = true
+                                }
+                            )
                         }
 }
                 }
@@ -301,7 +347,8 @@ fun HomeScreen(
             LedgerBottomNavigation(
                 selectedTab = "parties",
                 onPartiesClick = {},
-                onExpensesClick = onDailyExpenseClick
+                onExpensesClick = onDailyExpenseClick,
+                onGroupSharingClick = onGroupSharingClick
             )
         },
         floatingActionButton = {
@@ -360,11 +407,67 @@ item {
             }
 
 
+            items(
+                items = sharingGroups,
+                key = { "sharing-group-${it.id}" }
+            ) { group ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onGroupClick(group.id) },
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 15.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(46.dp),
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = "Group",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = group.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "GROUP · Members and shared expenses",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowForwardIos,
+                            contentDescription = "Open group",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
             if (uiState.isLoading) {
                 item {
                     LoadingState()
                 }
-            } else if (uiState.filteredParties.isEmpty()) {
+            } else if (uiState.filteredParties.isEmpty() && sharingGroups.isEmpty()) {
                 item {
                     EmptyPartyState(
                         hasSearch = uiState.searchQuery.isNotBlank(),
@@ -556,6 +659,81 @@ item {
         }
     }
 
+
+    if (showCreateGroupDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSavingGroup) showCreateGroupDialog = false
+            },
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Text(
+                    text = "Create Group",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = newGroupName,
+                    onValueChange = { newGroupName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !isSavingGroup,
+                    label = { Text("Group name") },
+                    placeholder = { Text("e.g. Trip, Flatmates") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Group, contentDescription = null)
+                    },
+                    shape = RoundedCornerShape(15.dp)
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = newGroupName.isNotBlank() && !isSavingGroup,
+                    onClick = {
+                        val name = newGroupName.trim()
+                        if (name.isNotEmpty()) {
+                            isSavingGroup = true
+                            scope.launch {
+                                val latestGroups =
+                                    kotlinx.coroutines.withContext(
+                                        kotlinx.coroutines.Dispatchers.IO
+                                    ) {
+                                        sharingGroupDao.insert(
+                                            com.ledger.app.data.SharingGroupEntity(name = name)
+                                        )
+                                        sharingGroupDao.getAll()
+                                    }
+                                sharingGroups = latestGroups
+                                newGroupName = ""
+                                isSavingGroup = false
+                                showCreateGroupDialog = false
+                            }
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    if (isSavingGroup) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Create Group")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCreateGroupDialog = false },
+                    enabled = !isSavingGroup
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showUpgradeDialog) {
         androidx.compose.material3.AlertDialog(

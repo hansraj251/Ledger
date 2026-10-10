@@ -109,7 +109,7 @@ import androidx.compose.material.icons.outlined.Category
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 
-private val expenseCategories = listOf(
+internal val expenseCategories = listOf(
     "Groceries", "Restaurant", "Coffee", "Shopping", "Public transit",
     "Car", "Utilities", "Health", "Entertainment", "Subscriptions",
     "Bills", "Clothing", "Other"
@@ -1269,7 +1269,7 @@ private fun ExpenseEditorDialog(
 }
 
 @Composable
-private fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector {
+internal fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector {
     return when (category) {
         "Groceries" -> Icons.Outlined.ShoppingCart
         "Restaurant" -> Icons.Outlined.Restaurant

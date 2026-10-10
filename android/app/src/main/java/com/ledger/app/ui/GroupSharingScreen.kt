@@ -77,6 +77,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToLong
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.ArrowForwardIos
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.Calendar
+import java.util.TimeZone
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 
 private data class GroupSharingData(
     val groups: List<SharingGroupEntity>,
@@ -164,8 +180,13 @@ fun GroupSharingScreen(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(start = 16.dp, end = 16.dp, top = if (activeGroupId == null) 16.dp else 8.dp, bottom = 16.dp)
+                    .then(if (activeGroupId == null) Modifier.statusBarsPadding() else Modifier)
+                    .padding(
+                        start = if (activeGroupId == null) 16.dp else 0.dp,
+                        end = if (activeGroupId == null) 16.dp else 0.dp,
+                        top = if (activeGroupId == null) 16.dp else 0.dp,
+                        bottom = 16.dp
+                    )
             ) {
             if (activeGroupId == null) {
                 Row(
@@ -269,81 +290,133 @@ Spacer(Modifier.height(12.dp))
                 }
 
             } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp
                 ) {
-                    IconButton(onClick = {
-                        if (initialGroupId != null) onBack()
-                        else activeGroupId = null
-                    }) {
-                        Icon(
-                            imageVector = Icons.Outlined.ArrowBack,
-                            contentDescription = "Back to groups"
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = activeGroup.name,
+                    Box(modifier = Modifier.statusBarsPadding()) {
+Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clickable {
-                                editingGroup = activeGroup
-                                groupName = activeGroup.name
-                                showGroupEditor = true
-                            },
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                    Box {
-                        IconButton(onClick = { showHeaderMenu = true }) {
-                            Icon(
-                                imageVector = Icons.Outlined.MoreVert,
-                                contentDescription = "Group options"
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showHeaderMenu,
-                            onDismissRequest = { showHeaderMenu = false },
-                            modifier = Modifier
-                                .width(250.dp)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color.White)
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = {
+                                if (initialGroupId != null) onBack()
+                                else activeGroupId = null
+                            }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Add Member") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.GroupAdd,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showHeaderMenu = false
-                                    editingMember = null
-                                    memberName = ""
-                                    showMemberEditor = true
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Refresh") },
-                                onClick = {
-                                    showHeaderMenu = false
-                                    refresh++
-                                }
+                            Icon(
+                                imageVector = Icons.Outlined.ArrowBack,
+                                contentDescription = "Back"
                             )
                         }
+
+                        val groupInitials = activeGroup.name
+                            .trim()
+                            .split(" ")
+                            .filter { it.isNotBlank() }
+                            .take(2)
+                            .joinToString("") { it.first().uppercase() }
+
+                        Surface(
+                            modifier = Modifier.size(44.dp),
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = groupInitials.ifBlank { "G" },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    editingGroup = activeGroup
+                                    groupName = activeGroup.name
+                                    showGroupEditor = true
+                                }
+                        ) {
+                            Text(
+                                text = activeGroup.name,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            Text(
+                                text = "${members.size} members · Shared expenses",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+
+                        Box {
+                            IconButton(onClick = { showHeaderMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.MoreVert,
+                                    contentDescription = "Group options"
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showHeaderMenu,
+                                onDismissRequest = { showHeaderMenu = false },
+                                modifier = Modifier
+                                    .width(250.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color.White)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Add Member") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.GroupAdd,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        editingMember = null
+                                        memberName = ""
+                                        showMemberEditor = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Refresh") },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        refresh++
+                                    }
+                                )
+                            }
+                        }
+                    }
                     }
                 }
 
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     androidx.compose.material3.FilterChip(
-                        selected = selectedGroupSection == "Expense",
+                        selected = selectedGroupSection == "Expense",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF2563EB),
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
+                        ),
+
                         onClick = { selectedGroupSection = "Expense" },
                         modifier = Modifier.weight(1f),
                         label = {
@@ -355,7 +428,11 @@ Spacer(Modifier.height(12.dp))
                         }
                     )
                     androidx.compose.material3.FilterChip(
-                        selected = selectedGroupSection == "Members",
+                        selected = selectedGroupSection == "Members",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF2563EB),
+                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
+                        ),
+
                         onClick = { selectedGroupSection = "Members" },
                         modifier = Modifier.weight(1f),
                         label = {
@@ -375,7 +452,7 @@ Spacer(Modifier.height(12.dp))
                         Text("No members yet. Use the three-dot menu to add a member.")
                     } else {
                         LazyColumn(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(members, key = { it.id }) { member ->
@@ -431,7 +508,7 @@ Spacer(Modifier.height(12.dp))
                         }
                     }
                     Box(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         contentAlignment = Alignment.CenterEnd
                     ) {
                         FloatingActionButton(
@@ -451,77 +528,167 @@ Spacer(Modifier.height(12.dp))
                         }
                     }
                 } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Group expenses",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Button(
-                            onClick = {
-                                editingExpense = null
-                                showExpenseEditor = true
-                            },
-                            enabled = members.isNotEmpty()
-                        ) {
-                            Text("+ Expense")
-                        }
-                    }
+
 
                     if (expenses.isEmpty()) {
                         Text("No expenses in this group yet.")
                     }
 
                     LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(expenses, key = { it.id }) { expense ->
-                            Card(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(12.dp)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = androidx.compose.material3.CardDefaults.cardColors(
+                                    containerColor = androidx.compose.ui.graphics.Color.White
+                                ),
+                                elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                    defaultElevation = 2.dp
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.weight(1f),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
                                             Text(
                                                 expense.title,
-                                                fontWeight = FontWeight.SemiBold
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = androidx.compose.ui.graphics.Color(0xFF202124)
                                             )
-                                            Text("${expense.category} • ${expense.splitMode}")
+                                            Text(
+                                                expense.splitMode,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = androidx.compose.ui.graphics.Color(0xFF626B78)
+                                            )
+                                            Text(
+                                                java.text.SimpleDateFormat(
+                                                    "dd MMM yyyy",
+                                                    java.util.Locale.getDefault()
+                                                ).format(java.util.Date(expense.expenseDate)),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = androidx.compose.ui.graphics.Color(0xFF737B87)
+                                            )
                                         }
+                                        Spacer(Modifier.width(8.dp))
                                         Text(
                                             money(expense.amount),
-                                            fontWeight = FontWeight.Bold
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = androidx.compose.ui.graphics.Color(0xFF166534)
                                         )
                                     }
-                                    Text(
-                                        expense.note,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    splits[expense.id].orEmpty().forEach { split ->
+
+                                    if (expense.note.isNotBlank()) {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            color = androidx.compose.ui.graphics.Color(0xFFF5F7FA),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text(
+                                                text = expense.note,
+                                                modifier = Modifier.padding(10.dp),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = androidx.compose.ui.graphics.Color(0xFF424A55)
+                                            )
+                                        }
+                                    }
+
+                                    val expenseSplits = splits[expense.id].orEmpty()
+                                    if (expenseSplits.isNotEmpty()) {
                                         Text(
-                                            "${split.memberNameSnapshot}: ${money(split.amount)}" +
-                                                if (expense.splitMode == "Share") {
-                                                    " (${split.shareUnits} shares)"
-                                                } else "",
-                                            fontSize = 13.sp
+                                            "MEMBER-WISE SPLIT",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = androidx.compose.ui.graphics.Color(0xFF626B78)
                                         )
+
+                                        expenseSplits.forEach { split ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(
+                                                        split.memberNameSnapshot,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                                    )
+                                                    if (expense.splitMode == "Share") {
+                                                        Text(
+                                                            "${split.shareUnits} shares",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = androidx.compose.ui.graphics.Color(0xFF737B87)
+                                                        )
+                                                    }
+                                                }
+                                                Text(
+                                                    money(split.amount),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                                )
+                                            }
+                                        }
                                     }
-                                    Row {
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End
+                                    ) {
                                         TextButton(onClick = {
                                             editingExpense = expense
                                             showExpenseEditor = true
-                                        }) { Text("Edit") }
+                                        }) {
+                                            Text("Edit")
+                                        }
                                         TextButton(onClick = {
                                             deletingExpense = expense
-                                        }) { Text("Delete") }
+                                        }) {
+                                            Text("Delete")
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    // Add Expense icon above the bottom footer
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        FloatingActionButton(
+                            onClick = {
+                                editingExpense = null
+                                showExpenseEditor = true
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ReceiptLong,
+                                contentDescription = "Add Expense"
+                            )
+                        }
+                    }
+
                 }
 
             }
@@ -684,7 +851,7 @@ Spacer(Modifier.height(12.dp))
             initial = editingExpense,
             initialSplits = editingExpense?.let { splits[it.id].orEmpty() }.orEmpty(),
             onDismiss = { showExpenseEditor = false },
-            onSave = { title, amount, category, note, mode, drafts ->
+            onSave = { title, amount, expenseDate, note, mode, drafts ->
                 val groupId = activeGroupId ?: return@GroupExpenseEditorDialog
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -695,8 +862,9 @@ Spacer(Modifier.height(12.dp))
                                     groupId = groupId,
                                     title = title,
                                     amount = amount,
-                                    category = category,
+                                    category = "General",
                                     note = note,
+                                    expenseDate = expenseDate,
                                     splitMode = mode
                                 )
                             )
@@ -705,8 +873,9 @@ Spacer(Modifier.height(12.dp))
                                 old.copy(
                                     title = title,
                                     amount = amount,
-                                    category = category,
+                                    category = old.category,
                                     note = note,
+                                    expenseDate = expenseDate,
                                     splitMode = mode
                                 )
                             )
@@ -958,13 +1127,19 @@ private fun GroupExpenseEditorDialog(
     initial: GroupExpenseEntity?,
     initialSplits: List<GroupExpenseSplitEntity>,
     onDismiss: () -> Unit,
-    onSave: (String, Double, String, String, String, List<SplitDraft>) -> Unit
+    onSave: (String, Double, Long, String, String, List<SplitDraft>) -> Unit
 ) {
+    var showMemberSearch by remember { mutableStateOf(false) }
+    var memberSearch by remember { mutableStateOf("") }
+
     var title by remember(initial?.id) { mutableStateOf(initial?.title ?: "") }
+    var expenseDate by remember(initial?.id) {
+        mutableStateOf(initial?.expenseDate ?: System.currentTimeMillis())
+    }
+    var showDatePicker by remember { mutableStateOf(false) }
     var amountText by remember(initial?.id) {
         mutableStateOf(initial?.amount?.let { decimal(it) } ?: "")
     }
-    var category by remember(initial?.id) { mutableStateOf(initial?.category ?: "General") }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
     var mode by remember(initial?.id) { mutableStateOf(initial?.splitMode ?: "Equal") }
     var error by remember(initial?.id) { mutableStateOf("") }
@@ -991,55 +1166,192 @@ private fun GroupExpenseEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Add group expense" else "Edit group expense") },
+        shape = RoundedCornerShape(26.dp),
+        containerColor = androidx.compose.ui.graphics.Color.White,
+        tonalElevation = 0.dp,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.GroupAdd,
+                        contentDescription = null,
+                        modifier = Modifier.padding(11.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = if (initial == null) "Add group expense" else "Edit group expense",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Split and track group spending",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
         text = {
             Column(
                 Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedTextField(
-                    value = title, onValueChange = { title = it },
-                    label = { Text("Expense title") }, singleLine = true
-                )
-                OutlinedTextField(
-                    value = amountText, onValueChange = { amountText = it },
-                    label = { Text("Total amount") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                OutlinedTextField(
-                    value = category, onValueChange = { category = it },
-                    label = { Text("Category") }, singleLine = true
-                )
-                OutlinedTextField(
-                    value = note, onValueChange = { note = it },
-                    label = { Text("Note (optional)") }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Title") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { amountText = it },
+                        label = { Text("Amount") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                            .format(Date(expenseDate)),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Date") },
+                        singleLine = true,
+                        modifier = Modifier
+                            .weight(0.9f)
+                            .clickable { showDatePicker = true },
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Note") },
+                        leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1.1f),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                }
 
-                Text("Split between", fontWeight = FontWeight.Bold)
-                listOf("Equal", "Custom", "Share").forEach { option ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { mode = option },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = mode == option, onClick = { mode = option })
-                        Column {
-                            Text(option)
-                            Text(
-                                when (option) {
-                                    "Equal" -> "Divide equally among selected members"
-                                    "Custom" -> "Enter each member's amount"
-                                    else -> "Enter shares; amounts are calculated proportionally"
-                                },
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf("Equal", "Custom", "Share").forEach { option ->
+                        val isSelected = mode == option
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { mode = option },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                androidx.compose.ui.graphics.Color.White
+                            },
+                            contentColor = if (isSelected) {
+                                MaterialTheme.colorScheme.onPrimary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                            border = if (isSelected) null else
+                                androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant
+                                ),
+                            tonalElevation = if (isSelected) 2.dp else 0.dp
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 9.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = option,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (isSelected) {
+                                        FontWeight.Bold
+                                    } else {
+                                        FontWeight.Medium
+                                    }
+                                )
+                            }
                         }
                     }
                 }
 
-                Text("Members", fontWeight = FontWeight.Bold)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    members.forEach { member ->
+Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically
+) {
+    Text(
+        "Members",
+        modifier = Modifier.weight(1f),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.primary
+    )
+    IconButton(
+        onClick = {
+            showMemberSearch = !showMemberSearch
+            if (!showMemberSearch) memberSearch = ""
+        }
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = "Search members"
+        )
+    }
+}
+if (showMemberSearch) {
+    OutlinedTextField(
+        value = memberSearch,
+        onValueChange = { memberSearch = it },
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text("Search members") },
+        leadingIcon = {
+            Icon(Icons.Outlined.Search, contentDescription = null)
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(15.dp)
+    )
+}
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    members.filter { it.name.contains(memberSearch, ignoreCase = true) }.forEach { member ->
                         Row(
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -1060,7 +1372,8 @@ private fun GroupExpenseEditorDialog(
                                     label = { Text("Amount") },
                                     singleLine = true,
                                     modifier = Modifier.width(112.dp),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                             } else if (selected.contains(member.id) && mode == "Share") {
                                 OutlinedTextField(
@@ -1069,7 +1382,8 @@ private fun GroupExpenseEditorDialog(
                                     label = { Text("Shares") },
                                     singleLine = true,
                                     modifier = Modifier.width(112.dp),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                             }
                         }
@@ -1159,14 +1473,53 @@ private fun GroupExpenseEditorDialog(
                     )
                 }
                 error = ""
-                onSave(title.trim(), totalCents / 100.0, category.trim().ifEmpty { "General" },
-                    note.trim(), mode, drafts)
-            }) { Text("Save expense") }
+                onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), mode, drafts)
+            }, shape = RoundedCornerShape(14.dp)) { Text("Save expense") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(14.dp)
+            ) { Text("Cancel") }
+        }
     )
-}
 
+
+
+
+    if (showDatePicker) {
+        val pickerInitialDate = Calendar.getInstance().run {
+            timeInMillis = expenseDate
+            val year = get(Calendar.YEAR)
+            val month = get(Calendar.MONTH)
+            val day = get(Calendar.DAY_OF_MONTH)
+            Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                clear()
+                set(year, month, day)
+            }.timeInMillis
+        }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = pickerInitialDate
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { expenseDate = it }
+                        showDatePicker = false
+                    }
+                ) { Text("Done") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+}
 private fun money(amount: Double): String = "₹" + String.format("%.2f", amount)
 private fun decimal(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()

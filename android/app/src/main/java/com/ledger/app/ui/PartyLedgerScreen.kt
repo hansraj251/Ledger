@@ -1254,8 +1254,54 @@ private fun InterestAccountScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val position = calculateInterestAccountPosition(transactions, records)
-    val totalPaidInterest = records.sumOf { it.amount }
-    val totalInterest = position.payable + position.receivable + totalPaidInterest
+    val totalPaidInterest = records.sumOf {
+        if (it.type == "GAVE") it.amount else -it.amount
+    }
+    val totalPaidInterestLabel = if (totalPaidInterest >= 0.0) {
+        "Total Int. Paid"
+    } else {
+        "Total Int. Received"
+    }
+    val totalPaidInterestDisplay = kotlin.math.abs(totalPaidInterest)
+
+    val gaveTransactionInterest = transactions
+        .filter { it.type == EntryType.CREDIT }
+        .sumOf {
+            calculateTransactionInterest(
+                amount = it.amount,
+                annualRate = it.interestRate,
+                transactionDate = it.transactionDate,
+                createdAt = it.createdAt
+            )
+        }
+
+    val gotTransactionInterest = transactions
+        .filter { it.type == EntryType.DEBIT }
+        .sumOf {
+            calculateTransactionInterest(
+                amount = it.amount,
+                annualRate = it.interestRate,
+                transactionDate = it.transactionDate,
+                createdAt = it.createdAt
+            )
+        }
+
+    val totalInterest = gaveTransactionInterest - gotTransactionInterest
+    val totalInterestLabel = if (totalInterest >= 0.0) {
+        "Total Receivable Int."
+    } else {
+        "Total Payable Int."
+    }
+    val totalInterestDisplay = kotlin.math.abs(totalInterest)
+
+    val totalReceivableInterest = totalInterest + totalPaidInterest
+    val receivableInterestLabel = if (totalReceivableInterest >= 0.0) {
+        "Receivable Int."
+    } else {
+        "Payable Int."
+    }
+    val receivableInterestDisplay = kotlin.math.abs(totalReceivableInterest)
+    val totalPayableInterest = position.payable + gotTransactionInterest
     var editingRecordId by remember { mutableStateOf<Long?>(null) }
     var recordToDelete by remember { mutableStateOf<InterestAccountEntryEntity?>(null) }
     val validationRecords = records.filterNot { it.id == editingRecordId }
@@ -1266,10 +1312,17 @@ private fun InterestAccountScreen(
     var recordDate by remember { mutableStateOf(System.currentTimeMillis()) }
     var validationError by remember { mutableStateOf("") }
 
+    val validationPaidInterest = validationRecords.sumOf {
+        if (it.type == "GAVE") it.amount else -it.amount
+    }
+
+    // Match the third card: Receivable Int. / Payable Int.
+    val validationNetInterest = totalInterest + validationPaidInterest
+
     val pendingLimit = if (selectedType == "GAVE") {
-        validationPosition.payable
+        maxOf(0.0, -validationNetInterest)
     } else {
-        validationPosition.receivable
+        maxOf(0.0, validationNetInterest)
     }
     val maxRecordableAmount =
         kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
@@ -1375,10 +1428,10 @@ private fun InterestAccountScreen(
                         )
                     ) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("Total Int.", style = MaterialTheme.typography.labelMedium)
+                            Text(totalInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(totalInterest)}",
+                                "₹${formatAmount(totalInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1396,10 +1449,10 @@ private fun InterestAccountScreen(
                         )
                     ) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("Total Paid Int.", style = MaterialTheme.typography.labelMedium)
+                            Text(totalPaidInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(totalPaidInterest)}",
+                                "₹${formatAmount(totalPaidInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1419,28 +1472,10 @@ private fun InterestAccountScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("Receivable Interest", style = MaterialTheme.typography.labelMedium)
+                            Text(receivableInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(position.receivable)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    Card(
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = androidx.compose.ui.graphics.Color.White
-                        ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text("Payable Interest", style = MaterialTheme.typography.labelMedium)
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                "₹${formatAmount(position.payable)}",
+                                "₹${formatAmount(receivableInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )

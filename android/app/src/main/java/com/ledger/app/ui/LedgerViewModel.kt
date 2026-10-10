@@ -244,19 +244,20 @@ class LedgerViewModel(
 
     suspend fun deleteEntry(
         entry: LedgerEntryEntity
-    ) {
-        try {
+    ): Boolean {
+        return try {
             withContext(Dispatchers.IO) {
                 dataSource.deleteEntry(entry)
             }
-
             loadEntries(entry.partyId)
             onDataChanged()
+            true
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message
                     ?: "Unable to delete transaction"
             )
+            false
         }
     }
 
@@ -267,15 +268,15 @@ class LedgerViewModel(
         note: String,
         transactionDate: Long,
         interestRate: Double
-    ) {
+    ): Boolean {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = "Amount must be greater than zero"
             )
-            return
+            return false
         }
 
-        try {
+        return try {
             val updatedEntry = entry.copy(
                 amount = amount,
                 type = type,
@@ -290,11 +291,13 @@ class LedgerViewModel(
 
             loadEntries(entry.partyId)
             onDataChanged()
+            true
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message
                     ?: "Unable to update transaction"
             )
+            false
         }
     }
 
@@ -305,15 +308,15 @@ class LedgerViewModel(
         note: String,
         transactionDate: Long = System.currentTimeMillis(),
         interestRate: Double = 0.0
-    ) {
+    ): Boolean {
         if (amount <= 0.0) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = "Amount must be greater than zero"
             )
-            return
+            return false
         }
 
-        try {
+        return try {
             withContext(Dispatchers.IO) {
                 dataSource.addEntry(
                     partyId = partyId,
@@ -327,14 +330,15 @@ class LedgerViewModel(
 
             loadEntries(partyId)
             onDataChanged()
+            true
         } catch (exception: Exception) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = exception.message
                     ?: "Unable to add transaction"
             )
+            false
         }
     }
-
 
     suspend fun loadInterestAccountEntries(partyId: Long) {
         try {

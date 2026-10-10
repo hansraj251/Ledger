@@ -95,6 +95,18 @@ import java.util.Calendar
 import java.util.Locale
 import kotlin.math.abs
 
+private fun transactionBalanceMessage(balance: Double): String {
+    val amount = "%.2f".format(Locale.getDefault(), abs(balance))
+    return when {
+        balance > 0.0 ->
+            "Outstanding Balance — You Will Pay: ${CurrencySettings.symbol}$amount"
+        balance < 0.0 ->
+            "Outstanding Balance — You Will Get: ${CurrencySettings.symbol}$amount"
+        else ->
+            "Balance: Settled"
+    }
+}
+
 @Composable
 fun PartyLedgerScreen(
     party: PartyEntity,
@@ -193,6 +205,10 @@ var showDeletePartyDialog by remember {
 
     var showDeleteEntryDialog by remember {
         mutableStateOf(false)
+    }
+
+    var pendingTransactionSms by remember {
+        mutableStateOf<Pair<String, String>?>(null)
     }
 
     LaunchedEffect(party.id) {
@@ -379,21 +395,49 @@ var showDeletePartyDialog by remember {
                         val parsedAmount = amount.toDoubleOrNull()
 
                         if (parsedAmount != null && parsedAmount > 0.0) {
+                            val transactionType = selectedType
+                            val transactionNote = note.trim()
+                            val transactionTimestamp = transactionDate
+                            val transactionRate = interestRate
+
                             scope.launch {
-                                viewModel.addEntry(
+                                val succeeded = viewModel.addEntry(
                                     partyId = party.id,
                                     amount = parsedAmount,
-                                    type = selectedType,
-                                    note = note,
-                                    transactionDate = transactionDate,
-                                    interestRate = interestRate
+                                    type = transactionType,
+                                    note = transactionNote,
+                                    transactionDate = transactionTimestamp,
+                                    interestRate = transactionRate
                                 )
 
-                                if (viewModel.uiState.value.errorMessage.isEmpty()) {
+                                if (succeeded) {
                                     amount = ""
                                     note = ""
                                     interestRateText = ""
                                     showInterestInput = false
+
+                                    val phone = currentParty.mobile.trim()
+                                    if (phone.isNotBlank()) {
+                                        val typeLabel =
+                                            if (transactionType == EntryType.CREDIT) "You Got"
+                                            else "You Gave"
+                                        val amountText = "%.2f".format(
+                                            Locale.getDefault(), parsedAmount
+                                        )
+                                        val noteText = transactionNote
+                                            .takeIf { it.isNotBlank() }
+                                            ?.let { "\nNote: $it" } ?: ""
+
+                                        val message =
+                                            "Hello ${currentParty.name}, a transaction has been added to your ledger.\n" +
+                                            "Type: $typeLabel\n" +
+                                            "Amount: ${CurrencySettings.symbol}$amountText$noteText"
+
+                                        pendingTransactionSms = Pair(
+                                            phone,
+                                            "$message\n${transactionBalanceMessage(viewModel.uiState.value.balance)}"
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -523,7 +567,7 @@ var showDeletePartyDialog by remember {
                 },
                 onSave = { newAmount, newType, newNote, newTransactionDate, newInterestRate ->
                     scope.launch {
-                        viewModel.updateEntry(
+                        val succeeded = viewModel.updateEntry(
                             entry = entry,
                             amount = newAmount,
                             type = newType,
@@ -532,8 +576,37 @@ var showDeletePartyDialog by remember {
                             interestRate = newInterestRate
                         )
 
-                        if (viewModel.uiState.value.errorMessage.isEmpty()) {
+                        if (succeeded) {
                             editingEntry = null
+
+                            val phone = currentParty.mobile.trim()
+                            if (phone.isNotBlank()) {
+                                val oldTypeLabel =
+                                    if (entry.type == EntryType.CREDIT) "You Got"
+                                    else "You Gave"
+                                val newTypeLabel =
+                                    if (newType == EntryType.CREDIT) "You Got"
+                                    else "You Gave"
+                                val oldAmountText = "%.2f".format(
+                                    Locale.getDefault(), entry.amount
+                                )
+                                val newAmountText = "%.2f".format(
+                                    Locale.getDefault(), newAmount
+                                )
+                                val noteText = newNote.trim()
+                                    .takeIf { it.isNotBlank() }
+                                    ?.let { "\nNote: $it" } ?: ""
+
+                                val message =
+                                    "Hello ${currentParty.name}, a ledger transaction has been updated.\n" +
+                                    "Previous: $oldTypeLabel ${CurrencySettings.symbol}$oldAmountText\n" +
+                                    "Updated: $newTypeLabel ${CurrencySettings.symbol}$newAmountText$noteText"
+
+                                pendingTransactionSms = Pair(
+                                            phone,
+                                            "$message\n${transactionBalanceMessage(viewModel.uiState.value.balance)}"
+                                        )
+                            }
                         }
                     }
                 }
@@ -560,9 +633,30 @@ var showDeletePartyDialog by remember {
                         TextButton(
                             onClick = {
                                 scope.launch {
-                                    viewModel.deleteEntry(entry)
+                                    val succeeded = viewModel.deleteEntry(entry)
                                     showDeleteEntryDialog = false
                                     editingEntry = null
+
+                                    if (succeeded) {
+                                        val phone = currentParty.mobile.trim()
+                                        if (phone.isNotBlank()) {
+                                            val typeLabel =
+                                                if (entry.type == EntryType.CREDIT) "You Got"
+                                                else "You Gave"
+                                            val amountText = "%.2f".format(
+                                                Locale.getDefault(), entry.amount
+                                            )
+                                            val message =
+                                                "Hello ${currentParty.name}, a ledger transaction has been deleted.\n" +
+                                                "Deleted transaction: $typeLabel ${CurrencySettings.symbol}$amountText\n" +
+                                                ""
+
+                                            pendingTransactionSms = Pair(
+                                            phone,
+                                            "$message\n${transactionBalanceMessage(viewModel.uiState.value.balance)}"
+                                        )
+                                        }
+                                    }
                                 }
                             }
                         ) {
@@ -584,6 +678,56 @@ var showDeletePartyDialog by remember {
                     }
                 )
             }
+        }
+
+        pendingTransactionSms?.let { (phone, message) ->
+            AlertDialog(
+                onDismissRequest = {
+                    pendingTransactionSms = null
+                },
+                title = {
+                    Text("Send transaction message?")
+                },
+                text = {
+                    Text(
+                        "Transaction saved successfully. Would you like to open SMS " +
+                            "with a message for ${currentParty.name}?"
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val smsIntent = Intent(Intent.ACTION_SENDTO).apply {
+                                data = Uri.parse("smsto:" + Uri.encode(phone))
+                                putExtra("sms_body", message)
+                            }
+
+                            try {
+                                context.startActivity(smsIntent)
+                                pendingTransactionSms = null
+                            } catch (exception: Exception) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Unable to open SMS app",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                                pendingTransactionSms = null
+                            }
+                        }
+                    ) {
+                        Text("Send Message")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            pendingTransactionSms = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         if (showDeletePartyDialog) {

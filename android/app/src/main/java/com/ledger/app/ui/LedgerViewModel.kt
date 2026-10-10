@@ -388,11 +388,17 @@ class LedgerViewModel(
                     dataSource.getInterestAccountEntries(partyId)
             }
 
-            val position = calculateInterestAccountPosition(transactions, records)
+            // Match the Interest Account page's Receivable/Payable Int. card.
+            val accruedPosition = calculateInterestPosition(transactions)
+            val recordedInterestNet = records.sumOf {
+                if (it.type == "GAVE") it.amount else -it.amount
+            }
+            val netPendingInterest =
+                accruedPosition.receivable - accruedPosition.payable + recordedInterestNet
             val pendingLimit = if (type == "GAVE") {
-                position.payable
+                maxOf(0.0, -netPendingInterest)
             } else {
-                position.receivable
+                maxOf(0.0, netPendingInterest)
             }
 
             val maxRecordableAmount =
@@ -459,8 +465,18 @@ class LedgerViewModel(
 
             // Exclude the old version of this record before checking its replacement.
             val otherRecords = records.filterNot { it.id == entryId }
-            val position = calculateInterestAccountPosition(transactions, otherRecords)
-            val pendingLimit = if (type == "GAVE") position.payable else position.receivable
+            // Exclude the original record, then use the same net-card calculation as the UI.
+            val accruedPosition = calculateInterestPosition(transactions)
+            val recordedInterestNet = otherRecords.sumOf {
+                if (it.type == "GAVE") it.amount else -it.amount
+            }
+            val netPendingInterest =
+                accruedPosition.receivable - accruedPosition.payable + recordedInterestNet
+            val pendingLimit = if (type == "GAVE") {
+                maxOf(0.0, -netPendingInterest)
+            } else {
+                maxOf(0.0, netPendingInterest)
+            }
             val maxRecordableAmount =
                 kotlin.math.floor(pendingLimit * 100.0 + 0.000001) / 100.0
 

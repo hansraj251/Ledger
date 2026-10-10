@@ -133,6 +133,17 @@ private fun startOfExpenseMonth(timestamp: Long): Long =
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
 
+private fun startOfExpenseYear(timestamp: Long): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = timestamp
+        set(Calendar.MONTH, Calendar.JANUARY)
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
 private fun startOfToday(): Long =
     Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
@@ -197,10 +208,14 @@ fun DailyExpenseScreen(
     var expenses by remember { mutableStateOf<List<DailyExpenseEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var showMonthRecords by remember { mutableStateOf(false) }
+    var showYearRecords by remember { mutableStateOf(false) }
+    var selectedExpenseYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var selectedMonthStart by remember {
         mutableStateOf(startOfExpenseMonth(System.currentTimeMillis()))
     }
     var showMonthPicker by remember { mutableStateOf(false) }
+    var showYearPicker by remember { mutableStateOf(false) }
+    var yearPickerValue by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var pickerYear by remember {
         mutableStateOf(Calendar.getInstance().get(Calendar.YEAR))
     }
@@ -212,15 +227,30 @@ fun DailyExpenseScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showCategoryChart by remember { mutableStateOf(false) }
 
-    LaunchedEffect(showMonthRecords, selectedMonthStart, refreshKey) {
+    LaunchedEffect(showMonthRecords, showYearRecords, selectedMonthStart, selectedExpenseYear, refreshKey) {
         isLoading = true
         expenses = withContext(Dispatchers.IO) {
             val all = dao.getAll()
-            val start = if (showMonthRecords) selectedMonthStart else startOfToday()
+            val now = System.currentTimeMillis()
+            val start = when {
+                showYearRecords -> Calendar.getInstance().apply {
+                    set(Calendar.YEAR, selectedExpenseYear)
+                    set(Calendar.DAY_OF_YEAR, 1)
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                showMonthRecords -> selectedMonthStart
+                else -> startOfToday()
+            }
             val end = Calendar.getInstance().apply {
                 timeInMillis = start
-                if (showMonthRecords) add(Calendar.MONTH, 1)
-                else add(Calendar.DAY_OF_MONTH, 1)
+                when {
+                    showYearRecords -> add(Calendar.YEAR, 1)
+                    showMonthRecords -> add(Calendar.MONTH, 1)
+                    else -> add(Calendar.DAY_OF_MONTH, 1)
+                }
             }.timeInMillis
 
             all.filter { it.expenseDate >= start && it.expenseDate < end }
@@ -243,6 +273,48 @@ fun DailyExpenseScreen(
         }
     }
 
+
+    if (showYearPicker) {
+        AlertDialog(
+            onDismissRequest = { showYearPicker = false },
+            title = { Text("Select year") },
+            text = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { yearPickerValue-- }) {
+                        Text("‹")
+                    }
+                    Text(
+                        yearPickerValue.toString(),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    TextButton(onClick = { yearPickerValue++ }) {
+                        Text("›")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedExpenseYear = yearPickerValue
+                        showYearRecords = true
+                        showMonthRecords = false
+                        showYearPicker = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showYearPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showMonthPicker) {
         val monthNames = listOf(
@@ -475,7 +547,11 @@ fun DailyExpenseScreen(
                 ) {
                     Column(Modifier.padding(20.dp)) {
                         Text(
-                            if (showMonthRecords) "MONTHLY EXPENSE" else "TODAY'S EXPENSE",
+                            when {
+                                showYearRecords -> "YEARLY EXPENSE"
+                                showMonthRecords -> "MONTHLY EXPENSE"
+                                else -> "TODAY\'S EXPENSE"
+                            },
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -500,20 +576,24 @@ fun DailyExpenseScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (!showMonthRecords) {
+                    if (!showMonthRecords && !showYearRecords) {
                         Button(
-                            onClick = { showMonthRecords = false },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Today")
-                        }
+                            onClick = {
+                                showMonthRecords = false
+                                showYearRecords = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("Today", maxLines = 1) }
                     } else {
                         OutlinedButton(
-                            onClick = { showMonthRecords = false },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Today")
-                        }
+                            onClick = {
+                                showMonthRecords = false
+                                showYearRecords = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("Today", maxLines = 1) }
                     }
 
                     if (showMonthRecords) {
@@ -524,11 +604,13 @@ fun DailyExpenseScreen(
                                     .get(Calendar.YEAR)
                                 showMonthPicker = true
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.2f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
                             Text(
                                 SimpleDateFormat("MMM yyyy", Locale.getDefault())
-                                    .format(Date(selectedMonthStart))
+                                    .format(Date(selectedMonthStart)),
+                                maxLines = 1
                             )
                         }
                     } else {
@@ -537,15 +619,37 @@ fun DailyExpenseScreen(
                                 selectedMonthStart =
                                     startOfExpenseMonth(System.currentTimeMillis())
                                 showMonthRecords = true
+                                showYearRecords = false
                             },
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1.2f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("This Month", maxLines = 1) }
+                    }
+
+                    if (showYearRecords) {
+                        Button(
+                            onClick = {
+                                yearPickerValue = selectedExpenseYear
+                                showYearPicker = true
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
                         ) {
-                            Text("This Month")
+                            Text(selectedExpenseYear.toString(), maxLines = 1)
                         }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                selectedExpenseYear = Calendar.getInstance().get(Calendar.YEAR)
+                                showYearRecords = true
+                                showMonthRecords = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) { Text("This Year", maxLines = 1) }
                     }
                 }
             }
-
 
             if (isLoading) {
                 item { Text("Loading expenses…", color = MaterialTheme.colorScheme.onSurfaceVariant) }

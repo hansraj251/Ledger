@@ -263,44 +263,46 @@ internal fun createPartyReportPdf(
         }
     }
 
-    writer.space(14f)
-    writer.section("Interest Account Records (${interestRecords.size})")
+    if (interestRecords.isNotEmpty()) {
+        writer.space(14f)
+        writer.section("Interest Account Records (${interestRecords.size})")
 
-    val orderedInterestRecords = interestRecords.sortedWith(
-        compareByDescending<InterestAccountEntryEntity> {
-            if (it.transactionDate > 0L) it.transactionDate else it.createdAt
-        }.thenByDescending { it.id }
-    )
+        val orderedInterestRecords = interestRecords.sortedWith(
+            compareByDescending<InterestAccountEntryEntity> {
+                if (it.transactionDate > 0L) it.transactionDate else it.createdAt
+            }.thenByDescending { it.id }
+        )
 
-    if (orderedInterestRecords.isEmpty()) {
-        writer.text("No interest payments or receipts recorded.", 10f, false)
-    } else {
-        orderedInterestRecords.forEachIndexed { index, record ->
-            val recordDate = if (record.transactionDate > 0L) {
-                record.transactionDate
-            } else {
-                record.createdAt
+        if (orderedInterestRecords.isEmpty()) {
+            writer.text("No interest payments or receipts recorded.", 10f, false)
+        } else {
+            orderedInterestRecords.forEachIndexed { index, record ->
+                val recordDate = if (record.transactionDate > 0L) {
+                    record.transactionDate
+                } else {
+                    record.createdAt
+                }
+
+                val recordType = if (record.type == "GAVE") {
+                    "INTEREST $gaveLabel".uppercase()
+                } else {
+                    "INTEREST $gotLabel".uppercase()
+                }
+
+                writer.transactionHeader(
+                    number = index + 1,
+                    date = dateFormat.format(Date(recordDate)),
+                    type = recordType
+                )
+                writer.transactionRow("Interest Amount", money(record.amount))
+
+                if (record.note.isNotBlank()) {
+                    writer.note("Note: ${record.note}")
+                }
+
+                writer.separator()
+                writer.space(8f)
             }
-
-            val recordType = if (record.type == "GAVE") {
-                "INTEREST $gaveLabel".uppercase()
-            } else {
-                "INTEREST $gotLabel".uppercase()
-            }
-
-            writer.transactionHeader(
-                number = index + 1,
-                date = dateFormat.format(Date(recordDate)),
-                type = recordType
-            )
-            writer.transactionRow("Interest Amount", money(record.amount))
-
-            if (record.note.isNotBlank()) {
-                writer.note("Note: ${record.note}")
-            }
-
-            writer.separator()
-            writer.space(8f)
         }
     }
 

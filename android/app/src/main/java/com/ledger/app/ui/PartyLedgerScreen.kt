@@ -63,6 +63,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -75,6 +76,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -209,6 +211,14 @@ var showDeletePartyDialog by remember {
 
     var pendingTransactionSms by remember {
         mutableStateOf<Pair<String, String>?>(null)
+    }
+
+    val smsPreferences = remember(context) {
+        context.getSharedPreferences("ledger_ui_preferences", android.content.Context.MODE_PRIVATE)
+    }
+
+    var askSmsAfterTransaction by remember {
+        mutableStateOf(smsPreferences.getBoolean("ask_sms_after_transaction", false))
     }
 
     LaunchedEffect(party.id) {
@@ -391,6 +401,13 @@ var showDeletePartyDialog by remember {
                     onTypeChange = {
                         selectedType = it
                     },
+                    smsEnabled = askSmsAfterTransaction,
+                    onSmsEnabledChange = { enabled ->
+                        askSmsAfterTransaction = enabled
+                        smsPreferences.edit()
+                            .putBoolean("ask_sms_after_transaction", enabled)
+                            .apply()
+                    },
                     onAdd = {
                         val parsedAmount = amount.toDoubleOrNull()
 
@@ -417,7 +434,7 @@ var showDeletePartyDialog by remember {
                                     showInterestInput = false
 
                                     val phone = currentParty.mobile.trim()
-                                    if (phone.isNotBlank()) {
+                                    if (askSmsAfterTransaction && phone.isNotBlank()) {
                                         val typeLabel =
                                             if (transactionType == EntryType.CREDIT) "You Got"
                                             else "You Gave"
@@ -580,7 +597,7 @@ var showDeletePartyDialog by remember {
                             editingEntry = null
 
                             val phone = currentParty.mobile.trim()
-                            if (phone.isNotBlank()) {
+                            if (askSmsAfterTransaction && phone.isNotBlank()) {
                                 val oldTypeLabel =
                                     if (entry.type == EntryType.CREDIT) "You Got"
                                     else "You Gave"
@@ -639,7 +656,7 @@ var showDeletePartyDialog by remember {
 
                                     if (succeeded) {
                                         val phone = currentParty.mobile.trim()
-                                        if (phone.isNotBlank()) {
+                                        if (askSmsAfterTransaction && phone.isNotBlank()) {
                                             val typeLabel =
                                                 if (entry.type == EntryType.CREDIT) "You Got"
                                                 else "You Gave"
@@ -2109,6 +2126,8 @@ private fun TransactionComposer(
     onNoteChange: (String) -> Unit,
     onTransactionDateChange: (Long) -> Unit,
     onTypeChange: (EntryType) -> Unit,
+    smsEnabled: Boolean,
+    onSmsEnabledChange: (Boolean) -> Unit,
     onAdd: () -> Unit
 ) {
     val context = LocalContext.current
@@ -2127,6 +2146,7 @@ private fun TransactionComposer(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -2151,6 +2171,23 @@ private fun TransactionComposer(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Switch(
+                    checked = smsEnabled,
+                    onCheckedChange = { enabled ->
+                        onSmsEnabledChange(enabled)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (enabled) "SMS On" else "SMS Off",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier
+                        .scale(0.80f)
+                        .height(36.dp)
+                )
             }
 
             Row(

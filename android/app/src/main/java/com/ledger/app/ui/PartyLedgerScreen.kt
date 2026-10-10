@@ -1265,7 +1265,7 @@ if (kotlin.math.abs(netInterest) > 0.000001) {
                     Text(
                         text = if (netInterest > 0.0) "Receivable Int." else "Payable Int.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (netInterest > 0.0) Color(0xFF2E7D32) else Color(0xFFC62828)
                     )
                     Text(
                         text = "₹${formatAmount(kotlin.math.abs(netInterest))}",
@@ -1278,16 +1278,7 @@ Spacer(
                 modifier = Modifier.height(5.dp)
             )
 
-            Text(
-                text = when {
-                    positive -> "Amount to receive from this party"
-                    negative -> "Amount to pay to this party"
-                    else -> "No outstanding balance"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+}
     }
 }
 

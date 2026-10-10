@@ -1,5 +1,16 @@
 package com.ledger.app.ui
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import com.ledger.app.backup.GoogleDriveAuthorization
+import com.ledger.app.backup.GoogleDriveTemporaryReport
+import com.ledger.app.data.LedgerDatabaseProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import androidx.compose.material.icons.outlined.Message
 import android.telephony.PhoneNumberUtils
 import android.content.Intent
@@ -223,6 +234,152 @@ var showDeletePartyDialog by remember {
         )
     }
 
+
+    var isSharingPartyReport by remember(party.id) {
+        mutableStateOf(false)
+    }
+    val reportDriveAuthorization = remember(context) {
+        GoogleDriveAuthorization(context)
+    }
+
+    val uploadPartyReport: (String) -> Unit = { accessToken ->
+        if (!isSharingPartyReport) {
+            isSharingPartyReport = true
+            scope.launch {
+                try {
+                    val reportLink = withContext(Dispatchers.IO) {
+                        val db = LedgerDatabaseProvider.get(context)
+                        val profileName = db.profileDao()
+                            .getProfile()?.name?.trim().orEmpty()
+
+                        val report = createPartyReportPdf(
+                            context = context,
+                            party = currentParty,
+                            entries = uiState.entries,
+                            interestRecords = uiState.interestAccountEntries,
+                            profileName = profileName
+                        )
+                        try {
+                            GoogleDriveTemporaryReport().uploadAndShare(
+                                source = report,
+                                partyName = currentParty.name,
+                                accessToken = accessToken
+                            )
+                        } finally {
+                            report.delete()
+                        }
+                    }
+
+                    val phone = currentParty.mobile.trim()
+                    val amountText =
+                        "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(uiState.balance))}"
+                    val interestText = if (headerNetInterest > 0.0) {
+                        " Additional interest pending: " +
+                            "${CurrencySettings.symbol}${formatAmount(headerNetInterest)}."
+                    } else {
+                        ""
+                    }
+                    val message =
+                        "Dear ${currentParty.name}, outstanding balance: $amountText." +
+                            interestText +
+                            "\nView your party ledger report (link available for 24 hours):\n" +
+                            reportLink
+
+                    context.startActivity(
+                        Intent(
+                            Intent.ACTION_SENDTO,
+                            Uri.parse("smsto:" + Uri.encode(phone))
+                        ).putExtra("sms_body", message)
+                    )
+                    Toast.makeText(
+                        context,
+                        "Report uploaded. Link added to SMS; it expires after 24 hours.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (error: Exception) {
+                    Toast.makeText(
+                        context,
+                        "Report upload failed: ${error.message ?: "Unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isSharingPartyReport = false
+                }
+            }
+        }
+    }
+
+    val reportAuthorizationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { activityResult ->
+        if (activityResult.resultCode == Activity.RESULT_OK) {
+            reportDriveAuthorization.authorize()
+                .addOnSuccessListener { result ->
+                    val token = result.accessToken
+                    if (!result.hasResolution() && !token.isNullOrBlank()) {
+                        uploadPartyReport(token)
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Google Drive authorization is still required. Try again.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                .addOnFailureListener { error ->
+                    Toast.makeText(
+                        context,
+                        "Google Drive authorization failed: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+        } else {
+            Toast.makeText(
+                context,
+                "Google Drive authorization cancelled.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    val requestPartyReport: () -> Unit = {
+        if (!isSharingPartyReport) {
+            reportDriveAuthorization.authorize()
+                .addOnSuccessListener { result ->
+                    val token = result.accessToken
+                    if (result.hasResolution()) {
+                        val sender = result.pendingIntent?.intentSender
+                        if (sender != null) {
+                            reportAuthorizationLauncher.launch(
+                                IntentSenderRequest.Builder(sender).build()
+                            )
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Google Drive authorization could not be opened.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else if (!token.isNullOrBlank()) {
+                        uploadPartyReport(token)
+                    } else {
+                        Toast.makeText(
+                            context,
+                            "Google Drive access token is unavailable.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+                .addOnFailureListener { error ->
+                    Toast.makeText(
+                        context,
+                        "Google Drive authorization failed: ${error.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+        }
+    }
+
     LaunchedEffect(party.id) {
         viewModel.loadEntries(party.id)
         viewModel.loadInterestAccountEntries(party.id)
@@ -372,7 +529,9 @@ var showDeletePartyDialog by remember {
                     payableInterest = interestPosition.payable,
                     hasInterest = uiState.entries.any { it.interestRate > 0.0 } ||
                         uiState.interestAccountEntries.isNotEmpty(),
-                    onInterestClick = { showInterestAccount = true }
+                    onInterestClick = { showInterestAccount = true },
+                    isSharingReport = isSharingPartyReport,
+                    onSendReport = { requestPartyReport() }
                 )
             }
 
@@ -1387,7 +1546,9 @@ private fun BalanceHero(
     hasInterest: Boolean,
     receivableInterest: Double,
     payableInterest: Double,
-    onInterestClick: () -> Unit
+    onInterestClick: () -> Unit,
+    onSendReport: () -> Unit,
+    isSharingReport: Boolean
 ) {
     val context = LocalContext.current
     val positive = balance > 0
@@ -1568,37 +1729,25 @@ Spacer(
                 }
 
                 OutlinedButton(
-                    onClick = {
-                        val phone = party.mobile.trim()
-                        if (balance > 0.0 && phone.isNotBlank()) {
-                            val amountText =
-                                "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balance))}"
-                            val interestText = if (netInterest > 0.0) {
-                                " Additionally, interest of ${CurrencySettings.symbol}${formatAmount(netInterest)} is also pending."
-                            } else {
-                                ""
-                            }
-                            val message =
-                                "Dear ${party.name}, an outstanding payment of $amountText is pending in your account. Kindly arrange the payment at your earliest convenience.$interestText Thank you."
-                            val intent = Intent(
-                                Intent.ACTION_SENDTO,
-                                Uri.parse("smsto:" + Uri.encode(phone))
-                            ).putExtra("sms_body", message)
-                            context.startActivity(intent)
-                        }
-                    },
-                    enabled = balance > 0.0 && party.mobile.isNotBlank(),
+                    onClick = onSendReport,
+                    enabled = balance > 0.0 &&
+                        party.mobile.isNotBlank() &&
+                        !isSharingReport,
                     modifier = Modifier.weight(1f).height(34.dp),
                     contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Message,
-                        contentDescription = "Send payment reminder",
+                        contentDescription = "Send party report link",
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text("Message", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    Text(
+                        if (isSharingReport) "Preparing..." else "Message",
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
                 }
             }
 

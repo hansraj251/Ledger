@@ -1,5 +1,10 @@
 package com.ledger.app.ui
 
+import androidx.compose.material.icons.outlined.Message
+import android.telephony.PhoneNumberUtils
+import android.content.Intent
+import android.net.Uri
+
 import com.ledger.app.data.CurrencySettings
 
 import androidx.compose.ui.draw.clip
@@ -98,7 +103,36 @@ fun PartyLedgerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val listState = rememberLazyListState()
+
+    // Net interest for the party header SMS reminder.
+    val headerGaveTransactionInterest = uiState.entries
+        .filter { it.type == EntryType.CREDIT }
+        .sumOf {
+            calculateTransactionInterest(
+                amount = it.amount,
+                annualRate = it.interestRate,
+                transactionDate = it.transactionDate,
+                createdAt = it.createdAt
+            )
+        }
+    val headerGotTransactionInterest = uiState.entries
+        .filter { it.type == EntryType.DEBIT }
+        .sumOf {
+            calculateTransactionInterest(
+                amount = it.amount,
+                annualRate = it.interestRate,
+                transactionDate = it.transactionDate,
+                createdAt = it.createdAt
+            )
+        }
+    val headerRecordedInterest = uiState.interestAccountEntries.sumOf {
+        if (it.type == "GAVE") it.amount else -it.amount
+    }
+    val headerNetInterest =
+        headerGaveTransactionInterest - headerGotTransactionInterest + headerRecordedInterest
+
 
     var transactionDate by remember {
         mutableStateOf(System.currentTimeMillis())
@@ -240,6 +274,8 @@ var showDeletePartyDialog by remember {
                 ) {
                     PartyHeader(
                         party = currentParty,
+                        netInterest = headerNetInterest,
+                        balance = uiState.balance,
                         onBack = onBack,
                     onEdit = {
                         editPartyName = currentParty.name
@@ -301,6 +337,7 @@ var showDeletePartyDialog by remember {
                 gaveTransactionInterest - gotTransactionInterest + totalRecordedInterest
 
                             BalanceHero(
+                    party = currentParty,
                     balance = uiState.balance,
                     netInterest = netInterest,
                     receivableInterest = interestPosition.receivable,
@@ -596,6 +633,8 @@ var showDeletePartyDialog by remember {
 @Composable
 private fun PartyHeader(
     party: PartyEntity,
+    netInterest: Double,
+    balance: Double,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onReport: () -> Unit
@@ -665,6 +704,8 @@ private fun PartyHeader(
             )
         }
 
+        val context = LocalContext.current
+
         Box {
             IconButton(
                 onClick = {
@@ -684,6 +725,53 @@ private fun PartyHeader(
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
             ) {
+                DropdownMenuItem(
+                    text = { Text("Call") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Call,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        val phone = party.mobile.trim()
+                        if (phone.isNotBlank()) {
+                            val intent = Intent(
+                                Intent.ACTION_DIAL,
+                                Uri.parse("tel:" + Uri.encode(phone))
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    enabled = party.mobile.isNotBlank()
+                )
+                DropdownMenuItem(
+                    text = { Text("Message") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Message,
+                            contentDescription = null
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        val phone = party.mobile.trim()
+                        val amount = kotlin.math.abs(balance)
+                        val interestText = if (netInterest > 0.0) {
+                            " Additionally, interest of ${CurrencySettings.symbol}${"%.2f".format(java.util.Locale("en", "IN"), netInterest)} is also pending."
+                        } else ""
+                        val message = "Dear ${party.name}, an outstanding payment of ${CurrencySettings.symbol}${"%.2f".format(java.util.Locale("en", "IN"), amount)} is pending in your account. Kindly arrange the payment at your earliest convenience.$interestText Thank you."
+                        if (phone.isNotBlank() && balance > 0.0) {
+                            val intent = Intent(
+                                Intent.ACTION_SENDTO,
+                                Uri.parse("smsto:" + Uri.encode(phone))
+                            ).putExtra("sms_body", message)
+                            context.startActivity(intent)
+                        }
+                    },
+                    enabled = party.mobile.isNotBlank() && balance > 0.0
+                )
                 DropdownMenuItem(
                     text = {
                         Text("Reports")
@@ -1130,6 +1218,7 @@ private fun EditPartyDialog(
 
 @Composable
 private fun BalanceHero(
+    party: PartyEntity,
     balance: Double,
     netInterest: Double,
     hasInterest: Boolean,
@@ -1137,6 +1226,7 @@ private fun BalanceHero(
     payableInterest: Double,
     onInterestClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val positive = balance > 0
     val negative = balance < 0
 
@@ -1243,6 +1333,8 @@ private fun BalanceHero(
                         }
                     }
                 }
+
+
             }
 
             Spacer(
@@ -1277,16 +1369,79 @@ if (kotlin.math.abs(netInterest) > 0.000001) {
                 }
             }
 Spacer(
-                modifier = Modifier.height(5.dp)
+                modifier = Modifier.height(2.dp)
             )
 
-}
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val phone = party.mobile.trim()
+                        if (phone.isNotBlank()) {
+                            context.startActivity(
+                                Intent(
+                                    Intent.ACTION_DIAL,
+                                    Uri.parse("tel:" + Uri.encode(phone))
+                                )
+                            )
+                        }
+                    },
+                    enabled = party.mobile.isNotBlank(),
+                    modifier = Modifier.weight(1f).height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Call,
+                        contentDescription = "Call party",
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("Call", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        val phone = party.mobile.trim()
+                        if (balance > 0.0 && phone.isNotBlank()) {
+                            val amountText =
+                                "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balance))}"
+                            val interestText = if (netInterest > 0.0) {
+                                " Additionally, interest of ${CurrencySettings.symbol}${formatAmount(netInterest)} is also pending."
+                            } else {
+                                ""
+                            }
+                            val message =
+                                "Dear ${party.name}, an outstanding payment of $amountText is pending in your account. Kindly arrange the payment at your earliest convenience.$interestText Thank you."
+                            val intent = Intent(
+                                Intent.ACTION_SENDTO,
+                                Uri.parse("smsto:" + Uri.encode(phone))
+                            ).putExtra("sms_body", message)
+                            context.startActivity(intent)
+                        }
+                    },
+                    enabled = balance > 0.0 && party.mobile.isNotBlank(),
+                    modifier = Modifier.weight(1f).height(34.dp),
+                    contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Message,
+                        contentDescription = "Send payment reminder",
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text("Message", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                }
+            }
+
+        }
     }
-}
-
-
-
-@Composable
+}@Composable
 private fun InterestAccountScreen(
     party: PartyEntity,
     transactions: List<LedgerEntryEntity>,

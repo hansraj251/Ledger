@@ -1,5 +1,7 @@
 package com.ledger.app.billing
 
+import com.ledger.app.backup.DriveAccountBinding
+
 import android.app.Activity
 import android.content.Context
 import com.android.billingclient.api.AcknowledgePurchaseParams
@@ -29,6 +31,7 @@ data class PremiumBillingState(
  * lifetime_premium product. Product must also exist in Play Console.
  */
 class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
+    private val appContext = context.applicationContext
     companion object {
         const val PRODUCT_ID = "lifetime_premium"
     }
@@ -110,7 +113,13 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         }
     }
 
-    fun launchPurchase(activity: Activity) {
+    fun launchPurchase(activity: Activity, driveAccountId: String) {
+        if (driveAccountId.isBlank()) {
+            _state.value = _state.value.copy(
+                message = "Connect Google Drive before purchasing Premium."
+            )
+            return
+        }
         if (!billingClient.isReady) {
             _state.value = _state.value.copy(
                 message = "Connecting to Google Play. Please try again shortly."
@@ -136,6 +145,7 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
         val flow = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productParams))
+            .setObfuscatedAccountId(driveAccountId)
             .build()
 
         val result = billingClient.launchBillingFlow(activity, flow)
@@ -171,8 +181,20 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         if (PRODUCT_ID !in purchase.products) return
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
 
-        _state.value = _state.value.copy(isPremium = true, message = "")
+        val currentAccountId = DriveAccountBinding.currentAccountId(appContext)
+        val purchaseAccountId =
+            purchase.accountIdentifiers?.obfuscatedAccountId
+        val accountMatches =
+            !currentAccountId.isNullOrBlank() &&
+            purchaseAccountId == currentAccountId
 
+        _state.value = _state.value.copy(
+            isPremium = accountMatches,
+            message = if (accountMatches) "" else
+                "Premium is linked to a different Google Drive account."
+        )
+
+        // Acknowledge a completed Play purchase even if this app account does not match.
         if (!purchase.isAcknowledged) {
             val params = AcknowledgePurchaseParams.newBuilder()
                 .setPurchaseToken(purchase.purchaseToken)
@@ -198,14 +220,21 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         billingClient.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
 
+            val currentAccountId = DriveAccountBinding.currentAccountId(appContext)
             val owned = purchases.firstOrNull {
                 PRODUCT_ID in it.products &&
-                    it.purchaseState == Purchase.PurchaseState.PURCHASED
+                    it.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                    !currentAccountId.isNullOrBlank() &&
+                    it.accountIdentifiers?.obfuscatedAccountId == currentAccountId
             }
 
             _state.value = _state.value.copy(isPremium = owned != null)
             owned?.let(::processPurchase)
         }
+    }
+
+    fun refreshOwnership() {
+        if (billingClient.isReady) refreshOwnedPurchases()
     }
 
     fun close() {

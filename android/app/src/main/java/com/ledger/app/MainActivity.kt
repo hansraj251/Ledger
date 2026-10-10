@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.google.android.gms.auth.api.identity.Identity
 import java.io.File
+import com.ledger.app.backup.DriveAccountBinding
 import com.ledger.app.backup.GoogleDriveAuthorization
 import com.ledger.app.backup.GoogleDriveBackup
 import com.ledger.app.backup.GoogleDriveRestore
@@ -173,6 +174,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             LedgerTheme {
                 val premiumBillingState by premiumBillingManager.state.collectAsState()
+                LaunchedEffect(premiumBillingState.message) {
+                    val message = premiumBillingState.message
+                    if (message.isNotBlank()) {
+                        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                    }
+                }
 
                 var initialDriveSetupRequired by remember {
                     mutableStateOf(
@@ -271,7 +278,7 @@ class MainActivity : ComponentActivity() {
         isPremium = premiumBillingState.isPremium,
         premiumPrice = premiumBillingState.productPrice,
         onUpgradeClick = {
-            premiumBillingManager.launchPurchase(this@MainActivity)
+            launchPremiumPurchase()
         }
     )
                 } else if (showDailyExpenseScreen) {
@@ -282,7 +289,7 @@ class MainActivity : ComponentActivity() {
                             googleDriveSyncCoordinator.requestAutoSync()
                         },
                         isPremium = premiumBillingState.isPremium,
-                        onUpgradeClick = { premiumBillingManager.launchPurchase(this@MainActivity) }
+                        onUpgradeClick = { launchPremiumPurchase() }
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(
@@ -299,7 +306,7 @@ class MainActivity : ComponentActivity() {
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
-                        onUpgradeClick = { premiumBillingManager.launchPurchase(this@MainActivity) }
+                        onUpgradeClick = { launchPremiumPurchase() }
                     )
                 } else {
                     PartyLedgerScreen(
@@ -315,9 +322,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::premiumBillingManager.isInitialized) {
+            premiumBillingManager.refreshOwnership()
+        }
+    }
+
     override fun onDestroy() {
         if (::premiumBillingManager.isInitialized) premiumBillingManager.close()
         super.onDestroy()
+    }
+
+    private fun launchPremiumPurchase() {
+        val accountId = DriveAccountBinding.currentAccountId(applicationContext)
+        if (accountId.isNullOrBlank()) {
+            Toast.makeText(
+                this,
+                "Connect Google Drive and verify the account before purchasing Premium.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        premiumBillingManager.launchPurchase(this, accountId)
+    }
+
+    private fun captureDriveAccountIdentity(accessToken: String?) {
+        if (accessToken.isNullOrBlank()) {
+            Toast.makeText(
+                this,
+                "Google Drive account verification failed. Please reconnect Drive.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        DriveAccountBinding.capture(applicationContext, accessToken) {
+            runOnUiThread {
+                if (::premiumBillingManager.isInitialized) {
+                    premiumBillingManager.refreshOwnership()
+                }
+                val verified = DriveAccountBinding.currentAccountId(applicationContext) != null
+                Toast.makeText(
+                    this,
+                    if (verified) "Google Drive account verified."
+                    else "Unable to verify the Google Drive account. Please reconnect Drive.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     private fun connectGoogleDrive() {
@@ -344,11 +397,7 @@ class MainActivity : ComponentActivity() {
                         ).show()
                     }
                 } else {
-                    Toast.makeText(
-                        this,
-                        "Google Drive connected.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    captureDriveAccountIdentity(result.accessToken)
                 }
             }
             .addOnFailureListener {
@@ -492,8 +541,15 @@ class MainActivity : ComponentActivity() {
                     return@addOnSuccessListener
                 }
 
-                val accessToken =
-                    result.accessToken
+                val accessToken = result.accessToken
+
+                DriveAccountBinding.capture(applicationContext, accessToken) {
+                    runOnUiThread {
+                        if (::premiumBillingManager.isInitialized) {
+                            premiumBillingManager.refreshOwnership()
+                        }
+                    }
+                }
 
                 if (accessToken.isNullOrBlank()) {
                     Toast.makeText(
@@ -729,8 +785,15 @@ class MainActivity : ComponentActivity() {
                     return@addOnSuccessListener
                 }
 
-                val accessToken =
-                    result.accessToken
+                val accessToken = result.accessToken
+
+                DriveAccountBinding.capture(applicationContext, accessToken) {
+                    runOnUiThread {
+                        if (::premiumBillingManager.isInitialized) {
+                            premiumBillingManager.refreshOwnership()
+                        }
+                    }
+                }
 
                 if (accessToken.isNullOrBlank()) {
                     Toast.makeText(
@@ -905,6 +968,37 @@ class MainActivity : ComponentActivity() {
             resultCode,
             data
         )
+
+        if (requestCode == GOOGLE_DRIVE_AUTH_REQUEST_CODE) {
+            if (resultCode == RESULT_OK) {
+                googleDriveAuthorization.authorize()
+                    .addOnSuccessListener { authorizationResult ->
+                        if (authorizationResult.hasResolution()) {
+                            Toast.makeText(
+                                this,
+                                "Google Drive authorization is still required.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@addOnSuccessListener
+                        }
+                        captureDriveAccountIdentity(authorizationResult.accessToken)
+                    }
+                    .addOnFailureListener {
+                        Toast.makeText(
+                            this,
+                            "Google Drive account verification failed.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+            } else {
+                Toast.makeText(
+                    this,
+                    "Google Drive connection cancelled.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            return
+        }
 
         if (
             requestCode ==

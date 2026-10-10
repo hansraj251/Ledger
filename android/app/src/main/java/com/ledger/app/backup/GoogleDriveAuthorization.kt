@@ -25,9 +25,8 @@ class GoogleDriveAuthorization(
             .builder()
             .setRequestedScopes(
                 listOf(
-                    Scope(
-                        DRIVE_FILE_SCOPE
-                    )
+                    Scope(DRIVE_FILE_SCOPE),
+                    Scope("https://www.googleapis.com/auth/userinfo.email")
                 )
             )
             .build()

@@ -656,12 +656,16 @@ internal class ReportPdfWriter(
         )
     }
 
-    fun finish() {
-        footer()
+    fun finishCurrentPage() {
         page?.let {
+            footer()
             pdf.finishPage(it)
         }
         page = null
         canvas = null
+    }
+
+    fun finish() {
+        finishCurrentPage()
     }
 }

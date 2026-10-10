@@ -116,7 +116,7 @@ internal fun createAllPartiesReportPdf(
 
     writer.startPage()
 
-    writer.title("All Parties Report")
+
     writer.subtitle(
         profileName.trim().ifEmpty { "Ledger" }
     )
@@ -130,8 +130,8 @@ internal fun createAllPartiesReportPdf(
     writer.space(8f)
 
     writer.section("Overall Summary")
-    writer.summaryRow("Total $gaveLabel", money(totalGave))
-    writer.summaryRow("Total Party Gave", money(totalGot))
+    writer.summaryRow("Total You Gave", money(totalGave))
+    writer.summaryRow("Total You Received", money(totalGot))
 
     if (totalAccruedReceivable > 0.0) {
         writer.summaryRow("Total Interest Receivable", money(totalAccruedReceivable))
@@ -168,11 +168,9 @@ internal fun createAllPartiesReportPdf(
         bold = true
     )
 
-    writer.space(12f)
-
-    writer.section("Party-wise Details")
-
     parties.forEachIndexed { index, party ->
+        writer.finishCurrentPage()
+        writer.startPage()
 
         val orderedEntries = entriesByParty[party.id]
             .orEmpty()
@@ -229,10 +227,10 @@ internal fun createAllPartiesReportPdf(
         writer.section("Account Summary")
         val partyGaveLabel = "${party.name.trim()} Gave"
 
-        writer.summaryRow("Total $gaveLabel", money(
+        writer.summaryRow("Total You Gave", money(
             orderedEntries.filter { it.type == EntryType.CREDIT }.sumOf { it.amount }
         ))
-        writer.summaryRow("Total $partyGaveLabel", money(
+        writer.summaryRow("Total You Received", money(
             orderedEntries.filter { it.type == EntryType.DEBIT }.sumOf { it.amount }
         ))
 
@@ -360,33 +358,35 @@ internal fun createAllPartiesReportPdf(
             }.thenByDescending { it.id }
         )
 
-        writer.space(8f)
-        writer.section("Interest Account Records (${orderedRecords.size})")
-        if (orderedRecords.isEmpty()) {
-            writer.text("No interest payments or receipts recorded.", 10f, false)
-        } else {
-            orderedRecords.forEachIndexed { recordIndex, record ->
-                val recordDate = if (record.transactionDate > 0L) {
-                    record.transactionDate
-                } else {
-                    record.createdAt
+        if (orderedRecords.isNotEmpty()) {
+            writer.space(8f)
+            writer.section("Interest Account Records (${orderedRecords.size})")
+            if (orderedRecords.isEmpty()) {
+                writer.text("No interest payments or receipts recorded.", 10f, false)
+            } else {
+                orderedRecords.forEachIndexed { recordIndex, record ->
+                    val recordDate = if (record.transactionDate > 0L) {
+                        record.transactionDate
+                    } else {
+                        record.createdAt
+                    }
+                    val recordType = if (record.type == "GAVE") {
+                        "INTEREST $gaveLabel".uppercase()
+                    } else {
+                        "INTEREST $partyGaveLabel".uppercase()
+                    }
+                    writer.transactionHeader(
+                        number = recordIndex + 1,
+                        date = dateFormat.format(Date(recordDate)),
+                        type = recordType
+                    )
+                    writer.transactionRow("Interest Amount", money(record.amount))
+                    if (record.note.isNotBlank()) {
+                        writer.transactionRow("Note", record.note)
+                    }
+                    writer.separator()
+                    writer.space(8f)
                 }
-                val recordType = if (record.type == "GAVE") {
-                    "INTEREST $gaveLabel".uppercase()
-                } else {
-                    "INTEREST $partyGaveLabel".uppercase()
-                }
-                writer.transactionHeader(
-                    number = recordIndex + 1,
-                    date = dateFormat.format(Date(recordDate)),
-                    type = recordType
-                )
-                writer.transactionRow("Interest Amount", money(record.amount))
-                if (record.note.isNotBlank()) {
-                    writer.transactionRow("Note", record.note)
-                }
-                writer.separator()
-                writer.space(8f)
             }
         }
 

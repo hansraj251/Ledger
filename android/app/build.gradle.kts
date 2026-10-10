@@ -28,6 +28,7 @@ android {
 }
 
 dependencies {
+    implementation("com.android.billingclient:billing:9.1.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

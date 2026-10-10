@@ -253,7 +253,8 @@ class LedgerViewModelTest {
     @Test
     fun addParty_addsPartyAndClearsError() = runBlocking {
         val viewModel = LedgerViewModel(
-            FakeLedgerDataSource()
+            dataSource = FakeLedgerDataSource(),
+            isPremium = { true }
         )
 
         viewModel.loadParties()

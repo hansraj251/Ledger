@@ -2698,7 +2698,11 @@ internal fun formatAmount(amount: Double): String = CurrencySettings.formatNumbe
 internal fun transactionAmountLabel(
     entry: LedgerEntryEntity
 ): String {
-    return "${CurrencySettings.symbol}${formatAmount(abs(entry.amount))}"
+    val prefix = when (entry.type) {
+        EntryType.CREDIT -> "+"
+        EntryType.DEBIT -> "-"
+    }
+    return "$prefix${CurrencySettings.symbol}${formatAmount(abs(entry.amount))}"
 }
 
 internal fun transactionDateTimeLabel(

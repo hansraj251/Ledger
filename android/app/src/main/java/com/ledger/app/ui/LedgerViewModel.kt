@@ -48,7 +48,8 @@ data class LedgerUiState(
 
 class LedgerViewModel(
     private val dataSource: LedgerDataSource,
-    private val onDataChanged: () -> Unit = {}
+    private val onDataChanged: () -> Unit = {},
+    private val isPremium: () -> Boolean = { false }
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -184,6 +185,14 @@ class LedgerViewModel(
         if (cleanName.isEmpty()) {
             _uiState.value = _uiState.value.copy(
                 errorMessage = "Party name is required"
+            )
+            return
+        }
+
+
+        if (!isPremium() && _uiState.value.parties.isNotEmpty()) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Free plan allows one party. Unlock Lifetime Premium to add more."
             )
             return
         }

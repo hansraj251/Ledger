@@ -60,6 +60,7 @@ import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
 import com.ledger.app.ui.PartyLedgerScreen
+import com.ledger.app.billing.PremiumBillingManager
 
 class MainActivity : ComponentActivity() {
 
@@ -67,6 +68,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var googleDriveBackup: GoogleDriveBackup
     private lateinit var googleDriveRestore: GoogleDriveRestore
     private lateinit var googleDriveSyncCoordinator: GoogleDriveSyncCoordinator
+    private lateinit var premiumBillingManager: PremiumBillingManager
     private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
     private var initialDriveSetupCompletion: (() -> Unit)? = null
@@ -166,8 +168,11 @@ class MainActivity : ComponentActivity() {
             database
         )
 
+        premiumBillingManager = PremiumBillingManager(applicationContext)
+
         setContent {
             LedgerTheme {
+                val premiumBillingState by premiumBillingManager.state.collectAsState()
 
                 var initialDriveSetupRequired by remember {
                     mutableStateOf(
@@ -218,7 +223,8 @@ class MainActivity : ComponentActivity() {
                         repository,
                         onDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
-                        }
+                        },
+                        isPremium = { premiumBillingManager.state.value.isPremium }
                     )
                 }
 
@@ -261,15 +267,22 @@ class MainActivity : ComponentActivity() {
                         },
                         onProfileSaved = {
                             googleDriveSyncCoordinator.requestAutoSync()
-                        }
-                    )
+                        },
+        isPremium = premiumBillingState.isPremium,
+        premiumPrice = premiumBillingState.productPrice,
+        onUpgradeClick = {
+            premiumBillingManager.launchPurchase(this@MainActivity)
+        }
+    )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
                         onPartiesClick = { setDailyExpenseScreenVisible(false) },
                         onProfileClick = { showProfileScreen = true },
                         onExpenseDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
-                        }
+                        },
+                        isPremium = premiumBillingState.isPremium,
+                        onUpgradeClick = { premiumBillingManager.launchPurchase(this@MainActivity) }
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(
@@ -283,7 +296,10 @@ class MainActivity : ComponentActivity() {
                         onReportsClick = {
                             showAllPartiesReport = true
                         },
-                        onDailyExpenseClick = { setDailyExpenseScreenVisible(true) }
+                        onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
+                        isPremium = premiumBillingState.isPremium,
+                        premiumPrice = premiumBillingState.productPrice,
+                        onUpgradeClick = { premiumBillingManager.launchPurchase(this@MainActivity) }
                     )
                 } else {
                     PartyLedgerScreen(
@@ -297,6 +313,11 @@ class MainActivity : ComponentActivity() {
 
             }
         }
+    }
+
+    override fun onDestroy() {
+        if (::premiumBillingManager.isInitialized) premiumBillingManager.close()
+        super.onDestroy()
     }
 
     private fun connectGoogleDrive() {
@@ -993,7 +1014,10 @@ private fun InitialGoogleDriveSetupScreen(
 @androidx.compose.runtime.Composable
 private fun ProfileScreen(
     onBack: () -> Unit,
-    onProfileSaved: () -> Unit
+    onProfileSaved: () -> Unit,
+    isPremium: Boolean,
+    premiumPrice: String,
+    onUpgradeClick: () -> Unit
 ) {
     var showCurrencyMenu by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
@@ -1513,6 +1537,46 @@ private fun ProfileScreen(
                                         }
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!isPremium) {
+                item {
+                    androidx.compose.material3.Card(
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                        shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        )
+                    ) {
+                        androidx.compose.foundation.layout.Column(
+                            modifier = androidx.compose.ui.Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Unlock Lifetime Premium",
+                                style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            )
+                            androidx.compose.material3.Text(
+                                text = "Add unlimited parties and expenses with a one-time purchase.",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                            )
+                            androidx.compose.material3.Button(
+                                onClick = onUpgradeClick,
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = if (premiumPrice.isBlank())
+                                        "Unlock Premium"
+                                    else
+                                        "Unlock Premium · $premiumPrice"
+                                )
                             }
                         }
                     }

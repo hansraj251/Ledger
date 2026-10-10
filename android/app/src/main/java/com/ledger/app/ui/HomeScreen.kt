@@ -79,6 +79,9 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onReportsClick: () -> Unit,
     onDailyExpenseClick: () -> Unit,
+    isPremium: Boolean,
+    premiumPrice: String,
+    onUpgradeClick: () -> Unit,
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -121,6 +124,16 @@ fun HomeScreen(
     var showMenu by remember {
         mutableStateOf(false)
     }
+
+    var showUpgradeDialog by remember { mutableStateOf(false) }
+    val requestAddParty: () -> Unit = {
+        if (isPremium || uiState.parties.isEmpty()) {
+            showAddPartyDialog = true
+        } else {
+            showUpgradeDialog = true
+        }
+    }
+
 
     LaunchedEffect(Unit) {
         viewModel.loadParties()
@@ -276,7 +289,7 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     showMenu = false
-                                    showAddPartyDialog = true
+                                    requestAddParty()
                                 }
                             )
                         }
@@ -294,7 +307,7 @@ fun HomeScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    showAddPartyDialog = true
+                    requestAddParty()
                 },
                 shape = RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -318,7 +331,10 @@ fun HomeScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item {
+
+
+
+item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -353,7 +369,7 @@ fun HomeScreen(
                     EmptyPartyState(
                         hasSearch = uiState.searchQuery.isNotBlank(),
                         onAddParty = {
-                            showAddPartyDialog = true
+                            requestAddParty()
                         }
                     )
                 }
@@ -539,6 +555,41 @@ fun HomeScreen(
             }
         }
     }
+
+
+    if (showUpgradeDialog) {
+        androidx.compose.material3.AlertDialog(
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            onDismissRequest = { showUpgradeDialog = false },
+            title = { androidx.compose.material3.Text("Unlock Lifetime Premium") },
+            text = {
+                androidx.compose.material3.Text(
+                    "You've reached the Free plan limit of 1 party. Unlock Premium to add unlimited parties and expenses."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showUpgradeDialog = false
+                        onUpgradeClick()
+                    }
+                ) {
+                    androidx.compose.material3.Text(
+                        if (premiumPrice.isBlank()) "Unlock Premium"
+                        else "Unlock Premium · $premiumPrice"
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showUpgradeDialog = false }
+                ) {
+                    androidx.compose.material3.Text("Not now")
+                }
+            }
+        )
+    }
+
 }
 
 @Composable

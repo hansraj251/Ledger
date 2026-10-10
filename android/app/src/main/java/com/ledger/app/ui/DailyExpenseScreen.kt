@@ -189,11 +189,15 @@ fun LedgerBottomNavigation(
     }
 }
 
+private const val FREE_EXPENSE_LIMIT = 20
+
 @Composable
 fun DailyExpenseScreen(
     onPartiesClick: () -> Unit,
     onProfileClick: () -> Unit,
-    onExpenseDataChanged: () -> Unit = {}
+    onExpenseDataChanged: () -> Unit,
+    isPremium: Boolean,
+    onUpgradeClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val database = remember(context) {
@@ -219,6 +223,22 @@ fun DailyExpenseScreen(
     var refreshKey by remember { mutableStateOf(0) }
     var showExpenseDialog by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
+
+    var showUpgradeDialog by remember { mutableStateOf(false) }
+    val requestAddExpense: () -> Unit = {
+        scope.launch {
+            val expenseCount = withContext(Dispatchers.IO) {
+                dao.getAll().size
+            }
+            if (isPremium || expenseCount < FREE_EXPENSE_LIMIT) {
+                editingExpense = null
+                showExpenseDialog = true
+            } else {
+                showUpgradeDialog = true
+            }
+        }
+    }
+
     var deletingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
@@ -494,8 +514,7 @@ fun DailyExpenseScreen(
                                 },
                                 onClick = {
                                     showMenu = false
-                                    editingExpense = null
-                                    showExpenseDialog = true
+                                    requestAddExpense()
                                 }
                             )
                         }
@@ -513,8 +532,7 @@ fun DailyExpenseScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    editingExpense = null
-                    showExpenseDialog = true
+                    requestAddExpense()
                 },
                 shape = RoundedCornerShape(18.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -656,8 +674,7 @@ fun DailyExpenseScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                editingExpense = null
-                                showExpenseDialog = true
+                                requestAddExpense()
                             },
                         shape = RoundedCornerShape(20.dp)
                     ) {
@@ -769,6 +786,16 @@ fun DailyExpenseScreen(
             onSave = { amount, category, note, date ->
                 val old = editingExpense
                 scope.launch {
+                    if (old == null && !isPremium) {
+                        val expenseCount = withContext(Dispatchers.IO) {
+                            dao.getAll().size
+                        }
+                        if (expenseCount >= FREE_EXPENSE_LIMIT) {
+                            showExpenseDialog = false
+                            showUpgradeDialog = true
+                            return@launch
+                        }
+                    }
                     withContext(Dispatchers.IO) {
                         if (old == null) {
                             dao.insert(
@@ -819,6 +846,38 @@ fun DailyExpenseScreen(
         )
     }
     }
+
+
+    if (showUpgradeDialog) {
+        androidx.compose.material3.AlertDialog(
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            onDismissRequest = { showUpgradeDialog = false },
+            title = { androidx.compose.material3.Text("Unlock Lifetime Premium") },
+            text = {
+                androidx.compose.material3.Text(
+                    "You've reached the Free plan limit of 20 expenses. Unlock Premium to add unlimited expenses and parties."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showUpgradeDialog = false
+                        onUpgradeClick()
+                    }
+                ) {
+                    androidx.compose.material3.Text("Unlock Premium")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showUpgradeDialog = false }
+                ) {
+                    androidx.compose.material3.Text("Not now")
+                }
+            }
+        )
+    }
+
 }
 
 @Composable

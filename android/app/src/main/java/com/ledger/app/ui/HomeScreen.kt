@@ -448,7 +448,7 @@ item {
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "GROUP · Members and shared expenses",
+                                text = "Group",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

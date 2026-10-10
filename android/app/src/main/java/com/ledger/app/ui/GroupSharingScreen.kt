@@ -356,7 +356,7 @@ Row(
                                 maxLines = 1
                             )
                             Text(
-                                text = "${members.size} members · Shared expenses",
+                                text = "${members.size} members",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
@@ -394,10 +394,17 @@ Row(
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text("Refresh") },
+                                    text = { Text("Add Expense") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.ReceiptLong,
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = {
                                         showHeaderMenu = false
-                                        refresh++
+                                        editingExpense = null
+                                        showExpenseEditor = true
                                     }
                                 )
                             }
@@ -407,6 +414,8 @@ Row(
                 }
 
 
+                Spacer(Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -414,12 +423,12 @@ Row(
                 ) {
                     androidx.compose.material3.FilterChip(
                         selected = selectedGroupSection == "Expense",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF2563EB),
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
                             selectedLabelColor = androidx.compose.ui.graphics.Color.White
                         ),
 
                         onClick = { selectedGroupSection = "Expense" },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(42.dp),
                         label = {
                             Text(
                                 "Expense",
@@ -430,12 +439,12 @@ Row(
                     )
                     androidx.compose.material3.FilterChip(
                         selected = selectedGroupSection == "Members",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = androidx.compose.ui.graphics.Color(0xFF2563EB),
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
                             selectedLabelColor = androidx.compose.ui.graphics.Color.White
                         ),
 
                         onClick = { selectedGroupSection = "Members" },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(42.dp),
                         label = {
                             Text(
                                 "Members (${members.size})",
@@ -1076,7 +1085,7 @@ private fun NameEditorDialog(
                     else RoundedCornerShape(12.dp)
                 )
 
-                if (onDelete != null) {
+                if (onDelete != null && initialValue.isNotBlank()) {
                     OutlinedButton(
                         onClick = onDelete,
                         modifier = Modifier.fillMaxWidth(),
@@ -1100,23 +1109,29 @@ private fun NameEditorDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    if (value.trim().isNotEmpty()) onSave(value.trim())
-                },
-                shape = RoundedCornerShape(12.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(if (onDelete != null) "Save Changes" else "Save")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = {
+                        if (value.trim().isNotEmpty()) onSave(value.trim())
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save")
+                }
             }
         },
-        dismissButton = {
-            OutlinedButton(
-                onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Cancel")
-            }
-        }
+        dismissButton = {}
     )
 }
 

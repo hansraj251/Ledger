@@ -572,7 +572,7 @@ private fun BalanceSummaryCard(
 
             Text(
                 text = "${CurrencySettings.symbol}${formatAmount(amount)}",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = amountColor
             )

@@ -217,8 +217,10 @@ var showDeletePartyDialog by remember {
         context.getSharedPreferences("ledger_ui_preferences", android.content.Context.MODE_PRIVATE)
     }
 
-    var askSmsAfterTransaction by remember {
-        mutableStateOf(smsPreferences.getBoolean("ask_sms_after_transaction", false))
+    var askSmsAfterTransaction by remember(party.id) {
+        mutableStateOf(
+            smsPreferences.getBoolean("ask_sms_after_transaction_${party.id}", false)
+        )
     }
 
     LaunchedEffect(party.id) {
@@ -405,7 +407,7 @@ var showDeletePartyDialog by remember {
                     onSmsEnabledChange = { enabled ->
                         askSmsAfterTransaction = enabled
                         smsPreferences.edit()
-                            .putBoolean("ask_sms_after_transaction", enabled)
+                            .putBoolean("ask_sms_after_transaction_${party.id}", enabled)
                             .apply()
                     },
                     onAdd = {

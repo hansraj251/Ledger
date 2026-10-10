@@ -66,9 +66,8 @@ class LedgerViewModel(
         val remaining = calculateInterestAccountPosition(entries, records, asOf)
 
         val accruedNet = accrued.receivable - accrued.payable
-        val remainingNet = remaining.receivable - remaining.payable
 
-        return originalBalance - accruedNet + remainingNet
+        return originalBalance - accruedNet
     }
 
     suspend fun loadParties() {

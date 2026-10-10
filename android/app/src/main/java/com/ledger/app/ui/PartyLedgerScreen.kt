@@ -270,8 +270,39 @@ var showDeletePartyDialog by remember {
             }
 
             item {
-                BalanceHero(
+                val interestPosition = calculateInterestAccountPosition(uiState.entries, uiState.interestAccountEntries)
+
+            val gaveTransactionInterest = uiState.entries
+                .filter { it.type == EntryType.CREDIT }
+                .sumOf {
+                    calculateTransactionInterest(
+                        amount = it.amount,
+                        annualRate = it.interestRate,
+                        transactionDate = it.transactionDate,
+                        createdAt = it.createdAt
+                    )
+                }
+            val gotTransactionInterest = uiState.entries
+                .filter { it.type == EntryType.DEBIT }
+                .sumOf {
+                    calculateTransactionInterest(
+                        amount = it.amount,
+                        annualRate = it.interestRate,
+                        transactionDate = it.transactionDate,
+                        createdAt = it.createdAt
+                    )
+                }
+            val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
+                if (it.type == "GAVE") it.amount else -it.amount
+            }
+            val netInterest =
+                gaveTransactionInterest - gotTransactionInterest + totalRecordedInterest
+
+                            BalanceHero(
                     balance = uiState.balance,
+                    netInterest = netInterest,
+                    receivableInterest = interestPosition.receivable,
+                    payableInterest = interestPosition.payable,
                     hasInterest = uiState.entries.any { it.interestRate > 0.0 } ||
                         uiState.interestAccountEntries.isNotEmpty(),
                     onInterestClick = { showInterestAccount = true }
@@ -1098,7 +1129,10 @@ private fun EditPartyDialog(
 @Composable
 private fun BalanceHero(
     balance: Double,
+    netInterest: Double,
     hasInterest: Boolean,
+    receivableInterest: Double,
+    payableInterest: Double,
     onInterestClick: () -> Unit
 ) {
     val positive = balance > 0
@@ -1220,7 +1254,27 @@ private fun BalanceHero(
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(
+
+if (kotlin.math.abs(netInterest) > 0.000001) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = if (netInterest > 0.0) "Receivable Int." else "Payable Int.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "₹${formatAmount(kotlin.math.abs(netInterest))}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+Spacer(
                 modifier = Modifier.height(5.dp)
             )
 
@@ -1677,7 +1731,7 @@ private fun InterestAccountScreen(
                 }
             }
 
-            
+
 
             if (records.isEmpty()) {
                 item {

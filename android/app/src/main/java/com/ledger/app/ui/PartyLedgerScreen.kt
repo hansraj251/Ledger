@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -784,7 +786,7 @@ private fun EditTransactionDialog(
                         modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
                         singleLine = true,
                         label = { Text("Amount") },
-                        prefix = { Text("₹ ") },
+                        prefix = { Text("${CurrencySettings.symbol} ") },
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                     )
 
@@ -1248,7 +1250,7 @@ private fun BalanceHero(
             )
 
             Text(
-                text = "₹${formatAmount(abs(balance))}",
+                text = "${CurrencySettings.symbol}${formatAmount(abs(balance))}",
                 style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
@@ -1268,7 +1270,7 @@ if (kotlin.math.abs(netInterest) > 0.000001) {
                         color = if (netInterest > 0.0) Color(0xFF2E7D32) else Color(0xFFC62828)
                     )
                     Text(
-                        text = "₹${formatAmount(kotlin.math.abs(netInterest))}",
+                        text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(netInterest))}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -1387,7 +1389,7 @@ private fun InterestAccountScreen(
                 Text(
                     "Are you sure you want to delete this " +
                         "${if (record.type == "GAVE") "You Gave" else "You Got"} " +
-                        "interest record of ₹${formatAmount(record.amount)}? " +
+                        "interest record of ${CurrencySettings.symbol}${formatAmount(record.amount)}? " +
                         "This action cannot be undone."
                 )
             },
@@ -1476,7 +1478,7 @@ private fun InterestAccountScreen(
                             Text(totalInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(totalInterestDisplay)}",
+                                "${CurrencySettings.symbol}${formatAmount(totalInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1497,7 +1499,7 @@ private fun InterestAccountScreen(
                             Text(totalPaidInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(totalPaidInterestDisplay)}",
+                                "${CurrencySettings.symbol}${formatAmount(totalPaidInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1520,7 +1522,7 @@ private fun InterestAccountScreen(
                             Text(receivableInterestLabel, style = MaterialTheme.typography.labelMedium)
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "₹${formatAmount(receivableInterestDisplay)}",
+                                "${CurrencySettings.symbol}${formatAmount(receivableInterestDisplay)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1573,13 +1575,13 @@ private fun InterestAccountScreen(
                                 amountText = it
                                 validationError = ""
                             },
-                            label = { Text("Interest amount (₹)") },
+                            label = { Text("Interest amount (${CurrencySettings.symbol})") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp),
                             isError = exceedsPending,
                             supportingText = {
-                                Text("Maximum allowed: ₹$formattedMaxAmount")
+                                Text("Maximum allowed: ${CurrencySettings.symbol}$formattedMaxAmount")
                             }
                         )
                         Row(
@@ -1670,7 +1672,7 @@ private fun InterestAccountScreen(
                                     }
                                     value > maxRecordableAmount + 1e-9 -> {
                                         validationError =
-                                            "Amount exceeds pending interest. Maximum allowed: ₹$formattedMaxAmount"
+                                            "Amount exceeds pending interest. Maximum allowed: ${CurrencySettings.symbol}$formattedMaxAmount"
                                     }
                                     else -> {
                                         validationError = ""
@@ -1775,7 +1777,7 @@ private fun InterestAccountScreen(
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    "₹${formatAmount(record.amount)}",
+                                    "${CurrencySettings.symbol}${formatAmount(record.amount)}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (record.type == "GAVE") {
@@ -1901,7 +1903,7 @@ private fun TransactionComposer(
                     modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
                     singleLine = true,
                     label = { Text("Amount") },
-                    prefix = { Text("₹ ") },
+                    prefix = { Text("${CurrencySettings.symbol} ") },
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                 )
 
@@ -2123,7 +2125,7 @@ private fun TransactionCard(
                 horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = "₹${formatAmount(kotlin.math.abs(entry.amount))}",
+                    text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(entry.amount))}",
                     color = accent,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -2139,7 +2141,7 @@ private fun TransactionCard(
                     )
 
                     Text(
-                        text = "$interestDays days • ₹${formatAmount(accruedInterest)}",
+                        text = "$interestDays days • ${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -2204,16 +2206,12 @@ private fun EmptyTransactionState() {
     }
 }
 
-internal fun formatAmount(amount: Double): String {
-    return java.text.NumberFormat
-        .getIntegerInstance(java.util.Locale("en", "IN"))
-        .format(kotlin.math.round(amount).toLong())
-}
+internal fun formatAmount(amount: Double): String = CurrencySettings.formatNumber(amount)
 
 internal fun transactionAmountLabel(
     entry: LedgerEntryEntity
 ): String {
-    return "₹${formatAmount(abs(entry.amount))}"
+    return "${CurrencySettings.symbol}${formatAmount(abs(entry.amount))}"
 }
 
 internal fun transactionDateTimeLabel(

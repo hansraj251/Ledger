@@ -47,6 +47,24 @@ private val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+
+private val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER NOT NULL,
+                currencyCode TEXT NOT NULL,
+                PRIMARY KEY(id)
+            )
+            """.trimIndent()
+        )
+        database.execSQL(
+            "INSERT OR IGNORE INTO app_settings (id, currencyCode) VALUES (1, 'INR')"
+        )
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -103,7 +121,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .build().also {
                 instance = it
             }

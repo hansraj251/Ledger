@@ -1,5 +1,7 @@
 package com.ledger.app
 
+import com.ledger.app.data.CurrencySettings
+
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.collectAsState
@@ -76,6 +78,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(
             savedInstanceState
         )
+
+        CurrencySettings.load(this)
 
         googleDriveAuthorization = GoogleDriveAuthorization(
             this
@@ -991,6 +995,10 @@ private fun ProfileScreen(
     onBack: () -> Unit,
     onProfileSaved: () -> Unit
 ) {
+    var showCurrencyMenu by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
     BackHandler {
         onBack()
     }
@@ -1453,7 +1461,64 @@ private fun ProfileScreen(
                     }
                 }
             }
-        }
+
+
+            item {
+                androidx.compose.material3.Card(
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "Currency Settings",
+                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        androidx.compose.foundation.layout.Box {
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { showCurrencyMenu = true },
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                            ) {
+                                androidx.compose.material3.Text(
+                                    "${CurrencySettings.selectedOption.label} (${CurrencySettings.symbol})"
+                                )
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showCurrencyMenu,
+                                onDismissRequest = { showCurrencyMenu = false },
+                                modifier = androidx.compose.ui.Modifier
+                                    .background(androidx.compose.ui.graphics.Color.White)
+                            ) {
+                                CurrencySettings.options.forEach { option ->
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = {
+                                            androidx.compose.material3.Text(
+                                                "${option.label} (${option.symbol})"
+                                            )
+                                        },
+                                        onClick = {
+                                            CurrencySettings.setCurrency(context, option.code) { onProfileSaved() }
+                                            showCurrencyMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+}
     }
 }
 

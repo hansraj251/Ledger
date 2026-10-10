@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Canvas
@@ -105,13 +107,11 @@ internal fun createAllPartiesReportPdf(
         totalRecordedGot > 0.0 ||
         totalRecordedGave > 0.0
 
-    fun money(value: Double): String {
-        return "₹${String.format(Locale.getDefault(), "%,.0f", value)}"
-    }
+    fun money(value: Double): String = CurrencySettings.format(value)
 
     fun moneySigned(value: Double): String {
         val sign = if (value >= 0.0) "+" else "-"
-        return "$sign₹${String.format(Locale.getDefault(), "%,.0f", kotlin.math.abs(value))}"
+        return sign + CurrencySettings.format(kotlin.math.abs(value))
     }
 
     writer.startPage()

@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import androidx.lifecycle.ViewModel
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
@@ -394,7 +396,7 @@ class LedgerViewModel(
 
             if (amount > maxRecordableAmount + 1e-9) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ₹%.2f"
+                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ${CurrencySettings.symbol}%.2f"
                         .format(java.util.Locale.US, maxRecordableAmount)
                 )
                 return false
@@ -460,7 +462,7 @@ class LedgerViewModel(
 
             if (amount > maxRecordableAmount + 1e-9) {
                 _uiState.value = _uiState.value.copy(
-                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ₹%.2f"
+                    errorMessage = "Amount exceeds pending interest. Maximum allowed: ${CurrencySettings.symbol}%.2f"
                         .format(java.util.Locale.US, maxRecordableAmount)
                 )
                 return false

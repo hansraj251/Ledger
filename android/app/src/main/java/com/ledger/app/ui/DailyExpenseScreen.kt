@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import androidx.compose.material.icons.filled.ArrowBack
 
 import androidx.activity.compose.BackHandler
@@ -113,12 +115,7 @@ private val expenseCategories = listOf(
     "Bills", "Clothing", "Other"
 )
 
-private fun expenseMoney(amount: Double): String {
-    val formatter = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-    formatter.maximumFractionDigits = 0
-    formatter.minimumFractionDigits = 0
-    return formatter.format(amount)
-}
+private fun expenseMoney(amount: Double): String = CurrencySettings.format(amount)
 
 private fun expenseDateText(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
@@ -893,10 +890,10 @@ private fun ExpenseEditorDialog(
                     value = amount,
                     onValueChange = { amount = it; error = "" },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Amount (₹)") },
+                    label = { Text("Amount (${CurrencySettings.symbol})") },
                     leadingIcon = {
                         Text(
-                            "₹",
+                            "${CurrencySettings.symbol}",
                             modifier = Modifier.padding(start = 4.dp),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary

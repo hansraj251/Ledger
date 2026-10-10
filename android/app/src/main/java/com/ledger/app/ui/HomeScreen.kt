@@ -1,4 +1,6 @@
 package com.ledger.app.ui
+
+import com.ledger.app.data.CurrencySettings
 import androidx.compose.runtime.saveable.rememberSaveable
 
 import androidx.compose.ui.window.Dialog
@@ -569,7 +571,7 @@ private fun BalanceSummaryCard(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "₹${formatAmount(amount)}",
+                text = "${CurrencySettings.symbol}${formatAmount(amount)}",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = amountColor
@@ -655,7 +657,7 @@ private fun PartyCard(
             }
 
             Text(
-                text = "₹${formatAmount(kotlin.math.abs(balance))}",
+                text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balance))}",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (balance >= 0) {

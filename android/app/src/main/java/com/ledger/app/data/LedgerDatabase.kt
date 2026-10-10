@@ -10,9 +10,10 @@ import androidx.room.RoomDatabase
         LedgerDatabaseMarker::class,
         ProfileEntity::class,
         InterestAccountEntryEntity::class,
-        DailyExpenseEntity::class
+        DailyExpenseEntity::class,
+        AppSettingsEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -26,4 +27,6 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun interestAccountEntryDao(): InterestAccountEntryDao
 
     abstract fun dailyExpenseDao(): DailyExpenseDao
+
+    abstract fun appSettingsDao(): AppSettingsDao
 }

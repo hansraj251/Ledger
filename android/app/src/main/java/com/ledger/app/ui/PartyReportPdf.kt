@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Canvas
@@ -392,16 +394,14 @@ internal fun downloadPartyReportPdf(
     return "Saved to ${output.absolutePath}"
 }
 
-private fun money(value: Double): String {
-    return "₹${kotlin.math.round(value).toLong()}"
-}
+private fun money(value: Double): String = CurrencySettings.format(value)
 
 private fun moneySigned(value: Double): String {
     val rounded = kotlin.math.round(value).toLong()
     return when {
-        rounded > 0 -> "+₹$rounded"
-        rounded < 0 -> "-₹${abs(rounded)}"
-        else -> "₹0"
+        rounded > 0 -> "+" + CurrencySettings.format(kotlin.math.abs(value))
+        rounded < 0 -> "-" + CurrencySettings.format(kotlin.math.abs(value))
+        else -> CurrencySettings.format(0.0)
     }
 }
 

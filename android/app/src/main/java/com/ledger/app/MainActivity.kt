@@ -1720,7 +1720,11 @@ private fun ProfileScreen(
                             )
                             androidx.compose.material3.Button(
                                 onClick = onUpgradeClick,
-                                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = androidx.compose.ui.graphics.Color(0xFFFFC247),
+                                    contentColor = androidx.compose.ui.graphics.Color(0xFF302000)
+                                )
                             ) {
                                 androidx.compose.material3.Text(
                                     text = if (premiumPrice.isBlank())

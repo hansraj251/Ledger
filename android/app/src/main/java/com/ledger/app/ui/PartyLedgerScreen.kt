@@ -125,7 +125,8 @@ private fun transactionBalanceMessage(balance: Double): String {
 fun PartyLedgerScreen(
     party: PartyEntity,
     viewModel: LedgerViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    isPremium: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -526,6 +527,7 @@ var showDeletePartyDialog by remember {
                             BalanceHero(
                     party = currentParty,
                     balance = uiState.balance,
+                    isPremium = isPremium,
                     netInterest = netInterest,
                     receivableInterest = interestPosition.receivable,
                     payableInterest = interestPosition.payable,
@@ -1537,6 +1539,7 @@ private fun EditPartyDialog(
 private fun BalanceHero(
     party: PartyEntity,
     balance: Double,
+    isPremium: Boolean,
     netInterest: Double,
     hasInterest: Boolean,
     receivableInterest: Double,
@@ -1663,7 +1666,13 @@ private fun BalanceHero(
             Text(
                 text = "${CurrencySettings.symbol}${formatAmount(abs(balance))}",
                 style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (isPremium && positive) {
+                    Color(0xFFFFC247)
+                } else if (isPremium && negative) {
+                    Color(0xFFC62828)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 fontWeight = FontWeight.Bold
             )
 

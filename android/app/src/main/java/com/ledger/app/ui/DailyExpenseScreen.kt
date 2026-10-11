@@ -553,8 +553,10 @@ fun DailyExpenseScreen(
                     requestAddExpense()
                 },
                 shape = RoundedCornerShape(18.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = if (isPremium) Color(0xFFFFC247)
+                    else MaterialTheme.colorScheme.primary,
+                contentColor = if (isPremium) Color(0xFF302000)
+                    else MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(
                     imageVector = Icons.Outlined.ReceiptLong,
@@ -616,7 +618,11 @@ fun DailyExpenseScreen(
                                 showYearRecords = false
                             },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
+                            )
                         ) { Text("Today", maxLines = 1) }
                     } else {
                         OutlinedButton(
@@ -625,7 +631,11 @@ fun DailyExpenseScreen(
                                 showYearRecords = false
                             },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
+                            )
                         ) { Text("Today", maxLines = 1) }
                     }
 
@@ -638,7 +648,11 @@ fun DailyExpenseScreen(
                                 showMonthPicker = true
                             },
                             modifier = Modifier.weight(1.2f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             Text(
                                 SimpleDateFormat("MMM yyyy", Locale.getDefault())
@@ -655,7 +669,11 @@ fun DailyExpenseScreen(
                                 showYearRecords = false
                             },
                             modifier = Modifier.weight(1.2f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.primary
+                            )
                         ) { Text("This Month", maxLines = 1) }
                     }
 
@@ -666,7 +684,11 @@ fun DailyExpenseScreen(
                                 showYearPicker = true
                             },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.primary
+                            )
                         ) {
                             Text(selectedExpenseYear.toString(), maxLines = 1)
                         }
@@ -678,7 +700,11 @@ fun DailyExpenseScreen(
                                 showMonthRecords = false
                             },
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.primary
+                            )
                         ) { Text("This Year", maxLines = 1) }
                     }
                 }

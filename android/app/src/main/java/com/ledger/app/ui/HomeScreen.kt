@@ -406,8 +406,10 @@ fun HomeScreen(
                     requestAddParty()
                 },
                 shape = RoundedCornerShape(18.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = if (isPremium) Color(0xFFFFC247)
+                    else MaterialTheme.colorScheme.primary,
+                contentColor = if (isPremium) Color(0xFF302000)
+                    else MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(
                     imageVector = Icons.Outlined.PersonAdd,
@@ -439,7 +441,8 @@ item {
                         title = "Receivable",
                         amount = receivable,
                         modifier = Modifier.weight(1f),
-                        amountColor = MaterialTheme.colorScheme.primary,
+                        amountColor = if (isPremium) Color(0xFFFFC247)
+                            else MaterialTheme.colorScheme.primary,
                         expanded = isReceivableExpanded,
                         onClick = { isReceivableExpanded = !isReceivableExpanded },
                         details = listOf(
@@ -546,6 +549,7 @@ item {
                     PartyCard(
                         party = party,
                         balance = uiState.partyBalances[party.id] ?: 0.0,
+                        isPremium = isPremium,
                         onClick = {
                             onPartyClick(party)
                         }
@@ -1055,6 +1059,7 @@ private fun BalanceSummaryCard(
 private fun PartyCard(
     party: PartyEntity,
     balance: Double,
+    isPremium: Boolean,
     onClick: () -> Unit
 ) {
     Card(
@@ -1132,7 +1137,8 @@ private fun PartyCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (balance >= 0) {
-                    MaterialTheme.colorScheme.primary
+                    if (isPremium) Color(0xFFFFC247)
+                    else MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.error
                 }

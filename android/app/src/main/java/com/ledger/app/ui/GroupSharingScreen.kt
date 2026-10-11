@@ -741,8 +741,10 @@ Row(
                                 requestAddMember()
                             },
                             shape = RoundedCornerShape(18.dp),
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+                            containerColor = if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isPremium) Color(0xFF302000)
+                                else MaterialTheme.colorScheme.onPrimary
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.PersonAdd,
@@ -936,8 +938,10 @@ Row(
                                 showExpenseEditor = true
                             },
                             shape = RoundedCornerShape(18.dp),
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary
+                            containerColor = if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isPremium) Color(0xFF302000)
+                                else MaterialTheme.colorScheme.onPrimary
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.ReceiptLong,
@@ -969,8 +973,14 @@ Row(
                                 .clip(RoundedCornerShape(17.dp))
                                 .clickable { selectedGroupSection = "Expense" },
                             shape = RoundedCornerShape(17.dp),
-                            color = if (selectedGroupSection == "Expense")
-                                MaterialTheme.colorScheme.primary else Color.Transparent
+                            border = if (selectedGroupSection != "Expense") {
+                                if (isPremium) BorderStroke(1.dp, Color(0xFFFFC247))
+                                else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            } else null,
+                            color = if (selectedGroupSection == "Expense") {
+                                if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary
+                            } else if (isPremium) Color.White else Color.Transparent
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
@@ -981,18 +991,20 @@ Row(
                                     imageVector = Icons.Outlined.ReceiptLong,
                                     contentDescription = null,
                                     modifier = Modifier.size(19.dp),
-                                    tint = if (selectedGroupSection == "Expense")
-                                        MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (isPremium) Color(0xFF302000)
+                                        else if (selectedGroupSection == "Expense")
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     text = "Expenses",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (selectedGroupSection == "Expense")
-                                        MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isPremium) Color(0xFF302000)
+                                        else if (selectedGroupSection == "Expense")
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1002,8 +1014,14 @@ Row(
                                 .clip(RoundedCornerShape(17.dp))
                                 .clickable { selectedGroupSection = "Members" },
                             shape = RoundedCornerShape(17.dp),
-                            color = if (selectedGroupSection == "Members")
-                                MaterialTheme.colorScheme.primary else Color.Transparent
+                            border = if (selectedGroupSection != "Members") {
+                                if (isPremium) BorderStroke(1.dp, Color(0xFFFFC247))
+                                else BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            } else null,
+                            color = if (selectedGroupSection == "Members") {
+                                if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary
+                            } else if (isPremium) Color.White else Color.Transparent
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
@@ -1014,18 +1032,20 @@ Row(
                                     imageVector = Icons.Outlined.GroupAdd,
                                     contentDescription = null,
                                     modifier = Modifier.size(19.dp),
-                                    tint = if (selectedGroupSection == "Members")
-                                        MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (isPremium) Color(0xFF302000)
+                                        else if (selectedGroupSection == "Members")
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     text = "Members (${members.size})",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = if (selectedGroupSection == "Members")
-                                        MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isPremium) Color(0xFF302000)
+                                        else if (selectedGroupSection == "Members")
+                                            MaterialTheme.colorScheme.onPrimary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1534,6 +1554,7 @@ Row(
             members = members,
             initial = editingExpense,
             initialSplits = editingExpense?.let { splits[it.id].orEmpty() }.orEmpty(),
+            isPremium = isPremium,
             onDismiss = { showExpenseEditor = false },
             onDelete = {
                 val expense = editingExpense
@@ -1838,6 +1859,7 @@ private fun GroupExpenseEditorDialog(
     members: List<SharingMemberEntity>,
     initial: GroupExpenseEntity?,
     initialSplits: List<GroupExpenseSplitEntity>,
+    isPremium: Boolean,
     onDismiss: () -> Unit,
     onSave: (String, Double, Long, String, String, List<SplitDraft>) -> Unit,
     onDelete: (() -> Unit)? = null
@@ -1992,19 +2014,23 @@ private fun GroupExpenseEditorDialog(
                                 .clickable { mode = option },
                             shape = RoundedCornerShape(14.dp),
                             color = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
+                                if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary
                             } else {
-                                androidx.compose.ui.graphics.Color.White
+                                Color.White
                             },
                             contentColor = if (isSelected) {
-                                MaterialTheme.colorScheme.onPrimary
+                                if (isPremium) Color(0xFF302000)
+                                else MaterialTheme.colorScheme.onPrimary
                             } else {
-                                MaterialTheme.colorScheme.onSurface
+                                if (isPremium) Color(0xFF302000)
+                                else MaterialTheme.colorScheme.onSurface
                             },
                             border = if (isSelected) null else
                                 androidx.compose.foundation.BorderStroke(
                                     1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant
+                                    if (isPremium) Color(0xFFFFC247)
+                                    else MaterialTheme.colorScheme.primary
                                 ),
                             tonalElevation = if (isSelected) 2.dp else 0.dp
                         ) {

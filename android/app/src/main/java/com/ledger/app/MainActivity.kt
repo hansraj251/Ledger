@@ -366,7 +366,8 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         viewModel = viewModel,
                         onBack = {
                             selectedParty = null
-                        }
+                        },
+                        isPremium = premiumBillingState.isPremium
                     )
                 }
 

@@ -5,6 +5,7 @@ import com.ledger.app.data.CurrencySettings
 import androidx.compose.material.icons.filled.ArrowBack
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 
 
@@ -493,6 +494,11 @@ fun DailyExpenseScreen(
                                 .width(250.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(androidx.compose.ui.graphics.Color.White)
+                                    .border(
+                                        1.dp,
+                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                                        RoundedCornerShape(20.dp)
+                                    )
                         ) {
                             DropdownMenuItem(
                                 text = {
@@ -502,11 +508,6 @@ fun DailyExpenseScreen(
                                         Text(
                                             text = "Profile & settings",
                                             style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Text(
-                                            text = "Manage your profile",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },

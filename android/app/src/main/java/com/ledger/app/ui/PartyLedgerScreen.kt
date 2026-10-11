@@ -19,6 +19,7 @@ import android.net.Uri
 import com.ledger.app.data.CurrencySettings
 
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -1030,12 +1031,19 @@ private fun PartyHeader(
 
         Box {
             IconButton(
-                onClick = {
-                    showMenu = true
-                }
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White)
+                    .border(
+                        1.dp,
+                        Color(0xFFE7D7AE),
+                        RoundedCornerShape(14.dp)
+                    ),
+                onClick = { showMenu = true }
             ) {
                 Icon(
                     imageVector = Icons.Outlined.MoreVert,
+
                     contentDescription = "More options"
                 )
             }
@@ -1046,6 +1054,11 @@ private fun PartyHeader(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                                        RoundedCornerShape(20.dp)
+                                    )
             ) {
                 DropdownMenuItem(
                     text = { Text("Call") },

@@ -5,6 +5,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import com.ledger.app.data.CurrencySettings
+import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.window.Dialog
 
@@ -412,9 +413,20 @@ fun GroupSharingScreen(
                             tonalElevation = 0.dp,
                             shadowElevation = 1.dp
                         ) {
-                            IconButton(onClick = { showHeaderMenu = true }) {
+                            IconButton(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        Color(0xFFE7D7AE),
+                                        RoundedCornerShape(14.dp)
+                                    ),
+                                onClick = { showHeaderMenu = true }
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.MoreVert,
+
                                     contentDescription = "More options"
                                 )
                             }
@@ -427,6 +439,11 @@ fun GroupSharingScreen(
                                 .width(250.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                                        RoundedCornerShape(20.dp)
+                                    )
                         ) {
                             DropdownMenuItem(
                                 text = { Text("Refresh") },
@@ -549,9 +566,20 @@ Row(
                         }
 
                         Box {
-                            IconButton(onClick = { showHeaderMenu = true }) {
+                            IconButton(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        Color(0xFFE7D7AE),
+                                        RoundedCornerShape(14.dp)
+                                    ),
+                                onClick = { showHeaderMenu = true }
+                            ) {
                                 Icon(
                                     imageVector = Icons.Outlined.MoreVert,
+
                                     contentDescription = "Group options"
                                 )
                             }
@@ -562,6 +590,11 @@ Row(
                                     .width(250.dp)
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                                        RoundedCornerShape(20.dp)
+                                    )
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Add Member") },

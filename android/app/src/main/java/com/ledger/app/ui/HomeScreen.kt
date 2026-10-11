@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
 
 import androidx.compose.foundation.background
@@ -233,6 +234,11 @@ fun HomeScreen(
                                 .width(250.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.White)
+                                    .border(
+                                        1.dp,
+                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                                        RoundedCornerShape(20.dp)
+                                    )
                         ) {
                             DropdownMenuItem(
                                 text = {
@@ -242,11 +248,6 @@ fun HomeScreen(
                                         Text(
                                             text = "Profile & settings",
                                             style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Text(
-                                            text = "Manage your profile",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },
@@ -264,11 +265,6 @@ fun HomeScreen(
                                         Text(
                                             text = "Reports",
                                             style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Text(
-                                            text = "View all parties report",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },
@@ -293,11 +289,6 @@ fun HomeScreen(
                                             text = "Add Party",
                                             style = MaterialTheme.typography.titleMedium
                                         )
-                                        Text(
-                                            text = "Create a new party",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
                                     }
                                 },
                                 leadingIcon = {
@@ -320,11 +311,6 @@ fun HomeScreen(
                                         Text(
                                             text = "Add Group",
                                             style = MaterialTheme.typography.titleMedium
-                                        )
-                                        Text(
-                                            text = "Create or manage shared groups",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                 },

@@ -1,5 +1,9 @@
 package com.ledger.app.ui
 
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import com.ledger.app.data.CurrencySettings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.window.Dialog
@@ -161,6 +165,7 @@ fun GroupSharingScreen(
 
 
 
+    var showSettlementMemberPicker by remember { mutableStateOf(false) }
     var activeGroupId by remember(initialGroupId) {
         mutableStateOf(initialGroupId)
     }
@@ -474,6 +479,19 @@ Row(
                                         showExpenseEditor = true
                                     }
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Settle") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AccountBalanceWallet,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        showSettlementMemberPicker = true
+                                    }
+                                )
                             }
                         }
                     }
@@ -482,47 +500,6 @@ Row(
 
 
                 Spacer(Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    androidx.compose.material3.FilterChip(
-                        selected = selectedGroupSection == "Expense",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
-                        ),
-
-                        onClick = { selectedGroupSection = "Expense" },
-                        modifier = Modifier.weight(1f).height(42.dp),
-                        label = {
-                            Text(
-                                "Expense",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    )
-                    androidx.compose.material3.FilterChip(
-                        selected = selectedGroupSection == "Members",                        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary,
-                            selectedLabelColor = androidx.compose.ui.graphics.Color.White
-                        ),
-
-                        onClick = { selectedGroupSection = "Members" },
-                        modifier = Modifier.weight(1f).height(42.dp),
-                        label = {
-                            Text(
-                                "Members (${members.size})",
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
 
                 if (selectedGroupSection == "Members") {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -615,7 +592,7 @@ Row(
                     }
                     Box(
                         modifier = Modifier.align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 6.dp)
+                            .padding(end = 16.dp, bottom = 14.dp)
                     ) {
                         FloatingActionButton(
                             onClick = {
@@ -635,7 +612,10 @@ Row(
                     }
 
                     }
-} else {
+}
+
+
+ else {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (expenses.isEmpty()) {
                         Card(
@@ -770,12 +750,6 @@ Row(
 
                                     val expenseSplits = splits[expense.id].orEmpty()
                                     if (expenseSplits.isNotEmpty()) {
-                                        Text(
-                                            "MEMBER-WISE SPLIT",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = androidx.compose.ui.graphics.Color(0xFF626B78)
-                                        )
 
                                         expenseSplits.forEach { split ->
                                             Row(
@@ -814,7 +788,7 @@ Row(
                     // Add Expense icon above the bottom footer
                     Box(
                         modifier = Modifier.align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 6.dp)
+                            .padding(end = 16.dp, bottom = 14.dp)
                     ) {
                         FloatingActionButton(
                             onClick = {
@@ -835,6 +809,88 @@ Row(
 
                     }
 }
+
+                // Group section footer tabs
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.60f),
+                    tonalElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(17.dp))
+                                .clickable { selectedGroupSection = "Expense" },
+                            shape = RoundedCornerShape(17.dp),
+                            color = if (selectedGroupSection == "Expense")
+                                MaterialTheme.colorScheme.primary else Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ReceiptLong,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(19.dp),
+                                    tint = if (selectedGroupSection == "Expense")
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Expenses",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (selectedGroupSection == "Expense")
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier.weight(1f)
+                                .clip(RoundedCornerShape(17.dp))
+                                .clickable { selectedGroupSection = "Members" },
+                            shape = RoundedCornerShape(17.dp),
+                            color = if (selectedGroupSection == "Members")
+                                MaterialTheme.colorScheme.primary else Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.GroupAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(19.dp),
+                                    tint = if (selectedGroupSection == "Members")
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Members (${members.size})",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (selectedGroupSection == "Members")
+                                        MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
 
             }
             }
@@ -960,6 +1016,185 @@ Row(
                 }
             }
         )
+    }
+
+    if (showSettlementMemberPicker) {
+        val settlementMembers = members.filterNot {
+            it.name.equals("You", ignoreCase = true)
+        }
+
+        Dialog(
+            onDismissRequest = { showSettlementMemberPicker = false }
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(0.94f),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 4.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Settle",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Choose a member to record payment",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { showSettlementMemberPicker = false }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Close"
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    if (settlementMembers.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 28.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No other members in this group yet.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            settlementMembers.forEach { member ->
+                                val remaining = memberRemainingBalance(
+                                    member.id,
+                                    splits,
+                                    settlements
+                                )
+                                val isSettled = remaining <= 0.009
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                alpha = 0.48f
+                                            )
+                                        )
+                                        .clickable {
+                                            showSettlementMemberPicker = false
+                                            settlingMember = member
+                                        }
+                                        .padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(
+                                                    alpha = 0.10f
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.PersonAdd,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Text(
+                                            text = member.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            text = if (isSettled) "Settled" else "Remaining balance",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Column(
+                                        horizontalAlignment = Alignment.End,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = money(remaining),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSettled)
+                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                            else
+                                                MaterialTheme.colorScheme.primary
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Outlined.ChevronRight,
+                                            contentDescription = "Open settlement",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { showSettlementMemberPicker = false },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
     }
 
     settlingMember?.let { member ->

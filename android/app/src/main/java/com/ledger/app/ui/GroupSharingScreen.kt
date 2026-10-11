@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.window.Dialog
 
@@ -1986,7 +1987,7 @@ private fun SettlementDialog(
     )
 }
 
-private fun money(amount: Double): String = "₹" + String.format("%.2f", amount)
+private fun money(amount: Double): String = CurrencySettings.format(amount)
 private fun decimal(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
 

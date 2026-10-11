@@ -40,6 +40,21 @@ interface SharingMemberDao {
 }
 
 @Dao
+interface GroupSettlementDao {
+    @Query("SELECT * FROM group_settlements WHERE groupId = :groupId ORDER BY receivedAt DESC, id DESC")
+    fun getByGroup(groupId: Long): List<GroupSettlementEntity>
+
+    @Insert
+    fun insert(item: GroupSettlementEntity): Long
+
+    @Query("DELETE FROM group_settlements WHERE id = :id")
+    fun deleteById(id: Long)
+
+    @Query("DELETE FROM group_settlements WHERE groupId = :groupId")
+    fun deleteByGroup(groupId: Long)
+}
+
+@Dao
 interface GroupExpenseDao {
     @Query("SELECT * FROM group_expenses WHERE groupId = :groupId ORDER BY expenseDate DESC, id DESC")
     fun getByGroup(groupId: Long): List<GroupExpenseEntity>

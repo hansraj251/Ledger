@@ -69,6 +69,7 @@ import com.ledger.app.data.GroupExpenseDao
 import com.ledger.app.data.GroupExpenseEntity
 import com.ledger.app.data.GroupExpenseSplitDao
 import com.ledger.app.data.GroupExpenseSplitEntity
+import com.ledger.app.data.GroupSettlementEntity
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.SharingGroupDao
 import com.ledger.app.data.SharingGroupEntity
@@ -109,6 +110,30 @@ private data class SplitDraft(
     val shareUnits: Double
 )
 
+private fun memberExpenseTotal(
+    memberId: Long,
+    splits: Map<Long, List<GroupExpenseSplitEntity>>
+): Double = splits.values.asSequence()
+    .flatten()
+    .filter { it.memberId == memberId }
+    .sumOf { it.amount }
+
+private fun memberReceivedTotal(
+    memberId: Long,
+    settlements: List<GroupSettlementEntity>
+): Double = settlements.asSequence()
+    .filter { it.memberId == memberId }
+    .sumOf { it.amount }
+
+private fun memberRemainingBalance(
+    memberId: Long,
+    splits: Map<Long, List<GroupExpenseSplitEntity>>,
+    settlements: List<GroupSettlementEntity>
+): Double = (
+    memberExpenseTotal(memberId, splits) -
+        memberReceivedTotal(memberId, settlements)
+).coerceAtLeast(0.0)
+
 @Composable
 fun GroupSharingScreen(
     onBack: () -> Unit,
@@ -122,12 +147,19 @@ fun GroupSharingScreen(
     val memberDao = remember(database) { database.sharingMemberDao() }
     val expenseDao = remember(database) { database.groupExpenseDao() }
     val splitDao = remember(database) { database.groupExpenseSplitDao() }
+    val settlementDao = remember(database) { database.groupSettlementDao() }
     val scope = rememberCoroutineScope()
 
     var groups by remember { mutableStateOf(emptyList<SharingGroupEntity>()) }
     var members by remember { mutableStateOf(emptyList<SharingMemberEntity>()) }
     var expenses by remember { mutableStateOf(emptyList<GroupExpenseEntity>()) }
     var splits by remember { mutableStateOf(emptyMap<Long, List<GroupExpenseSplitEntity>>()) }
+    var settlements by remember { mutableStateOf(emptyList<GroupSettlementEntity>()) }
+    var settlingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
+
+
+
+
     var activeGroupId by remember(initialGroupId) {
         mutableStateOf(initialGroupId)
     }
@@ -135,6 +167,15 @@ fun GroupSharingScreen(
         mutableStateOf("Expense")
     }
     var refresh by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refresh, activeGroupId) {
+        val groupId = activeGroupId
+        settlements = withContext(Dispatchers.IO) {
+            if (groupId == null) emptyList()
+            else settlementDao.getByGroup(groupId)
+        }
+    }
+
     var groupSearch by remember { mutableStateOf("") }
     var showHeaderMenu by remember { mutableStateOf(false) }
 
@@ -147,6 +188,7 @@ fun GroupSharingScreen(
     var editingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
     var memberName by remember { mutableStateOf("") }
     var deletingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
+    var groupDeleteBlocked by remember { mutableStateOf(false) }
 
     var showExpenseEditor by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<GroupExpenseEntity?>(null) }
@@ -155,6 +197,30 @@ fun GroupSharingScreen(
     LaunchedEffect(refresh, activeGroupId) {
         val loaded = withContext(Dispatchers.IO) {
             val allGroups = groupDao.getAll()
+
+            // Every group must always contain exactly one reserved "You" member.
+            allGroups.forEach { group ->
+                val groupMembers = memberDao.getByGroup(group.id)
+                val youMembers = groupMembers.filter {
+                    it.name.equals("You", ignoreCase = true)
+                }
+
+                if (youMembers.isEmpty()) {
+                    memberDao.insert(
+                        SharingMemberEntity(groupId = group.id, name = "You")
+                    )
+                } else {
+                    // Normalize the reserved member's display name.
+                    val primaryYou = youMembers.first()
+                    if (primaryYou.name != "You") {
+                        memberDao.update(primaryYou.copy(name = "You"))
+                    }
+
+                    // Remove duplicate reserved members if any already exist.
+                    youMembers.drop(1).forEach { memberDao.delete(it) }
+                }
+            }
+
             val currentMembers = activeGroupId?.let { memberDao.getByGroup(it) }.orEmpty()
             val currentExpenses = activeGroupId?.let { expenseDao.getByGroup(it) }.orEmpty()
             val currentSplits = currentExpenses.associate { expense ->
@@ -468,14 +534,22 @@ Row(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(members, key = { it.id }) { member ->
+                                val memberBalance = memberRemainingBalance(member.id, splits, settlements)
+
                                 androidx.compose.material3.Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
-                                            editingMember = member
-                                            memberName = member.name
-                                            showMemberEditor = true
-                                        },
+                                        .then(
+                                            if (member.name.equals("You", ignoreCase = true)) {
+                                                Modifier
+                                            } else {
+                                                Modifier.clickable {
+                                                    editingMember = member
+                                                    memberName = member.name
+                                                    showMemberEditor = true
+                                                }
+                                            }
+                                        ),
                                     shape = RoundedCornerShape(20.dp),
                                     colors = androidx.compose.material3.CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.surface
@@ -506,14 +580,33 @@ Row(
                                             )
                                         }
                                         Spacer(Modifier.width(12.dp))
-                                        Text(
-                                            text = member.name,
-                                            modifier = Modifier.weight(1f),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Medium
-                                        )
+                                        Column(
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(
+                                                text = member.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            if (!member.name.equals("You", ignoreCase = true)) {
+                                                Text(
+                                                    text = "Remaining balance",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
 
+                                        Spacer(Modifier.width(12.dp))
 
+                                        if (!member.name.equals("You", ignoreCase = true)) {
+                                            Text(
+                                                text = money(memberBalance),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -544,7 +637,55 @@ Row(
 } else {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (expenses.isEmpty()) {
-                        Text("No expenses in this group yet.")
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = androidx.compose.ui.graphics.Color.White
+                            ),
+                            elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                defaultElevation = 2.dp
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 18.dp, vertical = 20.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ReceiptLong,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(12.dp).size(26.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Text(
+                                        "No expenses yet",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                    )
+                                    Text(
+                                        "Expenses added to this group will appear here.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     LazyColumn(
@@ -697,12 +838,14 @@ Row(
             }
             }
         }
-        LedgerBottomNavigation(
-            selectedTab = "groupSharing",
-            onPartiesClick = onPartiesClick,
-            onExpensesClick = onExpensesClick,
-            onGroupSharingClick = onBack
-        )
+        if (activeGroupId == null) {
+            LedgerBottomNavigation(
+                selectedTab = "groupSharing",
+                onPartiesClick = onPartiesClick,
+                onExpensesClick = onExpensesClick,
+                onGroupSharingClick = onBack
+            )
+        }
     }
 
     if (showGroupEditor) {
@@ -716,7 +859,10 @@ Row(
                 onSave = { value ->
                     scope.launch {
                         withContext(Dispatchers.IO) {
-                            groupDao.insert(SharingGroupEntity(name = value))
+                            val groupId = groupDao.insert(SharingGroupEntity(name = value))
+                            memberDao.insert(
+                                SharingMemberEntity(groupId = groupId, name = "You")
+                            )
                         }
                         showGroupEditor = false
                         refresh++
@@ -744,7 +890,14 @@ Row(
                     val group = editingGroup
                     showGroupEditor = false
                     if (group != null) deletingGroup = group
-                }
+                },
+                canDelete = editingGroup?.let { group ->
+                    val groupMembers = members.filter { it.groupId == group.id }
+                        .filterNot { it.name.equals("You", ignoreCase = true) }
+                    groupMembers.all { member ->
+                        memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                    }
+                } ?: false
             )
         }
     }
@@ -758,8 +911,24 @@ Row(
             onDelete = {
                 val member = editingMember
                 showMemberEditor = false
-                if (member != null) deletingMember = member
+                if (
+                    member != null &&
+                    !member.name.equals("You", ignoreCase = true) &&
+                    memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                ) deletingMember = member
             },
+            onSettle = {
+                val member = editingMember
+                showMemberEditor = false
+                if (member != null) settlingMember = member
+            },
+            canDelete = editingMember?.let {
+                !it.name.equals("You", ignoreCase = true) &&
+                    memberRemainingBalance(it.id, splits, settlements) <= 0.009
+            } ?: false,
+            isSettled = editingMember?.let {
+                memberRemainingBalance(it.id, splits, settlements) <= 0.009
+            } ?: false,
             onDismiss = { showMemberEditor = false },
             onSave = { value ->
                 val groupId = activeGroupId ?: return@NameEditorDialog
@@ -767,12 +936,64 @@ Row(
                     withContext(Dispatchers.IO) {
                         val old = editingMember
                         if (old == null) {
-                            memberDao.insert(SharingMemberEntity(groupId = groupId, name = value))
-                        } else {
+                            // "You" is reserved and is created automatically for every group.
+                            if (!value.equals("You", ignoreCase = true)) {
+                                val existingYou = memberDao.getByGroup(groupId).any {
+                                    it.name.equals("You", ignoreCase = true)
+                                }
+                                if (!existingYou) {
+                                    memberDao.insert(
+                                        SharingMemberEntity(groupId = groupId, name = "You")
+                                    )
+                                }
+                                memberDao.insert(
+                                    SharingMemberEntity(groupId = groupId, name = value)
+                                )
+                            }
+                        } else if (!old.name.equals("You", ignoreCase = true)) {
                             memberDao.update(old.copy(name = value))
                         }
                     }
                     showMemberEditor = false
+                    refresh++
+                }
+            }
+        )
+    }
+
+    settlingMember?.let { member ->
+        val totalExpense = memberExpenseTotal(member.id, splits)
+        val totalReceived = memberReceivedTotal(member.id, settlements)
+        val balance = (totalExpense - totalReceived).coerceAtLeast(0.0)
+
+        SettlementDialog(
+            member = member,
+            totalExpense = totalExpense,
+            totalReceived = totalReceived,
+            remainingBalance = balance,
+            history = settlements.filter { it.memberId == member.id },
+            onDelete = { record ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        settlementDao.deleteById(record.id)
+                    }
+                    refresh++
+                }
+            },
+            onDismiss = { settlingMember = null },
+            onSave = { amount ->
+                settlingMember = null
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        settlementDao.insert(
+                            GroupSettlementEntity(
+                                groupId = member.groupId,
+                                memberId = member.id,
+                                memberNameSnapshot = member.name,
+                                amount = amount
+                            )
+                        )
+                    }
                     refresh++
                 }
             }
@@ -786,16 +1007,42 @@ Row(
             text = { Text("This will delete the group's members and group expenses. ") },
             confirmButton = {
                 TextButton(onClick = {
-                    deletingGroup = null
                     scope.launch {
-                        withContext(Dispatchers.IO) {
-                            splitDao.deleteByGroup(group.id)
-                            expenseDao.deleteByGroup(group.id)
-                            memberDao.deleteByGroup(group.id)
-                            groupDao.delete(group)
+                        val hasUnsettledMembers = withContext(Dispatchers.IO) {
+                            val groupMembers = memberDao.getByGroup(group.id)
+                                .filterNot { it.name.equals("You", ignoreCase = true) }
+                            val groupExpenses = expenseDao.getByGroup(group.id)
+                            val groupSettlements = settlementDao.getByGroup(group.id)
+
+                            groupMembers.any { member ->
+                                val totalExpense = groupExpenses.sumOf { expense ->
+                                    splitDao.getByExpense(expense.id)
+                                        .filter { it.memberId == member.id }
+                                        .sumOf { it.amount }
+                                }
+                                val totalReceived = groupSettlements
+                                    .filter { it.memberId == member.id }
+                                    .sumOf { it.amount }
+
+                                totalExpense - totalReceived > 0.009
+                            }
                         }
-                        if (activeGroupId == group.id) activeGroupId = null
-                        refresh++
+
+                        if (hasUnsettledMembers) {
+                            deletingGroup = null
+                            groupDeleteBlocked = true
+                        } else {
+                            withContext(Dispatchers.IO) {
+                                splitDao.deleteByGroup(group.id)
+                                settlementDao.deleteByGroup(group.id)
+                                expenseDao.deleteByGroup(group.id)
+                                memberDao.deleteByGroup(group.id)
+                                groupDao.delete(group)
+                            }
+                            deletingGroup = null
+                            if (activeGroupId == group.id) activeGroupId = null
+                            refresh++
+                        }
                     }
                 }) { Text("Delete") }
             },
@@ -805,17 +1052,39 @@ Row(
         )
     }
 
+    if (groupDeleteBlocked) {
+        AlertDialog(
+            onDismissRequest = { groupDeleteBlocked = false },
+            title = { Text("Settlement pending") },
+            text = {
+                Text(
+                    "This group cannot be deleted until every member except You has a zero remaining balance. Please settle all outstanding balances first."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { groupDeleteBlocked = false }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     deletingMember?.let { member ->
         AlertDialog(
             onDismissRequest = { deletingMember = null },
             title = { Text("Remove member?") },
-            text = { Text("Old expense splits keep the saved member name and amount.") },
+            text = { Text("A member can be removed only after the full balance is settled. Historical expense splits retain their saved details.") },
             confirmButton = {
                 TextButton(onClick = {
                     deletingMember = null
-                    scope.launch {
-                        withContext(Dispatchers.IO) { memberDao.delete(member) }
-                        refresh++
+                    if (
+                        !member.name.equals("You", ignoreCase = true) &&
+                        memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                    ) {
+                        scope.launch {
+                            withContext(Dispatchers.IO) { memberDao.delete(member) }
+                            refresh++
+                        }
                     }
                 }) { Text("Remove") }
             },
@@ -971,7 +1240,8 @@ private fun GroupEditDialog(
     onNameChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    canDelete: Boolean
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1004,6 +1274,7 @@ private fun GroupEditDialog(
                 )
                 OutlinedButton(
                     onClick = onDelete,
+                    enabled = canDelete,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     border = androidx.compose.foundation.BorderStroke(
@@ -1054,7 +1325,10 @@ private fun NameEditorDialog(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit,
     addPartyStyle: Boolean = false,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    onSettle: (() -> Unit)? = null,
+    canDelete: Boolean = true,
+    isSettled: Boolean = false
 ) {
     var value by remember(title, initialValue) { mutableStateOf(initialValue) }
 
@@ -1085,9 +1359,20 @@ private fun NameEditorDialog(
                     else RoundedCornerShape(12.dp)
                 )
 
+                if (onSettle != null && initialValue.isNotBlank()) {
+                    Button(
+                        onClick = onSettle,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(if (isSettled) "Settled" else "Settle")
+                    }
+                }
+
                 if (onDelete != null && initialValue.isNotBlank()) {
                     OutlinedButton(
-                        onClick = onDelete,
+                        onClick = { if (canDelete) onDelete() },
+                        enabled = canDelete,
                         modifier = Modifier.fillMaxWidth(),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
@@ -1180,8 +1465,10 @@ private fun GroupExpenseEditorDialog(
     }
 
     AlertDialog(
+        modifier = Modifier.fillMaxSize(),
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(26.dp),
+        shape = androidx.compose.ui.graphics.RectangleShape,
         containerColor = androidx.compose.ui.graphics.Color.White,
         tonalElevation = 0.dp,
         title = {
@@ -1250,18 +1537,23 @@ private fun GroupExpenseEditorDialog(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedTextField(
-                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                            .format(Date(expenseDate)),
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Date") },
-                        singleLine = true,
+                    Box(
                         modifier = Modifier
                             .weight(0.9f)
-                            .clickable { showDatePicker = true },
-                        shape = RoundedCornerShape(15.dp)
-                    )
+                            .clickable { showDatePicker = true }
+                    ) {
+                        OutlinedTextField(
+                            value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                                .format(Date(expenseDate)),
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = false,
+                            label = { Text("Date") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                    }
                     OutlinedTextField(
                         value = note,
                         onValueChange = { note = it },
@@ -1384,9 +1676,13 @@ if (showMemberSearch) {
                                 OutlinedTextField(
                                     value = customAmounts[member.id] ?: "",
                                     onValueChange = { customAmounts[member.id] = it },
-                                    label = { Text("Amount") },
+                                    label = { Text("Amount", fontSize = 10.sp, maxLines = 1, lineHeight = 11.sp) },
                                     singleLine = true,
-                                    modifier = Modifier.height(44.dp).width(112.dp),
+                                    modifier = Modifier.height(52.dp).width(112.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 12.sp,
+                                        lineHeight = 14.sp
+                                    ),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     shape = RoundedCornerShape(12.dp)
                                 )
@@ -1394,9 +1690,13 @@ if (showMemberSearch) {
                                 OutlinedTextField(
                                     value = shares[member.id] ?: "1",
                                     onValueChange = { shares[member.id] = it },
-                                    label = { Text("Shares") },
+                                    label = { Text("Shares", fontSize = 10.sp, maxLines = 1, lineHeight = 11.sp) },
                                     singleLine = true,
-                                    modifier = Modifier.height(44.dp).width(112.dp),
+                                    modifier = Modifier.height(52.dp).width(112.dp),
+                                    textStyle = MaterialTheme.typography.bodySmall.copy(
+                                        fontSize = 12.sp,
+                                        lineHeight = 14.sp
+                                    ),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     shape = RoundedCornerShape(12.dp)
                                 )
@@ -1568,6 +1868,124 @@ if (showMemberSearch) {
     }
 
 }
+@Composable
+private fun SettlementDialog(
+    member: SharingMemberEntity,
+    totalExpense: Double,
+    totalReceived: Double,
+    remainingBalance: Double,
+    history: List<GroupSettlementEntity>,
+    onDelete: (GroupSettlementEntity) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit
+) {
+    var amountText by remember(member.id) { mutableStateOf("") }
+    val amount = amountText.toDoubleOrNull()
+    val validAmount = amount != null &&
+        amount > 0.0 &&
+        amount <= remainingBalance + 0.009
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(26.dp),
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
+        title = { Text("Settle with ${member.name}") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Total expense: ${money(totalExpense)}")
+                Text("Amount received: ${money(totalReceived)}")
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFF5F7FF),
+                    border = BorderStroke(1.dp, Color(0xFFE2E7F5))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            "Remaining balance",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF555F75)
+                        )
+                        Text(
+                            money(remainingBalance),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2457C5)
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { input ->
+                        if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            amountText = input
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Received Amount") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                Text("Settlement History", fontWeight = FontWeight.SemiBold)
+                androidx.compose.material3.HorizontalDivider(
+                    color = Color(0xFFE8E8EC)
+                )
+                if (history.isEmpty()) {
+                    Text("No settlements recorded yet.")
+                } else {
+                    history.sortedByDescending { it.receivedAt }.forEach { record ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    money(record.amount),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    SimpleDateFormat(
+                                        "dd MMM yyyy, hh:mm a",
+                                        Locale.getDefault()
+                                    ).format(Date(record.receivedAt)),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            IconButton(onClick = { onDelete(record) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.DeleteOutline,
+                                    contentDescription = "Delete settlement",
+                                    tint = Color(0xFFDC2626)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (validAmount) onSave(amount!!) },
+                enabled = validAmount,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Save Settlement")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
 private fun money(amount: Double): String = "₹" + String.format("%.2f", amount)
 private fun decimal(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()

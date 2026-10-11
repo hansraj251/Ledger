@@ -31,6 +31,16 @@ data class GroupExpenseEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "group_settlements")
+data class GroupSettlementEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val groupId: Long,
+    val memberId: Long,
+    val memberNameSnapshot: String,
+    val amount: Double,
+    val receivedAt: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "group_expense_splits")
 data class GroupExpenseSplitEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

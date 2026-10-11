@@ -112,6 +112,23 @@ private val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+private val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS group_settlements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                groupId INTEGER NOT NULL,
+                memberId INTEGER NOT NULL,
+                memberNameSnapshot TEXT NOT NULL,
+                amount REAL NOT NULL,
+                receivedAt INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -168,7 +185,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .build().also {
                 instance = it
             }

@@ -2391,6 +2391,9 @@ private fun TransactionComposer(
                     singleLine = true,
                     label = { Text("Amount") },
                     prefix = { Text("${CurrencySettings.symbol} ") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                 )
 

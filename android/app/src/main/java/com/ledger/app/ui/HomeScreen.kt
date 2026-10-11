@@ -112,6 +112,11 @@ fun HomeScreen(
     var sharingGroups by remember {
         mutableStateOf(emptyList<com.ledger.app.data.SharingGroupEntity>())
     }
+    var receivableInterestTotal by remember { mutableStateOf(0.0) }
+    var payableInterestTotal by remember { mutableStateOf(0.0) }
+    var groupReceivableTotal by remember { mutableStateOf(0.0) }
+    var isReceivableExpanded by rememberSaveable { mutableStateOf(false) }
+    var isPayableExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
     var newGroupName by rememberSaveable { mutableStateOf("") }
     var isSavingGroup by remember { mutableStateOf(false) }
@@ -153,6 +158,58 @@ fun HomeScreen(
         sharingGroups = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             sharingGroupDao.getAll()
         }
+    }
+
+    LaunchedEffect(context) {
+        val totals = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val database = LedgerDatabaseProvider.get(context)
+            val repository = LedgerRepository(database)
+            val asOf = System.currentTimeMillis()
+
+            val partyInterestPositions = repository.getParties().map { party ->
+                com.ledger.app.data.calculateInterestAccountPosition(
+                    transactions = repository.getEntries(party.id),
+                    records = repository.getInterestAccountEntries(party.id),
+                    asOf = asOf
+                )
+            }
+            val interestTotal = partyInterestPositions.sumOf { it.receivable }
+            val payableInterest = partyInterestPositions.sumOf { it.payable }
+
+            val memberDao = database.sharingMemberDao()
+            val expenseDao = database.groupExpenseDao()
+            val splitDao = database.groupExpenseSplitDao()
+            val settlementDao = database.groupSettlementDao()
+
+            val groupsTotal = database.sharingGroupDao().getAll().sumOf { group ->
+                val members = memberDao.getByGroup(group.id)
+                    .filterNot { it.name.trim().equals("You", ignoreCase = true) }
+                val expenses = expenseDao.getByGroup(group.id)
+                val splitsByExpense = expenses.associate { expense ->
+                    expense.id to splitDao.getByExpense(expense.id)
+                }
+                val settlements = settlementDao.getByGroup(group.id)
+
+                members.sumOf { member ->
+                    val spent = splitsByExpense.values.asSequence()
+                        .flatten()
+                        .filter { it.memberId == member.id }
+                        .sumOf { it.amount }
+
+                    val received = settlements.asSequence()
+                        .filter { it.memberId == member.id }
+                        .sumOf { it.amount }
+
+                    (spent - received).coerceAtLeast(0.0)
+                }
+            }
+
+            Triple(interestTotal, payableInterest, groupsTotal)
+        }
+
+        receivableInterestTotal = totals.first
+        payableInterestTotal = totals.second
+        groupReceivableTotal = totals.third
     }
 
     LaunchedEffect(Unit) {
@@ -382,14 +439,25 @@ item {
                         title = "Receivable",
                         amount = receivable,
                         modifier = Modifier.weight(1f),
-                        amountColor = MaterialTheme.colorScheme.primary
+                        amountColor = MaterialTheme.colorScheme.primary,
+                        expanded = isReceivableExpanded,
+                        onClick = { isReceivableExpanded = !isReceivableExpanded },
+                        details = listOf(
+                            "Receivable Int." to receivableInterestTotal,
+                            "Group Receivable" to groupReceivableTotal
+                        )
                     )
 
                     BalanceSummaryCard(
                         title = "Payable",
                         amount = payable,
                         modifier = Modifier.weight(1f),
-                        amountColor = MaterialTheme.colorScheme.error
+                        amountColor = MaterialTheme.colorScheme.error,
+                        expanded = isPayableExpanded,
+                        onClick = { isPayableExpanded = !isPayableExpanded },
+                        details = listOf(
+                            "Payable Int." to payableInterestTotal
+                        )
                     )
                 }
             }
@@ -887,10 +955,15 @@ private fun BalanceSummaryCard(
     title: String,
     amount: Double,
     modifier: Modifier = Modifier,
-    amountColor: Color
+    amountColor: Color,
+    expanded: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    details: List<Pair<String, Double>> = emptyList()
 ) {
     Card(
-        modifier = modifier,
+        modifier = modifier.then(
+            if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+        ),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -917,6 +990,38 @@ private fun BalanceSummaryCard(
                 fontWeight = FontWeight.Bold,
                 color = amountColor
             )
+
+            if (expanded && details.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                androidx.compose.material3.HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                details.forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = label,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${CurrencySettings.symbol}${formatAmount(value)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = amountColor
+                        )
+                    }
+                }
+            }
         }
     }
 }

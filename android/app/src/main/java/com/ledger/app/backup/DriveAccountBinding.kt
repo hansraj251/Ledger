@@ -16,6 +16,7 @@ import java.util.concurrent.Executors
 object DriveAccountBinding {
     private const val PREFS = "ledger_drive_account_binding"
     private const val KEY_EMAIL = "drive_account_email"
+    private const val OWNER_PREMIUM_EMAIL = "hans004333@gmail.com"
     private val executor = Executors.newSingleThreadExecutor()
 
     fun currentAccountId(context: Context): String? {
@@ -28,6 +29,16 @@ object DriveAccountBinding {
 
         if (email.isBlank()) return null
         return sha256(email)
+    }
+
+    fun isOwnerPremiumAccount(context: Context): Boolean {
+        val email = context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_EMAIL, null)
+            ?.trim()
+            ?.lowercase(Locale.ROOT)
+
+        return email == OWNER_PREMIUM_EMAIL
     }
 
     fun capture(

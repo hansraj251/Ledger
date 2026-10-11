@@ -869,18 +869,57 @@ fun DailyExpenseScreen(
         androidx.compose.material3.AlertDialog(
             containerColor = androidx.compose.ui.graphics.Color.White,
             onDismissRequest = { showUpgradeDialog = false },
-            title = { androidx.compose.material3.Text("Unlock Lifetime Premium") },
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.Text("👑", style = MaterialTheme.typography.headlineLarge)
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.Text(
+                        "Unlock Lifetime Premium",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
             text = {
-                androidx.compose.material3.Text(
-                    "You've reached the Free plan limit of 20 expenses. Unlock Premium to add unlimited expenses and parties."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    androidx.compose.material3.Text(
+                        "You've reached the Free plan limit of 20 expenses.",
+                        color = Color(0xFF55566A)
+                    )
+                    Surface(
+                        color = Color(0xFFFFFBF1),
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD782))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                "✦  PREMIUM BENEFITS",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B5A08)
+                            )
+                            androidx.compose.material3.Text("✓  Unlimited expenses & parties", color = Color(0xFF202238))
+                            androidx.compose.material3.Text("✓  Unlimited groups & members", color = Color(0xFF202238))
+                            androidx.compose.material3.Text("✓  Google Drive backup & sync", color = Color(0xFF202238))
+                        }
+                    }
+                }
             },
             confirmButton = {
                 androidx.compose.material3.Button(
                     onClick = {
                         showUpgradeDialog = false
                         onUpgradeClick()
-                    }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     androidx.compose.material3.Text("Unlock Premium")
                 }

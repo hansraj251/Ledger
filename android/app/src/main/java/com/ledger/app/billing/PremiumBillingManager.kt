@@ -189,8 +189,8 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
             purchaseAccountId == currentAccountId
 
         _state.value = _state.value.copy(
-            isPremium = accountMatches,
-            message = if (accountMatches) "" else
+            isPremium = accountMatches || DriveAccountBinding.isOwnerPremiumAccount(appContext),
+            message = if (accountMatches || DriveAccountBinding.isOwnerPremiumAccount(appContext)) "" else
                 "Premium is linked to a different Google Drive account."
         )
 
@@ -228,7 +228,9 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
                     it.accountIdentifiers?.obfuscatedAccountId == currentAccountId
             }
 
-            _state.value = _state.value.copy(isPremium = owned != null)
+            _state.value = _state.value.copy(
+                isPremium = owned != null || DriveAccountBinding.isOwnerPremiumAccount(appContext)
+            )
             owned?.let(::processPurchase)
         }
     }

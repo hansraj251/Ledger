@@ -139,13 +139,19 @@ private fun memberRemainingBalance(
         memberReceivedTotal(memberId, settlements)
 ).coerceAtLeast(0.0)
 
+private const val FREE_GROUP_LIMIT = 1
+private const val FREE_GROUP_EXTRA_MEMBER_LIMIT = 1
+
 @Composable
 fun GroupSharingScreen(
     onBack: () -> Unit,
     initialGroupId: Long? = null,
     onPartiesClick: () -> Unit,
     onExpensesClick: () -> Unit,
-    onDataChanged: () -> Unit
+    onDataChanged: () -> Unit,
+    isPremium: Boolean = false,
+    onUpgradeClick: () -> Unit = {},
+    onGroupDeleted: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
@@ -196,6 +202,8 @@ fun GroupSharingScreen(
     var memberName by remember { mutableStateOf("") }
     var deletingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
     var groupDeleteBlocked by remember { mutableStateOf(false) }
+    var showFreeLimitDialog by remember { mutableStateOf(false) }
+    var freeLimitMessage by remember { mutableStateOf("") }
 
     var showExpenseEditor by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<GroupExpenseEntity?>(null) }
@@ -245,6 +253,114 @@ fun GroupSharingScreen(
     }
 
     val activeGroup = groups.firstOrNull { it.id == activeGroupId }
+    val requestCreateGroup: () -> Unit = {
+        if (!isPremium && groups.size >= FREE_GROUP_LIMIT) {
+            freeLimitMessage =
+                "The Free plan allows only 1 group. Upgrade to Premium to create unlimited groups."
+            showFreeLimitDialog = true
+        } else {
+            editingGroup = null
+            groupName = ""
+            showGroupEditor = true
+        }
+    }
+
+    val requestAddMember: () -> Unit = {
+        val extraMembers = members.count {
+            !it.name.equals("You", ignoreCase = true)
+        }
+        if (!isPremium && extraMembers >= FREE_GROUP_EXTRA_MEMBER_LIMIT) {
+            freeLimitMessage =
+                "The Free plan allows You and 1 other member in a group. Upgrade to Premium for unlimited members."
+            showFreeLimitDialog = true
+        } else {
+            editingMember = null
+            memberName = ""
+            showMemberEditor = true
+        }
+    }
+
+    if (showFreeLimitDialog) {
+        androidx.compose.material3.AlertDialog(
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp),
+            onDismissRequest = { showFreeLimitDialog = false },
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("👑", style = MaterialTheme.typography.headlineLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Unlock Premium",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        freeLimitMessage,
+                        color = Color(0xFF55566A)
+                    )
+                    Surface(
+                        color = Color(0xFFFFFBF1),
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Color(0xFFFFD782)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "✦  PREMIUM BENEFITS",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B5A08)
+                            )
+                            Text(
+                                "✓  Unlimited members in every group",
+                                color = Color(0xFF202238)
+                            )
+                            Text(
+                                "✓  Unlimited groups",
+                                color = Color(0xFF202238)
+                            )
+                            Text(
+                                "✓  Google Drive backup & sync",
+                                color = Color(0xFF202238)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showFreeLimitDialog = false
+                        onUpgradeClick()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("👑  Unlock Premium", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showFreeLimitDialog = false }
+                ) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
+
 
     Column(Modifier.fillMaxSize()) {
         Surface(
@@ -347,11 +463,7 @@ Spacer(Modifier.height(12.dp))
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     FloatingActionButton(
-                        onClick = {
-                            editingGroup = null
-                            groupName = ""
-                            showGroupEditor = true
-                        },
+                        onClick = { requestCreateGroup() },
                         shape = RoundedCornerShape(18.dp),
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
@@ -461,9 +573,7 @@ Row(
                                     },
                                     onClick = {
                                         showHeaderMenu = false
-                                        editingMember = null
-                                        memberName = ""
-                                        showMemberEditor = true
+                                        requestAddMember()
                                     }
                                 )
                                 DropdownMenuItem(
@@ -597,9 +707,7 @@ Row(
                     ) {
                         FloatingActionButton(
                             onClick = {
-                                editingMember = null
-                                memberName = ""
-                                showMemberEditor = true
+                                requestAddMember()
                             },
                             shape = RoundedCornerShape(18.dp),
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -916,6 +1024,18 @@ Row(
                 onDismiss = { showGroupEditor = false },
                 onSave = { value ->
                     scope.launch {
+                    if (!isPremium) {
+                        val existingGroupCount = withContext(Dispatchers.IO) {
+                            groupDao.getAll().size
+                        }
+                        if (existingGroupCount >= FREE_GROUP_LIMIT) {
+                            showGroupEditor = false
+                            freeLimitMessage =
+                                "The Free plan allows only 1 group. Upgrade to Premium to create unlimited groups."
+                            showFreeLimitDialog = true
+                            return@launch
+                        }
+                    }
                         withContext(Dispatchers.IO) {
                             val groupId = groupDao.insert(SharingGroupEntity(name = value))
                             memberDao.insert(
@@ -993,6 +1113,21 @@ Row(
             onSave = { value ->
                 val groupId = activeGroupId ?: return@NameEditorDialog
                 scope.launch {
+                    val oldMemberForLimit = editingMember
+                    if (oldMemberForLimit == null && !isPremium) {
+                        val extraMemberCount = withContext(Dispatchers.IO) {
+                            memberDao.getByGroup(groupId).count {
+                                !it.name.equals("You", ignoreCase = true)
+                            }
+                        }
+                        if (extraMemberCount >= FREE_GROUP_EXTRA_MEMBER_LIMIT) {
+                            showMemberEditor = false
+                            freeLimitMessage =
+                                "The Free plan allows You and 1 other member in a group. Upgrade to Premium for unlimited members."
+                            showFreeLimitDialog = true
+                            return@launch
+                        }
+                    }
                     withContext(Dispatchers.IO) {
                         val old = editingMember
                         if (old == null) {
@@ -1282,9 +1417,10 @@ Row(
                                 groupDao.delete(group)
                             }
                             onDataChanged()
-                    deletingGroup = null
+                            deletingGroup = null
                             if (activeGroupId == group.id) activeGroupId = null
                             refresh++
+                            onGroupDeleted()
                         }
                     }
                 }) { Text("Delete") }

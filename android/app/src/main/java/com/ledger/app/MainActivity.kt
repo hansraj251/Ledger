@@ -308,6 +308,13 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         },
                         onDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
+                        },
+                        isPremium = premiumBillingState.isPremium,
+                        onUpgradeClick = { launchPremiumPurchase() },
+                        onGroupDeleted = {
+                            selectedSharingGroupId = null
+                            showGroupSharingScreen = false
+                            setDailyExpenseScreenVisible(false)
                         }
                     )
                 } else if (showDailyExpenseScreen) {

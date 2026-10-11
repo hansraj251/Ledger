@@ -114,6 +114,7 @@ fun HomeScreen(
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
     var newGroupName by rememberSaveable { mutableStateOf("") }
     var isSavingGroup by remember { mutableStateOf(false) }
+    var showGroupUpgradeDialog by remember { mutableStateOf(false) }
 
     val receivable = uiState.partyBalances.values
         .filter { it > 0.0 }
@@ -335,8 +336,12 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     showMenu = false
-                                    newGroupName = ""
-                                    showCreateGroupDialog = true
+                                    if (isPremium || sharingGroups.isEmpty()) {
+                                        newGroupName = ""
+                                        showCreateGroupDialog = true
+                                    } else {
+                                        showGroupUpgradeDialog = true
+                                    }
                                 }
                             )
                         }
@@ -661,6 +666,75 @@ item {
     }
 
 
+    if (showGroupUpgradeDialog) {
+        AlertDialog(
+            onDismissRequest = { showGroupUpgradeDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("👑", style = MaterialTheme.typography.headlineLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Unlock Premium",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text(
+                        "The Free plan allows only 1 group. Upgrade to create unlimited groups.",
+                        color = Color(0xFF55566A)
+                    )
+                    Surface(
+                        color = Color(0xFFFFFBF1),
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD782))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "✦  PREMIUM BENEFITS",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B5A08)
+                            )
+                            Text("✓  Unlimited groups", color = Color(0xFF202238))
+                            Text("✓  Unlimited group members", color = Color(0xFF202238))
+                            Text("✓  Google Drive backup & sync", color = Color(0xFF202238))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showGroupUpgradeDialog = false
+                        onUpgradeClick()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("👑  Unlock Premium", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showGroupUpgradeDialog = false }
+                ) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
+
     if (showCreateGroupDialog) {
         AlertDialog(
             containerColor = Color.White,
@@ -698,20 +772,30 @@ item {
                         if (name.isNotEmpty()) {
                             isSavingGroup = true
                             scope.launch {
-                                val latestGroups =
+val latestGroups =
                                     kotlinx.coroutines.withContext(
                                         kotlinx.coroutines.Dispatchers.IO
                                     ) {
-                                        sharingGroupDao.insert(
-                                            com.ledger.app.data.SharingGroupEntity(name = name)
-                                        )
-                                        sharingGroupDao.getAll()
+                                        val existing = sharingGroupDao.getAll()
+                                        if (!isPremium && existing.isNotEmpty()) {
+                                            null
+                                        } else {
+                                            sharingGroupDao.insert(
+                                                com.ledger.app.data.SharingGroupEntity(name = name)
+                                            )
+                                            sharingGroupDao.getAll()
+                                        }
                                     }
-                                onDataChanged()
-                                sharingGroups = latestGroups
-                                newGroupName = ""
-                                isSavingGroup = false
-                                showCreateGroupDialog = false
+                                if (latestGroups == null) {
+                                    isSavingGroup = false
+                                    showGroupUpgradeDialog = true
+                                } else {
+                                    onDataChanged()
+                                    sharingGroups = latestGroups
+                                    newGroupName = ""
+                                    isSavingGroup = false
+                                    showCreateGroupDialog = false
+                                }
                             }
                         }
                     },
@@ -742,18 +826,57 @@ item {
         androidx.compose.material3.AlertDialog(
             containerColor = androidx.compose.ui.graphics.Color.White,
             onDismissRequest = { showUpgradeDialog = false },
-            title = { androidx.compose.material3.Text("Unlock Lifetime Premium") },
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.material3.Text("👑", style = MaterialTheme.typography.headlineLarge)
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.Text(
+                        "Unlock Lifetime Premium",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
             text = {
-                androidx.compose.material3.Text(
-                    "You've reached the Free plan limit of 1 party. Unlock Premium to add unlimited parties and expenses."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    androidx.compose.material3.Text(
+                        "You've reached the Free plan limit of 1 party.",
+                        color = Color(0xFF55566A)
+                    )
+                    Surface(
+                        color = Color(0xFFFFFBF1),
+                        shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD782))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                "✦  PREMIUM BENEFITS",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B5A08)
+                            )
+                            androidx.compose.material3.Text("✓  Unlimited parties & expenses", color = Color(0xFF202238))
+                            androidx.compose.material3.Text("✓  Unlimited groups & members", color = Color(0xFF202238))
+                            androidx.compose.material3.Text("✓  Google Drive backup & sync", color = Color(0xFF202238))
+                        }
+                    }
+                }
             },
             confirmButton = {
                 androidx.compose.material3.Button(
                     onClick = {
                         showUpgradeDialog = false
                         onUpgradeClick()
-                    }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     androidx.compose.material3.Text(
                         if (premiumPrice.isBlank()) "Unlock Premium"

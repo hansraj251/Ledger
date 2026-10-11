@@ -541,6 +541,7 @@ var showDeletePartyDialog by remember {
 
             item {
                 TransactionComposer(
+                    isPremium = isPremium,
                     amount = amount,
                     note = note,
                     transactionDate = transactionDate,
@@ -2268,6 +2269,7 @@ private fun InterestAccountScreen(
 
 @Composable
 private fun TransactionComposer(
+    isPremium: Boolean,
     amount: String,
     note: String,
     transactionDate: Long,
@@ -2331,6 +2333,14 @@ private fun TransactionComposer(
 
                 Switch(
                     checked = smsEnabled,
+                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                        checkedThumbColor = if (isPremium) Color(0xFFB8862B)
+                            else MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = if (isPremium) Color(0xFFFFF0C2)
+                            else MaterialTheme.colorScheme.primaryContainer,
+                        checkedBorderColor = if (isPremium) Color(0xFFB8862B)
+                            else MaterialTheme.colorScheme.primary
+                    ),
                     onCheckedChange = { enabled ->
                         onSmsEnabledChange(enabled)
                         android.widget.Toast.makeText(

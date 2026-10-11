@@ -442,7 +442,7 @@ item {
                         title = "Receivable",
                         amount = receivable,
                         modifier = Modifier.weight(1f),
-                        amountColor = if (isPremium) Color(0xFFFFC247)
+                        amountColor = if (isPremium) Color(0xFF1B5E20)
                             else MaterialTheme.colorScheme.primary,
                         expanded = isReceivableExpanded,
                         onClick = { isReceivableExpanded = !isReceivableExpanded },
@@ -1138,7 +1138,7 @@ private fun PartyCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (balance >= 0) {
-                    if (isPremium) Color(0xFFFFC247)
+                    if (isPremium) Color(0xFF1B5E20)
                     else MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.error

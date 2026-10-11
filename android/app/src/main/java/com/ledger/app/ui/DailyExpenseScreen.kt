@@ -492,12 +492,12 @@ fun DailyExpenseScreen(
                             onDismissRequest = { showMenu = false },
                             modifier = Modifier
                                 .width(250.dp)
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(androidx.compose.ui.graphics.RectangleShape)
                                 .background(androidx.compose.ui.graphics.Color.White)
                                     .border(
                                         1.dp,
                                         androidx.compose.ui.graphics.Color(0xFFE7D7AE),
-                                        RoundedCornerShape(20.dp)
+                                        androidx.compose.ui.graphics.RectangleShape
                                     )
                         ) {
                             DropdownMenuItem(

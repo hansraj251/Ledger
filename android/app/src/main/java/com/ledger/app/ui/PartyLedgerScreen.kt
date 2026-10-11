@@ -470,7 +470,8 @@ var showDeletePartyDialog by remember {
                     },
                     onReport = {
                         showReport = true
-                    }
+                    },
+                        onSendReport = { requestPartyReport() }
                 )
                 }
             }
@@ -960,8 +961,8 @@ private fun PartyHeader(
     balance: Double,
     onBack: () -> Unit,
     onEdit: () -> Unit,
-    onReport: () -> Unit
-) {
+    onReport: () -> Unit,
+    onSendReport: () -> Unit) {
     var showMenu by remember {
         mutableStateOf(false)
     }
@@ -1031,14 +1032,6 @@ private fun PartyHeader(
 
         Box {
             IconButton(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color.White)
-                    .border(
-                        1.dp,
-                        Color(0xFFE7D7AE),
-                        RoundedCornerShape(14.dp)
-                    ),
                 onClick = { showMenu = true }
             ) {
                 Icon(
@@ -1052,13 +1045,14 @@ private fun PartyHeader(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(androidx.compose.ui.graphics.RectangleShape)
                     .background(Color.White)
-                                    .border(
-                                        1.dp,
-                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
-                                        RoundedCornerShape(20.dp)
-                                    )
+                    .border(
+                        1.dp,
+                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
+                        androidx.compose.ui.graphics.RectangleShape
+                    )
+                    .clip(androidx.compose.ui.graphics.RectangleShape)
             ) {
                 DropdownMenuItem(
                     text = { Text("Call") },
@@ -1090,21 +1084,9 @@ private fun PartyHeader(
                         )
                     },
                     onClick = {
-                        showMenu = false
-                        val phone = party.mobile.trim()
-                        val amount = kotlin.math.abs(balance)
-                        val interestText = if (netInterest > 0.0) {
-                            " Additionally, interest of ${CurrencySettings.symbol}${"%.2f".format(java.util.Locale("en", "IN"), netInterest)} is also pending."
-                        } else ""
-                        val message = "Dear ${party.name}, an outstanding payment of ${CurrencySettings.symbol}${"%.2f".format(java.util.Locale("en", "IN"), amount)} is pending in your account. Kindly arrange the payment at your earliest convenience.$interestText Thank you."
-                        if (phone.isNotBlank() && balance > 0.0) {
-                            val intent = Intent(
-                                Intent.ACTION_SENDTO,
-                                Uri.parse("smsto:" + Uri.encode(phone))
-                            ).putExtra("sms_body", message)
-                            context.startActivity(intent)
-                        }
-                    },
+                    showMenu = false
+                    onSendReport()
+                },
                     enabled = party.mobile.isNotBlank() && balance > 0.0
                 )
                 DropdownMenuItem(

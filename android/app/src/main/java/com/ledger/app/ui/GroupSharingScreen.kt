@@ -437,12 +437,12 @@ fun GroupSharingScreen(
                             onDismissRequest = { showHeaderMenu = false },
                             modifier = Modifier
                                 .width(250.dp)
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(androidx.compose.ui.graphics.RectangleShape)
                                 .background(Color.White)
                                     .border(
                                         1.dp,
                                         androidx.compose.ui.graphics.Color(0xFFE7D7AE),
-                                        RoundedCornerShape(20.dp)
+                                        androidx.compose.ui.graphics.RectangleShape
                                     )
                         ) {
                             DropdownMenuItem(
@@ -569,12 +569,8 @@ Row(
                             IconButton(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(Color.White)
-                                    .border(
-                                        1.dp,
-                                        Color(0xFFE7D7AE),
-                                        RoundedCornerShape(14.dp)
-                                    ),
+
+                                    ,
                                 onClick = { showHeaderMenu = true }
                             ) {
                                 Icon(
@@ -588,12 +584,12 @@ Row(
                                 onDismissRequest = { showHeaderMenu = false },
                                 modifier = Modifier
                                     .width(250.dp)
-                                    .clip(RoundedCornerShape(20.dp))
+                                    .clip(androidx.compose.ui.graphics.RectangleShape)
                                     .background(Color.White)
                                     .border(
                                         1.dp,
                                         androidx.compose.ui.graphics.Color(0xFFE7D7AE),
-                                        RoundedCornerShape(20.dp)
+                                        androidx.compose.ui.graphics.RectangleShape
                                     )
                             ) {
                                 DropdownMenuItem(

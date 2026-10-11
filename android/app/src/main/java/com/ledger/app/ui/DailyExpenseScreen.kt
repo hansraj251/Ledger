@@ -154,7 +154,8 @@ private fun startOfToday(): Long =
 @Composable
 fun LedgerBottomNavigation(
     selectedTab: String,
-    onPartiesClick: () -> Unit,
+        isPremium: Boolean = false,
+onPartiesClick: () -> Unit,
     onExpensesClick: () -> Unit,
     onGroupSharingClick: () -> Unit = {}
 ) {
@@ -170,9 +171,9 @@ fun LedgerBottomNavigation(
             selected = selectedTab == "parties",
             onClick = onPartiesClick,
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF1976D2),
-                selectedTextColor = Color(0xFF1976D2),
-                indicatorColor = Color(0xFFE3F2FD)
+                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
             ),
             icon = { Icon(Icons.Outlined.Group, contentDescription = null) },
             label = {
@@ -187,9 +188,9 @@ fun LedgerBottomNavigation(
             selected = selectedTab == "expenses",
             onClick = onExpensesClick,
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = Color(0xFF1976D2),
-                selectedTextColor = Color(0xFF1976D2),
-                indicatorColor = Color(0xFFE3F2FD)
+                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
             ),
             icon = { Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null) },
             label = {
@@ -542,6 +543,7 @@ fun DailyExpenseScreen(
         bottomBar = {
             LedgerBottomNavigation(
                 selectedTab = "expenses",
+                isPremium = isPremium,
                 onPartiesClick = onPartiesClick,
                 onExpensesClick = {},
                 onGroupSharingClick = onGroupSharingClick

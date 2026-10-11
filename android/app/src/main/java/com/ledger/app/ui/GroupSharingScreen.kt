@@ -1058,6 +1058,7 @@ Row(
         if (activeGroupId == null) {
             LedgerBottomNavigation(
                 selectedTab = "groupSharing",
+                isPremium = isPremium,
                 onPartiesClick = onPartiesClick,
                 onExpensesClick = onExpensesClick,
                 onGroupSharingClick = onBack

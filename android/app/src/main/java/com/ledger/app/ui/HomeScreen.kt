@@ -395,6 +395,7 @@ fun HomeScreen(
         bottomBar = {
             LedgerBottomNavigation(
                 selectedTab = "parties",
+                isPremium = isPremium,
                 onPartiesClick = {},
                 onExpensesClick = onDailyExpenseClick,
                 onGroupSharingClick = onGroupSharingClick

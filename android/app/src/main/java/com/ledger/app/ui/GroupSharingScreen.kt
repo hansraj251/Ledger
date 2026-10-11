@@ -144,7 +144,8 @@ fun GroupSharingScreen(
     onBack: () -> Unit,
     initialGroupId: Long? = null,
     onPartiesClick: () -> Unit,
-    onExpensesClick: () -> Unit
+    onExpensesClick: () -> Unit,
+    onDataChanged: () -> Unit
 ) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
@@ -921,7 +922,8 @@ Row(
                                 SharingMemberEntity(groupId = groupId, name = "You")
                             )
                         }
-                        showGroupEditor = false
+                        onDataChanged()
+                    showGroupEditor = false
                         refresh++
                     }
                 }
@@ -939,7 +941,8 @@ Row(
                                 groupDao.update(group.copy(name = value))
                             }
                         }
-                        showGroupEditor = false
+                        onDataChanged()
+                    showGroupEditor = false
                         refresh++
                     }
                 },
@@ -1011,6 +1014,7 @@ Row(
                             memberDao.update(old.copy(name = value))
                         }
                     }
+                    onDataChanged()
                     showMemberEditor = false
                     refresh++
                 }
@@ -1213,6 +1217,7 @@ Row(
                     withContext(Dispatchers.IO) {
                         settlementDao.deleteById(record.id)
                     }
+                    onDataChanged()
                     refresh++
                 }
             },
@@ -1230,6 +1235,7 @@ Row(
                             )
                         )
                     }
+                    onDataChanged()
                     refresh++
                 }
             }
@@ -1275,7 +1281,8 @@ Row(
                                 memberDao.deleteByGroup(group.id)
                                 groupDao.delete(group)
                             }
-                            deletingGroup = null
+                            onDataChanged()
+                    deletingGroup = null
                             if (activeGroupId == group.id) activeGroupId = null
                             refresh++
                         }
@@ -1319,7 +1326,8 @@ Row(
                     ) {
                         scope.launch {
                             withContext(Dispatchers.IO) { memberDao.delete(member) }
-                            refresh++
+                            onDataChanged()
+                    refresh++
                         }
                     }
                 }) { Text("Remove") }
@@ -1343,7 +1351,8 @@ Row(
                             splitDao.deleteByExpense(expense.id)
                             expenseDao.delete(expense)
                         }
-                        refresh++
+                        onDataChanged()
+                    refresh++
                     }
                 }) { Text("Delete") }
             },
@@ -1408,6 +1417,7 @@ Row(
                             }
                         )
                     }
+                    onDataChanged()
                     showExpenseEditor = false
                     refresh++
                 }

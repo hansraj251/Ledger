@@ -305,6 +305,9 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         onExpensesClick = {
                             showGroupSharingScreen = false
                             setDailyExpenseScreenVisible(true)
+                        },
+                        onDataChanged = {
+                            googleDriveSyncCoordinator.requestAutoSync()
                         }
                     )
                 } else if (showDailyExpenseScreen) {
@@ -345,6 +348,10 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
                         onUpgradeClick = { launchPremiumPurchase() }
+                    ,
+                        onDataChanged = {
+                            googleDriveSyncCoordinator.requestAutoSync()
+                        }
                     )
                 } else {
                     PartyLedgerScreen(

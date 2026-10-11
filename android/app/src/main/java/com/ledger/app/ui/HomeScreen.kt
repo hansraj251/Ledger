@@ -84,7 +84,8 @@ fun HomeScreen(
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit,
-) {
+
+    onDataChanged: () -> Unit) {
     var profileName by rememberSaveable {
         mutableStateOf("")
     }
@@ -662,6 +663,7 @@ item {
 
     if (showCreateGroupDialog) {
         AlertDialog(
+            containerColor = Color.White,
             onDismissRequest = {
                 if (!isSavingGroup) showCreateGroupDialog = false
             },
@@ -705,6 +707,7 @@ item {
                                         )
                                         sharingGroupDao.getAll()
                                     }
+                                onDataChanged()
                                 sharingGroups = latestGroups
                                 newGroupName = ""
                                 isSavingGroup = false

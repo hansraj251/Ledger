@@ -287,7 +287,10 @@ fun GroupSharingScreen(
             shape = RoundedCornerShape(28.dp),
             onDismissRequest = { showFreeLimitDialog = false },
             title = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -338,27 +341,41 @@ fun GroupSharingScreen(
                 }
             },
             confirmButton = {
-                androidx.compose.material3.Button(
-                    onClick = {
-                        showFreeLimitDialog = false
-                        onUpgradeClick()
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFC247),
-                        contentColor = Color(0xFF302000)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("👑  Unlock Premium", fontWeight = FontWeight.Bold)
+                    androidx.compose.material3.TextButton(
+                        onClick = { showFreeLimitDialog = false },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Not now", maxLines = 1)
+                    }
+
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            showFreeLimitDialog = false
+                            onUpgradeClick()
+                        },
+                        modifier = Modifier.weight(2f),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFC247),
+                            contentColor = Color(0xFF302000)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            "Unlock Premium",
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { showFreeLimitDialog = false }
-                ) {
-                    Text("Not now")
-                }
-            }
+            dismissButton = {}
         )
     }
 
@@ -475,22 +492,7 @@ Spacer(Modifier.height(12.dp))
                     }
                 }
 
-                                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    FloatingActionButton(
-                        onClick = { requestCreateGroup() },
-                        shape = RoundedCornerShape(18.dp),
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.GroupAdd,
-                            contentDescription = "Add Group"
-                        )
-                    }
-                }
+
 
             } else {
                 Surface(

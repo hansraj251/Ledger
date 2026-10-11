@@ -726,7 +726,10 @@ item {
             containerColor = Color.White,
             shape = RoundedCornerShape(28.dp),
             title = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(
@@ -765,27 +768,44 @@ item {
                 }
             },
             confirmButton = {
-                androidx.compose.material3.Button(
-                    onClick = {
-                        showGroupUpgradeDialog = false
-                        onUpgradeClick()
-                    },
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFFC247),
-                        contentColor = Color(0xFF302000)
-                    ),
-                    shape = RoundedCornerShape(16.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("👑  Unlock Premium", fontWeight = FontWeight.Bold)
+                    TextButton(
+                        onClick = { showGroupUpgradeDialog = false },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Not now", maxLines = 1, softWrap = false)
+                    }
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            showGroupUpgradeDialog = false
+                            onUpgradeClick()
+                        },
+                        modifier = Modifier.weight(1.7f),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 6.dp,
+                            vertical = 10.dp
+                        ),
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFC247),
+                            contentColor = Color(0xFF302000)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            "Unlock Premium",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(
-                    onClick = { showGroupUpgradeDialog = false }
-                ) {
-                    Text("Not now")
-                }
-            }
+            dismissButton = {}
         )
     }
 
@@ -882,11 +902,16 @@ val latestGroups =
             onDismissRequest = { showUpgradeDialog = false },
             shape = RoundedCornerShape(28.dp),
             title = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     androidx.compose.material3.Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.Text(
-                        "Unlock Lifetime Premium",
+                        "Unlock Premium",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFF171B3A)

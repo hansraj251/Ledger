@@ -1692,10 +1692,15 @@ private fun ProfileScreen(
             if (!isPremium) {
                 item {
                     androidx.compose.material3.Card(
-                        modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                        shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxWidth(),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            androidx.compose.ui.graphics.Color(0xFFE7D7AE)
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
-                            containerColor = androidx.compose.ui.graphics.Color.White
+                            containerColor = androidx.compose.ui.graphics.Color(0xFFFFFBF1)
                         )
                     ) {
                         androidx.compose.foundation.layout.Column(
@@ -1710,7 +1715,7 @@ private fun ProfileScreen(
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                             )
                             androidx.compose.material3.Text(
-                                text = "Add unlimited parties and expenses with a one-time purchase.",
+                                text = "Add unlimited parties, expenses, groups and members with a one-time purchase.",
                                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                             )
                             androidx.compose.material3.Button(

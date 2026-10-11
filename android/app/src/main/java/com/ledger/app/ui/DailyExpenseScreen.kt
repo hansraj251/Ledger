@@ -876,7 +876,9 @@ fun DailyExpenseScreen(
                     androidx.compose.material3.Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.Text(
-                        "Unlock Lifetime Premium",
+                        "Unlock Premium",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFF171B3A)

@@ -1423,7 +1423,7 @@ private fun EditTransactionDialog(
 }
 
 @Composable
-private fun EditPartyDialog(
+fun EditPartyDialog(
     name: String,
     mobile: String,
     onNameChange: (String) -> Unit,
@@ -1471,6 +1471,7 @@ private fun EditPartyDialog(
                     value = mobile,
                     onValueChange = onMobileChange,
                     modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
                     label = { Text("Mobile number") },
                     singleLine = true,
                     shape = RoundedCornerShape(15.dp)
@@ -2047,6 +2048,7 @@ private fun InterestAccountScreen(
                                 amountText = it
                                 validationError = ""
                             },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
                             label = { Text("Interest amount (${CurrencySettings.symbol})") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,

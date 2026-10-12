@@ -1361,6 +1361,37 @@ private fun ProfileScreen(
                             androidx.compose.ui.Alignment.CenterHorizontally
                     ) {
 
+                        androidx.compose.foundation.layout.Row(
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            horizontalArrangement =
+                                androidx.compose.foundation.layout.Arrangement.End
+                        ) {
+                            val profileIsPremium = isPremium
+
+                            androidx.compose.material3.Surface(
+                                color = if (profileIsPremium)
+                                    androidx.compose.ui.graphics.Color(0xFFE8F5E9)
+                                else
+                                    androidx.compose.ui.graphics.Color(0xFFF1F3F5),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = if (profileIsPremium) "Premium" else "Free User",
+                                    modifier = androidx.compose.ui.Modifier.padding(
+                                        horizontal = 12.dp,
+                                        vertical = 6.dp
+                                    ),
+                                    color = if (profileIsPremium)
+                                        androidx.compose.ui.graphics.Color(0xFF1B5E20)
+                                    else
+                                        androidx.compose.ui.graphics.Color(0xFF495057),
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                )
+                            }
+                        }
+
+
                         androidx.compose.foundation.layout.Box(
                             modifier =
                                 androidx.compose.ui.Modifier
@@ -1533,6 +1564,8 @@ private fun ProfileScreen(
 
                             androidx.compose.material3.OutlinedTextField(
                                 value = editMobile,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
+
                                 onValueChange = {
                                     editMobile = it
                                 },

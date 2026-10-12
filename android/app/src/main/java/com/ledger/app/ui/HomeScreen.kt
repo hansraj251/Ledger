@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.width
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -139,6 +140,13 @@ fun HomeScreen(
     var showAddPartyDialog by remember {
         mutableStateOf(false)
     }
+
+    var editingParty by remember { mutableStateOf<PartyEntity?>(null) }
+    var editPartyName by remember { mutableStateOf("") }
+    var editPartyMobile by remember { mutableStateOf("") }
+    var isSavingEditedParty by remember { mutableStateOf(false) }
+    var deletingEditedParty by remember { mutableStateOf<PartyEntity?>(null) }
+    var showDeleteEditedPartyDialog by remember { mutableStateOf(false) }
 
     var showMenu by remember {
         mutableStateOf(false)
@@ -553,11 +561,83 @@ item {
                         isPremium = isPremium,
                         onClick = {
                             onPartyClick(party)
+                        },
+                        onLongClick = {
+                            editPartyName = party.name
+                            editPartyMobile = party.mobile
+                            editingParty = party
                         }
                     )
                 }
             }
         }
+    }
+
+    editingParty?.let { targetParty ->
+        EditPartyDialog(
+            name = editPartyName,
+            mobile = editPartyMobile,
+            onNameChange = { editPartyName = it },
+            onMobileChange = { if (it.length <= 15) editPartyMobile = it },
+            onDismiss = { editingParty = null },
+            onSave = {
+                scope.launch {
+                    val saved = viewModel.updateParty(
+                        party = targetParty,
+                        name = editPartyName,
+                        mobile = editPartyMobile
+                    )
+                    if (saved) editingParty = null
+                }
+            },
+            onDelete = {
+                deletingEditedParty = targetParty
+                editingParty = null
+                showDeleteEditedPartyDialog = true
+            }
+        )
+    }
+
+    if (showDeleteEditedPartyDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteEditedPartyDialog = false },
+            title = { Text("Delete Party?") },
+            text = {
+                Text(
+                    "This will permanently delete ${deletingEditedParty?.name.orEmpty()} and all ledger entries for this party."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val targetParty = deletingEditedParty
+                        if (targetParty != null) {
+                            scope.launch {
+                                viewModel.deleteParty(targetParty)
+                                showDeleteEditedPartyDialog = false
+                                deletingEditedParty = null
+                            }
+                        }
+                    }
+                ) {
+                    Text(
+                        "Delete",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteEditedPartyDialog = false
+                        deletingEditedParty = null
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showAddPartyDialog) {
@@ -639,6 +719,7 @@ item {
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         enabled = !isSavingParty,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
                         label = {
                             Text("Mobile number")
                         },
@@ -1061,12 +1142,16 @@ private fun PartyCard(
     party: PartyEntity,
     balance: Double,
     isPremium: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -1313,6 +1398,7 @@ private fun AddPartyDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone),
                     label = {
                         Text("Mobile number")
                     },

@@ -183,7 +183,7 @@ class GoogleDriveRestore(
             URL(
                 "https://www.googleapis.com/drive/v3/files" +
                     "?q=$encodedQuery" +
-                    "&spaces=drive" +
+                    "&spaces=appDataFolder" +
                     "&pageSize=10" +
                     "&fields=$encodedFields"
             )

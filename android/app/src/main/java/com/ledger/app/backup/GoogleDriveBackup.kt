@@ -148,7 +148,8 @@ class GoogleDriveBackup(
             """
             {
               "name": "$BACKUP_FILE_NAME",
-              "mimeType": "$MIME_TYPE"
+              "mimeType": "$MIME_TYPE",
+              "parents": ["appDataFolder"]
             }
             """.trimIndent()
 

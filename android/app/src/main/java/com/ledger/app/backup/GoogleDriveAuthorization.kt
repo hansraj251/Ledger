@@ -13,6 +13,8 @@ class GoogleDriveAuthorization(
     companion object {
         const val DRIVE_FILE_SCOPE =
             "https://www.googleapis.com/auth/" + "drive.file"
+        const val DRIVE_APPDATA_SCOPE =
+            "https://www.googleapis.com/auth/drive.appdata"
     }
 
     private val authorizationClient: AuthorizationClient =
@@ -26,6 +28,7 @@ class GoogleDriveAuthorization(
             .setRequestedScopes(
                 listOf(
                     Scope(DRIVE_FILE_SCOPE),
+                    Scope(DRIVE_APPDATA_SCOPE),
                     Scope("https://www.googleapis.com/auth/userinfo.email")
                 )
             )

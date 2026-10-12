@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -152,7 +153,8 @@ fun GroupSharingScreen(
     onDataChanged: () -> Unit,
     isPremium: Boolean = false,
     onUpgradeClick: () -> Unit = {},
-    onGroupDeleted: () -> Unit = {}
+    onGroupDeleted: () -> Unit = {},
+    onGroupReportClick: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
@@ -632,6 +634,19 @@ Row(
                                     onClick = {
                                         showHeaderMenu = false
                                         showSettlementMemberPicker = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Group Expense Report") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Description,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        activeGroupId?.let(onGroupReportClick)
                                     }
                                 )
                             }

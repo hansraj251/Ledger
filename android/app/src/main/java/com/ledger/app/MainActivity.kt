@@ -58,6 +58,7 @@ import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
 import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.GroupSharingScreen
+import com.ledger.app.ui.GroupExpenseReportScreen
 import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
@@ -220,6 +221,7 @@ class MainActivity : ComponentActivity() {
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
+                var showGroupExpenseReport by remember { mutableStateOf(false) }
 fun setDailyExpenseScreenVisible(visible: Boolean) {
                     showDailyExpenseScreen = visible
                     mainPagePrefs.edit()
@@ -277,6 +279,11 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                             showAllPartiesReport = false
                         }
                     )
+                } else if (showGroupExpenseReport) {
+                    GroupExpenseReportScreen(
+                        groupId = selectedSharingGroupId ?: 0L,
+                        onBack = { showGroupExpenseReport = false }
+                    )
                 } else if (showProfileScreen) {
                     ProfileScreen(
                         onBack = {
@@ -311,6 +318,10 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         },
                         isPremium = premiumBillingState.isPremium,
                         onUpgradeClick = { launchPremiumPurchase() },
+                        onGroupReportClick = { groupId ->
+                            selectedSharingGroupId = groupId
+                            showGroupExpenseReport = true
+                        },
                         onGroupDeleted = {
                             selectedSharingGroupId = null
                             showGroupSharingScreen = false

@@ -227,6 +227,8 @@ fun DailyExpenseScreen(
     var isLoading by remember { mutableStateOf(true) }
     var showMonthRecords by remember { mutableStateOf(false) }
     var showYearRecords by remember { mutableStateOf(false) }
+    var showSelectedDayRecords by remember { mutableStateOf(false) }
+    var selectedDayStart by remember { mutableStateOf(startOfToday()) }
     var selectedExpenseYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
     var selectedMonthStart by remember {
         mutableStateOf(startOfExpenseMonth(System.currentTimeMillis()))
@@ -242,6 +244,28 @@ fun DailyExpenseScreen(
     var editingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
 
     var showUpgradeDialog by remember { mutableStateOf(false) }
+
+    val openExpenseDatePicker: () -> Unit = {
+    val selected = Calendar.getInstance().apply {
+        timeInMillis = selectedDayStart
+    }
+    DatePickerDialog(
+        context,
+        { _, year, month, day ->
+            selectedDayStart = Calendar.getInstance().apply {
+                clear()
+                set(year, month, day, 0, 0, 0)
+            }.timeInMillis
+            showSelectedDayRecords = true
+            showMonthRecords = false
+            showYearRecords = false
+            refreshKey++
+        },
+        selected.get(Calendar.YEAR),
+        selected.get(Calendar.MONTH),
+        selected.get(Calendar.DAY_OF_MONTH)
+    ).show()
+}
     val requestAddExpense: () -> Unit = {
         scope.launch {
             val expenseCount = withContext(Dispatchers.IO) {
@@ -261,7 +285,7 @@ fun DailyExpenseScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showCategoryChart by remember { mutableStateOf(false) }
 
-    LaunchedEffect(showMonthRecords, showYearRecords, selectedMonthStart, selectedExpenseYear, refreshKey) {
+    LaunchedEffect(showMonthRecords, showYearRecords, showSelectedDayRecords, selectedDayStart, selectedMonthStart, selectedExpenseYear, refreshKey) {
         isLoading = true
         expenses = withContext(Dispatchers.IO) {
             val all = dao.getAll()
@@ -276,6 +300,7 @@ fun DailyExpenseScreen(
                     set(Calendar.MILLISECOND, 0)
                 }.timeInMillis
                 showMonthRecords -> selectedMonthStart
+                showSelectedDayRecords -> selectedDayStart
                 else -> startOfToday()
             }
             val end = Calendar.getInstance().apply {
@@ -311,6 +336,7 @@ fun DailyExpenseScreen(
     if (showYearPicker) {
         AlertDialog(
             onDismissRequest = { showYearPicker = false },
+            containerColor = androidx.compose.ui.graphics.Color.White,
             title = { Text("Select year") },
             text = {
                 Row(
@@ -358,6 +384,7 @@ fun DailyExpenseScreen(
 
         AlertDialog(
             onDismissRequest = { showMonthPicker = false },
+            containerColor = androidx.compose.ui.graphics.Color.White,
             title = { Text("Select month") },
             text = {
                 Column {
@@ -615,20 +642,29 @@ fun DailyExpenseScreen(
                 ) {
                     if (!showMonthRecords && !showYearRecords) {
                         Button(
-                            onClick = {
-                                showMonthRecords = false
-                                showYearRecords = false
-                            },
+                            onClick = { openExpenseDatePicker() },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp),
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                 containerColor = if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary,
                                 contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
                             )
-                        ) { Text("Today", maxLines = 1) }
+                        ) { Text(
+    if (!showMonthRecords && !showYearRecords) {
+        java.text.SimpleDateFormat("dd-MMM-yy", java.util.Locale.getDefault())
+            .format(java.util.Date(
+                if (showSelectedDayRecords) selectedDayStart else startOfToday()
+            ))
+    } else {
+        "Today"
+    },
+    maxLines = 1
+) }
                     } else {
                         OutlinedButton(
                             onClick = {
+                                selectedDayStart = startOfToday()
+                                showSelectedDayRecords = false
                                 showMonthRecords = false
                                 showYearRecords = false
                             },
@@ -636,9 +672,20 @@ fun DailyExpenseScreen(
                             contentPadding = PaddingValues(horizontal = 4.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary),
                             colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
+                                containerColor = if (isPremium) Color(0xFFFFF7E5) else Color.White,
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.primary
                             )
-                        ) { Text("Today", maxLines = 1) }
+                        ) { Text(
+    if (!showMonthRecords && !showYearRecords) {
+        java.text.SimpleDateFormat("dd-MMM-yy", java.util.Locale.getDefault())
+            .format(java.util.Date(
+                if (showSelectedDayRecords) selectedDayStart else startOfToday()
+            ))
+    } else {
+        "Today"
+    },
+    maxLines = 1
+) }
                     }
 
                     if (showMonthRecords) {
@@ -689,7 +736,7 @@ fun DailyExpenseScreen(
                             contentPadding = PaddingValues(horizontal = 4.dp),
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                 containerColor = if (isPremium) Color(0xFFFFC247) else MaterialTheme.colorScheme.primary,
-                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.primary
+                                contentColor = if (isPremium) Color(0xFF302000) else MaterialTheme.colorScheme.onPrimary
                             )
                         ) {
                             Text(selectedExpenseYear.toString(), maxLines = 1)

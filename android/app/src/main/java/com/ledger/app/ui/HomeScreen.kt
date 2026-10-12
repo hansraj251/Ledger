@@ -640,6 +640,71 @@ item {
         )
     }
 
+
+    val contactPickerContext = androidx.compose.ui.platform.LocalContext.current
+
+    val contactPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val contactUri = result.data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && contactUri != null) {
+            var selectedName = ""
+            var selectedMobile = ""
+
+            try {
+                val projection = arrayOf(
+                    android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER
+                )
+
+                contactPickerContext.contentResolver.query(
+                    contactUri,
+                    projection,
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        selectedName = cursor.getString(
+                            cursor.getColumnIndexOrThrow(
+                                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
+                            )
+                        ).orEmpty().trim()
+
+                        selectedMobile = cursor.getString(
+                            cursor.getColumnIndexOrThrow(
+                                android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER
+                            )
+                        ).orEmpty().trim()
+                    }
+                }
+            } catch (_: SecurityException) {
+                android.widget.Toast.makeText(
+                    contactPickerContext,
+                    "Selected contact details could not be read. Please try again.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } catch (_: IllegalArgumentException) {
+                android.widget.Toast.makeText(
+                    contactPickerContext,
+                    "Selected contact details are unavailable.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+
+            when {
+                selectedName.isNotBlank() -> {
+                    partyName = selectedName
+                    partyMobile = selectedMobile
+                }
+                selectedMobile.isNotBlank() -> {
+                    partyName = selectedMobile
+                    partyMobile = selectedMobile
+                }
+            }
+        }
+    }
+
     if (showAddPartyDialog) {
         Dialog(
             onDismissRequest = {
@@ -679,6 +744,31 @@ item {
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            contactPicker.launch(
+                                android.content.Intent(
+                                    android.content.Intent.ACTION_PICK,
+                                    android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                                )
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        enabled = !isSavingParty,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PersonAdd,
+                            contentDescription = null
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Add from Contacts", fontWeight = FontWeight.SemiBold)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
                         value = partyName,

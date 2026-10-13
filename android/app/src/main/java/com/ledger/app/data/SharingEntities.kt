@@ -1,6 +1,7 @@
 package com.ledger.app.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "sharing_groups")
@@ -40,6 +41,19 @@ data class GroupSettlementEntity(
     val memberNameSnapshot: String,
     val amount: Double,
     val receivedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "group_expense_payments",
+    indices = [Index(value = ["expenseId"])]
+)
+data class GroupExpensePaymentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val expenseId: Long,
+    val memberId: Long,
+    val memberNameSnapshot: String,
+    val amount: Double,
+    val paidAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "group_expense_splits")

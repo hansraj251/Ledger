@@ -73,6 +73,26 @@ interface GroupExpenseDao {
 }
 
 @Dao
+interface GroupExpensePaymentDao {
+    @Query("SELECT * FROM group_expense_payments WHERE expenseId = :expenseId ORDER BY memberNameSnapshot COLLATE NOCASE")
+    fun getByExpense(expenseId: Long): List<GroupExpensePaymentEntity>
+
+    @Insert
+    fun insertAll(items: List<GroupExpensePaymentEntity>)
+
+    @Query("DELETE FROM group_expense_payments WHERE expenseId = :expenseId")
+    fun deleteByExpense(expenseId: Long)
+
+    @Query("""
+        DELETE FROM group_expense_payments
+        WHERE expenseId IN (
+            SELECT id FROM group_expenses WHERE groupId = :groupId
+        )
+    """)
+    fun deleteByGroup(groupId: Long)
+}
+
+@Dao
 interface GroupExpenseSplitDao {
     @Query("SELECT * FROM group_expense_splits WHERE expenseId = :expenseId ORDER BY memberNameSnapshot COLLATE NOCASE")
     fun getByExpense(expenseId: Long): List<GroupExpenseSplitEntity>

@@ -15,10 +15,11 @@ import androidx.room.RoomDatabase
         SharingMemberEntity::class,
         GroupExpenseEntity::class,
         GroupExpenseSplitEntity::class,
+        GroupExpensePaymentEntity::class,
         GroupSettlementEntity::class,
         AppSettingsEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -40,6 +41,8 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun groupExpenseDao(): GroupExpenseDao
 
     abstract fun groupExpenseSplitDao(): GroupExpenseSplitDao
+
+    abstract fun groupExpensePaymentDao(): GroupExpensePaymentDao
 
     abstract fun groupSettlementDao(): GroupSettlementDao
 

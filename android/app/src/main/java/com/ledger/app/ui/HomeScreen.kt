@@ -187,6 +187,7 @@ fun HomeScreen(
             val memberDao = database.sharingMemberDao()
             val expenseDao = database.groupExpenseDao()
             val splitDao = database.groupExpenseSplitDao()
+            val paymentDao = database.groupExpensePaymentDao()
             val settlementDao = database.groupSettlementDao()
 
             val groupsTotal = database.sharingGroupDao().getAll().sumOf { group ->
@@ -196,6 +197,9 @@ fun HomeScreen(
                 val splitsByExpense = expenses.associate { expense ->
                     expense.id to splitDao.getByExpense(expense.id)
                 }
+                val paymentsByExpense = expenses.associate { expense ->
+                    expense.id to paymentDao.getByExpense(expense.id)
+                }
                 val settlements = settlementDao.getByGroup(group.id)
 
                 members.sumOf { member ->
@@ -204,11 +208,16 @@ fun HomeScreen(
                         .filter { it.memberId == member.id }
                         .sumOf { it.amount }
 
+                    val paid = paymentsByExpense.values.asSequence()
+                        .flatten()
+                        .filter { it.memberId == member.id }
+                        .sumOf { it.amount }
+
                     val received = settlements.asSequence()
                         .filter { it.memberId == member.id }
                         .sumOf { it.amount }
 
-                    (spent - received).coerceAtLeast(0.0)
+                    (spent - paid - received).coerceAtLeast(0.0)
                 }
             }
 

@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.GroupExpensePaymentEntity
+
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
@@ -105,7 +107,14 @@ private data class GroupSharingData(
     val groups: List<SharingGroupEntity>,
     val members: List<SharingMemberEntity>,
     val expenses: List<GroupExpenseEntity>,
-    val splits: Map<Long, List<GroupExpenseSplitEntity>>
+    val splits: Map<Long, List<GroupExpenseSplitEntity>>,
+    val payments: Map<Long, List<GroupExpensePaymentEntity>>
+)
+
+private data class PaymentDraft(
+    val memberId: Long,
+    val memberName: String,
+    val amount: Double
 )
 
 private data class SplitDraft(
@@ -133,11 +142,14 @@ private fun memberReceivedTotal(
 private fun memberRemainingBalance(
     memberId: Long,
     splits: Map<Long, List<GroupExpenseSplitEntity>>,
-    settlements: List<GroupSettlementEntity>
-): Double = (
-    memberExpenseTotal(memberId, splits) -
-        memberReceivedTotal(memberId, settlements)
-).coerceAtLeast(0.0)
+    settlements: List<GroupSettlementEntity>,
+    payments: Map<Long, List<GroupExpensePaymentEntity>> = emptyMap()
+): Double {
+    val paid = payments.values.asSequence().flatten()
+        .filter { it.memberId == memberId }.sumOf { it.amount }
+    return memberExpenseTotal(memberId, splits) -
+        memberReceivedTotal(memberId, settlements) - paid
+}
 
 private const val FREE_GROUP_LIMIT = 4
 private const val FREE_GROUP_EXTRA_MEMBER_LIMIT = 4
@@ -161,12 +173,14 @@ fun GroupSharingScreen(
     val expenseDao = remember(database) { database.groupExpenseDao() }
     val splitDao = remember(database) { database.groupExpenseSplitDao() }
     val settlementDao = remember(database) { database.groupSettlementDao() }
+    val paymentDao = remember(database) { database.groupExpensePaymentDao() }
     val scope = rememberCoroutineScope()
 
     var groups by remember { mutableStateOf(emptyList<SharingGroupEntity>()) }
     var members by remember { mutableStateOf(emptyList<SharingMemberEntity>()) }
     var expenses by remember { mutableStateOf(emptyList<GroupExpenseEntity>()) }
     var splits by remember { mutableStateOf(emptyMap<Long, List<GroupExpenseSplitEntity>>()) }
+    var paymentsByExpense by remember { mutableStateOf(emptyMap<Long, List<GroupExpensePaymentEntity>>()) }
     var settlements by remember { mutableStateOf(emptyList<GroupSettlementEntity>()) }
     var settlingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
 
@@ -244,12 +258,16 @@ fun GroupSharingScreen(
             val currentSplits = currentExpenses.associate { expense ->
                 expense.id to splitDao.getByExpense(expense.id)
             }
-            GroupSharingData(allGroups, currentMembers, currentExpenses, currentSplits)
+            val currentPayments = currentExpenses.associate { expense ->
+                expense.id to paymentDao.getByExpense(expense.id)
+            }
+            GroupSharingData(allGroups, currentMembers, currentExpenses, currentSplits, currentPayments)
         }
         groups = loaded.groups
         members = loaded.members
         expenses = loaded.expenses
         splits = loaded.splits
+        paymentsByExpense = loaded.payments
         if (activeGroupId != null && groups.none { it.id == activeGroupId }) {
             activeGroupId = null
         }
@@ -669,7 +687,7 @@ Row(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(members, key = { it.id }) { member ->
-                                val memberBalance = memberRemainingBalance(member.id, splits, settlements)
+                                val memberBalance = memberRemainingBalance(member.id, splits, settlements, paymentsByExpense)
 
                                 androidx.compose.material3.Card(
                                     modifier = Modifier
@@ -736,10 +754,12 @@ Row(
                                                 fontWeight = FontWeight.Medium
                                             )
                                             if (!member.name.equals("You", ignoreCase = true)) {
+                                                val isExcessPaid = memberBalance < -0.009
                                                 Text(
-                                                    text = "Remaining balance",
+                                                    text = if (isExcessPaid) "Excess Paid" else "Remaining balance",
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = if (isExcessPaid) Color(0xFFDC2626)
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
@@ -747,11 +767,13 @@ Row(
                                         Spacer(Modifier.width(12.dp))
 
                                         if (!member.name.equals("You", ignoreCase = true)) {
+                                            val isExcessPaid = memberBalance < -0.009
                                             Text(
-                                                text = money(memberBalance),
+                                                text = money(if (isExcessPaid) kotlin.math.abs(memberBalance) else memberBalance),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary
+                                                color = if (isExcessPaid) Color(0xFFDC2626)
+                                                    else MaterialTheme.colorScheme.primary
                                             )
                                         }
                                     }
@@ -931,6 +953,14 @@ Row(
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         fontWeight = FontWeight.Medium,
                                                         color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                                    )
+                                                    val memberPaid = paymentsByExpense[expense.id].orEmpty()
+                                                        .filter { it.memberId == split.memberId }
+                                                        .sumOf { it.amount }
+                                                    Text(
+                                                        "Share ${money(split.amount)} · Paid ${money(memberPaid)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = androidx.compose.ui.graphics.Color(0xFF737B87)
                                                     )
                                                     if (expense.splitMode == "Share") {
                                                         Text(
@@ -1154,7 +1184,7 @@ Row(
                     val groupMembers = members.filter { it.groupId == group.id }
                         .filterNot { it.name.equals("You", ignoreCase = true) }
                     groupMembers.all { member ->
-                        memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                        memberRemainingBalance(member.id, splits, settlements, paymentsByExpense) <= 0.009
                     }
                 } ?: false
             )
@@ -1294,7 +1324,7 @@ Row(
                 if (
                     member != null &&
                     !member.name.equals("You", ignoreCase = true) &&
-                    memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                    memberRemainingBalance(member.id, splits, settlements, paymentsByExpense) <= 0.009
                 ) deletingMember = member
             },
             onSettle = {
@@ -1304,10 +1334,10 @@ Row(
             },
             canDelete = editingMember?.let {
                 !it.name.equals("You", ignoreCase = true) &&
-                    memberRemainingBalance(it.id, splits, settlements) <= 0.009
+                    memberRemainingBalance(it.id, splits, settlements, paymentsByExpense) <= 0.009
             } ?: false,
             isSettled = editingMember?.let {
-                memberRemainingBalance(it.id, splits, settlements) <= 0.009
+                memberRemainingBalance(it.id, splits, settlements, paymentsByExpense) <= 0.009
             } ?: false,
             onDismiss = { showMemberEditor = false },
             onSave = { value ->
@@ -1539,7 +1569,9 @@ Row(
     settlingMember?.let { member ->
         val totalExpense = memberExpenseTotal(member.id, splits)
         val totalReceived = memberReceivedTotal(member.id, settlements)
-        val balance = (totalExpense - totalReceived).coerceAtLeast(0.0)
+        val totalPaid = paymentsByExpense.values.asSequence().flatten()
+            .filter { it.memberId == member.id }.sumOf { it.amount }
+        val balance = (totalExpense - totalReceived - totalPaid).coerceAtLeast(0.0)
 
         SettlementDialog(
             member = member,
@@ -1600,8 +1632,13 @@ Row(
                                 val totalReceived = groupSettlements
                                     .filter { it.memberId == member.id }
                                     .sumOf { it.amount }
+                                val totalPaid = groupExpenses.sumOf { expense ->
+                                    paymentDao.getByExpense(expense.id)
+                                        .filter { it.memberId == member.id }
+                                        .sumOf { it.amount }
+                                }
 
-                                totalExpense - totalReceived > 0.009
+                                kotlin.math.abs(totalExpense - totalReceived - totalPaid) > 0.009
                             }
                         }
 
@@ -1610,6 +1647,7 @@ Row(
                             groupDeleteBlocked = true
                         } else {
                             withContext(Dispatchers.IO) {
+                                paymentDao.deleteByGroup(group.id)
                                 splitDao.deleteByGroup(group.id)
                                 settlementDao.deleteByGroup(group.id)
                                 expenseDao.deleteByGroup(group.id)
@@ -1658,7 +1696,7 @@ Row(
                     deletingMember = null
                     if (
                         !member.name.equals("You", ignoreCase = true) &&
-                        memberRemainingBalance(member.id, splits, settlements) <= 0.009
+                        memberRemainingBalance(member.id, splits, settlements, paymentsByExpense) <= 0.009
                     ) {
                         scope.launch {
                             withContext(Dispatchers.IO) { memberDao.delete(member) }
@@ -1684,6 +1722,7 @@ Row(
                     deletingExpense = null
                     scope.launch {
                         withContext(Dispatchers.IO) {
+                            paymentDao.deleteByExpense(expense.id)
                             splitDao.deleteByExpense(expense.id)
                             expenseDao.delete(expense)
                         }
@@ -1703,6 +1742,7 @@ Row(
             members = members,
             initial = editingExpense,
             initialSplits = editingExpense?.let { splits[it.id].orEmpty() }.orEmpty(),
+            initialPayments = editingExpense?.let { paymentsByExpense[it.id].orEmpty() }.orEmpty(),
             isPremium = isPremium,
             onDismiss = { showExpenseEditor = false },
             onDelete = {
@@ -1710,7 +1750,7 @@ Row(
                 showExpenseEditor = false
                 if (expense != null) deletingExpense = expense
             },
-            onSave = { title, amount, expenseDate, note, mode, drafts ->
+            onSave = { title, amount, expenseDate, note, mode, drafts, paymentDrafts ->
                 val groupId = activeGroupId ?: return@GroupExpenseEditorDialog
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -1740,6 +1780,18 @@ Row(
                             )
                             splitDao.deleteByExpense(old.id)
                             old.id
+                        }
+
+                        paymentDao.deleteByExpense(expenseId)
+                        if (paymentDrafts.isNotEmpty()) {
+                            paymentDao.insertAll(paymentDrafts.map {
+                                GroupExpensePaymentEntity(
+                                    expenseId = expenseId,
+                                    memberId = it.memberId,
+                                    memberNameSnapshot = it.memberName,
+                                    amount = it.amount
+                                )
+                            })
                         }
 
                         splitDao.insertAll(
@@ -2008,12 +2060,22 @@ private fun GroupExpenseEditorDialog(
     members: List<SharingMemberEntity>,
     initial: GroupExpenseEntity?,
     initialSplits: List<GroupExpenseSplitEntity>,
+    initialPayments: List<GroupExpensePaymentEntity>,
     isPremium: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, Double, Long, String, String, List<SplitDraft>) -> Unit,
+    onSave: (String, Double, Long, String, String, List<SplitDraft>, List<PaymentDraft>) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     var showMemberSearch by remember { mutableStateOf(false) }
+    var showPaidByDialog by remember { mutableStateOf(false) }
+    var paidByCustomized by remember(initial?.id) {
+        mutableStateOf(initial != null || initialPayments.isNotEmpty())
+    }
+    var paymentDrafts by remember(initial?.id) {
+        mutableStateOf(initialPayments.map {
+            PaymentDraft(it.memberId, it.memberNameSnapshot, it.amount)
+        })
+    }
     var memberSearch by remember { mutableStateOf("") }
 
     var title by remember(initial?.id) { mutableStateOf(initial?.title ?: "") }
@@ -2112,7 +2174,23 @@ private fun GroupExpenseEditorDialog(
                     )
                     OutlinedTextField(
                         value = amountText,
-                        onValueChange = { amountText = it },
+                        onValueChange = {
+                                amountText = it
+                                if (!paidByCustomized) {
+                                    val value = it.trim().toDoubleOrNull()
+                                    val you = members.firstOrNull {
+                                        it.name.equals("You", ignoreCase = true)
+                                    }
+                                    val cents = value
+                                        ?.takeIf { it.isFinite() && it > 0.0 }
+                                        ?.let { (it * 100.0).roundToLong() }
+                                    paymentDrafts = if (you != null && cents != null && cents > 0L) {
+                                        listOf(PaymentDraft(you.id, you.name, cents / 100.0))
+                                    } else {
+                                        emptyList()
+                                    }
+                                }
+                            },
                         label = { Text("Amount") },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
@@ -2345,6 +2423,14 @@ if (showMemberSearch) {
                         Text("Delete expense")
                     }
                 }
+                OutlinedButton(
+                    onClick = { showPaidByDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (paymentDrafts.isEmpty()) "Paid By"
+                         else "Paid By · ${money(paymentDrafts.sumOf { it.amount })}")
+                }
                 Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -2376,6 +2462,15 @@ if (showMemberSearch) {
                 }
 
                 val totalCents = (total * 100.0).roundToLong()
+                if (paymentDrafts.isNotEmpty()) {
+                    val paidCents = paymentDrafts.sumOf {
+                        (it.amount * 100.0).roundToLong()
+                    }
+                    if (paidCents != totalCents) {
+                        error = "Paid By total must equal expense amount ${money(totalCents / 100.0)}. Update Paid By and try again."
+                        return@Button
+                    }
+                }
                 val amounts = mutableListOf<Long>()
                 val units = mutableListOf<Double>()
 
@@ -2436,7 +2531,7 @@ if (showMemberSearch) {
                     )
                 }
                 error = ""
-                onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), mode, drafts)
+                onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), mode, drafts, paymentDrafts)
             }, shape = RoundedCornerShape(14.dp)) { Text("Save") }
             }
             }
@@ -2445,6 +2540,83 @@ if (showMemberSearch) {
 
 
 
+
+    if (showPaidByDialog) {
+        var paidAmounts by remember(initial?.id, paymentDrafts) {
+            mutableStateOf(paymentDrafts.associate {
+                it.memberId to String.format(Locale.US, "%.2f", it.amount)
+            })
+        }
+        var paymentError by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showPaidByDialog = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text("Paid By") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Enter how much each member paid. Use 0 if they paid nothing.")
+                    members.forEach { member ->
+                        OutlinedTextField(
+                            value = paidAmounts[member.id].orEmpty(),
+                            onValueChange = {
+                                paidAmounts = paidAmounts.toMutableMap().apply { put(member.id, it) }
+                            },
+                            label = { Text(member.name) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (paymentError.isNotBlank()) {
+                        Text(paymentError, color = MaterialTheme.colorScheme.error)
+                    }
+                    val totalPaid = paidAmounts.values.sumOf {
+                        it.toDoubleOrNull()?.takeIf { value -> value.isFinite() && value >= 0.0 } ?: 0.0
+                    }
+                    Text("Total paid: ${money(totalPaid)}")
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val expenseValue = amountText.trim().toDoubleOrNull()
+                    if (expenseValue == null || !expenseValue.isFinite() || expenseValue <= 0.0) {
+                        paymentError = "Enter a valid expense amount first."
+                        return@Button
+                    }
+                    val expectedCents = (expenseValue * 100.0).roundToLong()
+                    val result = mutableListOf<PaymentDraft>()
+                    for (member in members) {
+                        val raw = paidAmounts[member.id].orEmpty().trim()
+                        if (raw.isBlank()) continue
+                        val value = raw.toDoubleOrNull()
+                        if (value == null || !value.isFinite() || value < 0.0) {
+                            paymentError = "Enter a valid non-negative amount for ${member.name}."
+                            return@Button
+                        }
+                        val cents = (value * 100.0).roundToLong()
+                        if (cents > 0L) result.add(PaymentDraft(member.id, member.name, cents / 100.0))
+                    }
+                    val paidCents = result.sumOf { (it.amount * 100.0).roundToLong() }
+                    if (paidCents != expectedCents) {
+                        paymentError = "Paid By total must equal expense amount ${money(expectedCents / 100.0)}."
+                        return@Button
+                    }
+                    paymentDrafts = result
+                    paidByCustomized = true
+                    paymentError = ""
+                    showPaidByDialog = false
+                }) { Text("Done") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPaidByDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
 
     if (showDatePicker) {
         val context = androidx.compose.ui.platform.LocalContext.current

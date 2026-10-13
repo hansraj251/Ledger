@@ -15,6 +15,7 @@ data class SharingMemberEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val groupId: Long,
     val name: String,
+    val defaultShareUnits: Double = 1.0,
     val createdAt: Long = System.currentTimeMillis()
 )
 

@@ -18,7 +18,7 @@ import androidx.room.RoomDatabase
         GroupSettlementEntity::class,
         AppSettingsEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

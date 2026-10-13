@@ -129,6 +129,15 @@ private val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+
+private val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE sharing_members ADD COLUMN defaultShareUnits REAL NOT NULL DEFAULT 1.0"
+        )
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -185,7 +194,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .build().also {
                 instance = it
             }

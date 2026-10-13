@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -198,6 +199,8 @@ fun GroupSharingScreen(
     var deletingGroup by remember { mutableStateOf<SharingGroupEntity?>(null) }
 
     var showMemberEditor by remember { mutableStateOf(false) }
+    var defaultShareMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
+    var defaultShareText by remember { mutableStateOf("1") }
     var editingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
     var memberName by remember { mutableStateOf("") }
     var deletingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
@@ -673,13 +676,25 @@ Row(
                                         .fillMaxWidth()
                                         .then(
                                             if (member.name.equals("You", ignoreCase = true)) {
-                                                Modifier
+                                                Modifier.combinedClickable(
+                                                    onClick = { },
+                                                    onLongClick = {
+                                                        defaultShareMember = member
+                                                        defaultShareText = decimal(member.defaultShareUnits)
+                                                    }
+                                                )
                                             } else {
-                                                Modifier.clickable {
-                                                    editingMember = member
-                                                    memberName = member.name
-                                                    showMemberEditor = true
-                                                }
+                                                Modifier.combinedClickable(
+                                                    onClick = {
+                                                        editingMember = member
+                                                        memberName = member.name
+                                                        showMemberEditor = true
+                                                    },
+                                                    onLongClick = {
+                                                        defaultShareMember = member
+                                                        defaultShareText = decimal(member.defaultShareUnits)
+                                                    }
+                                                )
                                             }
                                         ),
                                     shape = RoundedCornerShape(20.dp),
@@ -1144,6 +1159,127 @@ Row(
                 } ?: false
             )
         }
+    }
+
+
+    if (defaultShareMember != null) {
+        val target = defaultShareMember
+        val parsedShare = defaultShareText.toDoubleOrNull()
+        val validShare = parsedShare != null && parsedShare.isFinite() && parsedShare > 0.0
+
+        AlertDialog(
+            onDismissRequest = { defaultShareMember = null },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(28.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Default Share",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                    Text(
+                        target?.name.orEmpty(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF3157D5)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        "Set this member's usual share. It will be filled in automatically when you create a new expense using Share mode.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF667085)
+                    )
+
+                    OutlinedTextField(
+                        value = defaultShareText,
+                        onValueChange = { defaultShareText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Default shares") },
+                        placeholder = { Text("e.g. 1 or 2") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF3157D5),
+                            unfocusedBorderColor = Color(0xFFDCE2EE),
+                            focusedLabelColor = Color(0xFF3157D5),
+                            cursorColor = Color(0xFF3157D5),
+                            focusedTextColor = Color(0xFF171B3A),
+                            unfocusedTextColor = Color(0xFF171B3A)
+                        )
+                    )
+
+                    if (defaultShareText.isNotBlank() && !validShare) {
+                        Text(
+                            "Enter a number greater than zero.",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = validShare,
+                    onClick = {
+                        val member = target
+                        val value = parsedShare
+                        if (member != null && value != null && value.isFinite() && value > 0.0) {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    memberDao.update(member.copy(defaultShareUnits = value))
+                                }
+                                defaultShareMember = null
+                                onDataChanged()
+                                refresh++
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF3157D5),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFFBFC9E8),
+                        disabledContentColor = Color.White
+                    )
+                ) {
+                    Text(
+                        "Save Default",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { defaultShareMember = null },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Cancel",
+                        color = Color(0xFF667085),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        )
     }
 
     if (showMemberEditor && activeGroupId != null) {
@@ -1906,9 +2042,13 @@ private fun GroupExpenseEditorDialog(
             initialSplits.forEach { put(it.memberId, decimal(it.amount)) }
         }
     }
-    val shares = remember(initial?.id) {
+    val shares = remember(initial?.id, members) {
         mutableStateMapOf<Long, String>().apply {
-            initialSplits.forEach { put(it.memberId, decimal(it.shareUnits)) }
+            if (initial != null) {
+                initialSplits.forEach { put(it.memberId, decimal(it.shareUnits)) }
+            } else {
+                members.forEach { put(it.id, decimal(it.defaultShareUnits)) }
+            }
         }
     }
 
@@ -2066,6 +2206,25 @@ private fun GroupExpenseEditorDialog(
                         }
                     }
                 }
+
+if (mode == "Share") {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF1F5FF), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text("ⓘ", color = Color(0xFF3157D5), fontSize = 17.sp)
+        Text(
+            text = "Tip: Long-press a member to set their default share.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF3157D5)
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+}
 
 Row(
     modifier = Modifier.fillMaxWidth(),

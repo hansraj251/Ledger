@@ -154,7 +154,7 @@ fun HomeScreen(
 
     var showUpgradeDialog by remember { mutableStateOf(false) }
     val requestAddParty: () -> Unit = {
-        if (isPremium || uiState.parties.isEmpty()) {
+        if (isPremium || uiState.parties.size < 10) {
             showAddPartyDialog = true
         } else {
             showUpgradeDialog = true
@@ -387,7 +387,7 @@ fun HomeScreen(
                                 },
                                 onClick = {
                                     showMenu = false
-                                    if (isPremium || sharingGroups.isEmpty()) {
+                                    if (isPremium || sharingGroups.size < 4) {
                                         newGroupName = ""
                                         showCreateGroupDialog = true
                                     } else {
@@ -919,7 +919,7 @@ item {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
-                        "The Free plan allows only 1 group. Upgrade to create unlimited groups.",
+                        "The Free plan allows up to 4 groups. Upgrade to create unlimited groups.",
                         color = Color(0xFF55566A)
                     )
                     Surface(
@@ -1027,7 +1027,7 @@ val latestGroups =
                                         kotlinx.coroutines.Dispatchers.IO
                                     ) {
                                         val existing = sharingGroupDao.getAll()
-                                        if (!isPremium && existing.isNotEmpty()) {
+                                        if (!isPremium && existing.size >= 4) {
                                             null
                                         } else {
                                             sharingGroupDao.insert(
@@ -1097,7 +1097,7 @@ val latestGroups =
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     androidx.compose.material3.Text(
-                        "You've reached the Free plan limit of 1 party.",
+                        "You've reached the Free plan limit of 10 parties.",
                         color = Color(0xFF55566A)
                     )
                     Surface(

@@ -4,3 +4,7 @@ build/
 *.hprof
 local.properties
 .DS_Store
+
+# Local release signing secrets
+*.jks
+*.keystore

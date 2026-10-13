@@ -205,7 +205,7 @@ onPartiesClick: () -> Unit,
     }
 }
 
-private const val FREE_EXPENSE_LIMIT = 20
+private const val FREE_EXPENSE_LIMIT = 100
 
 @Composable
 fun DailyExpenseScreen(
@@ -963,7 +963,7 @@ fun DailyExpenseScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     androidx.compose.material3.Text(
-                        "You've reached the Free plan limit of 20 expenses.",
+                        "You've reached the Free plan limit of 100 expenses.",
                         color = Color(0xFF55566A)
                     )
                     Surface(

@@ -1,4 +1,6 @@
 package com.ledger.app
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 
 import com.ledger.app.data.CurrencySettings
 
@@ -1177,6 +1179,14 @@ private fun ProfileScreen(
     premiumPrice: String,
     onUpgradeClick: () -> Unit
 ) {
+    var legalDocument by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    if (legalDocument != null) {
+        LegalDocumentDialog(
+            document = legalDocument!!,
+            onDismiss = { legalDocument = null }
+        )
+    }
+
     var showCurrencyMenu by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
     }
@@ -1734,7 +1744,45 @@ private fun ProfileScreen(
                 }
             }
 
-            if (!isPremium) {
+                    item {
+                androidx.compose.material3.Card(
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = "Legal & Support",
+                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                        )
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { legalDocument = "privacy" },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        ) {
+                            androidx.compose.material3.Text("Privacy Policy")
+                        }
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { legalDocument = "terms" },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                        ) {
+                            androidx.compose.material3.Text("Terms & Conditions")
+                        }
+                    }
+                }
+            }
+
+    if (!isPremium) {
                 item {
                     androidx.compose.material3.Card(
                         modifier = androidx.compose.ui.Modifier
@@ -1785,6 +1833,7 @@ private fun ProfileScreen(
 }
     }
 }
+
 
 @androidx.compose.runtime.Composable
 private fun ProfileDetailRow(
@@ -1849,3 +1898,86 @@ private fun ProfileDetailRow(
     }
 }
 
+
+
+@androidx.compose.runtime.Composable
+private fun LegalDocumentDialog(
+    document: String,
+    onDismiss: () -> Unit
+) {
+    val isPrivacy = document == "privacy"
+    val title = if (isPrivacy) "Privacy Policy" else "Terms & Conditions"
+
+    val sections = if (isPrivacy) listOf(
+        "1. Overview" to "Align Ledger is a personal bookkeeping application for managing party ledgers, transactions, daily expenses and groups. This policy explains how app data is handled.",
+        "2. Data stored on your device" to "Ledger records you create, such as party details, transaction entries, expenses, notes and profile information, may be stored locally on your device. Anyone with access to your unlocked device or its app data may be able to access this information.",
+        "3. Google Drive backup and sync" to "If you choose to connect Google Drive and use backup or sync features, the app may access Google Drive for the purpose of backing up or restoring your Ledger data. Google account authentication and Google's own privacy terms apply. You can choose not to use these online features; local app functionality may still be available.",
+        "4. Purchases" to "If you purchase Premium, Google Play processes the payment. The app may check purchase status to enable Premium features. Payment card details are handled by Google Play, not by the app itself.",
+        "5. Sharing and disclosure" to "The app is designed to use your records for its bookkeeping and backup features. Do not enter information you do not have permission to store. Data saved to a Google account or shared device may be accessible according to that account's settings and permissions.",
+        "6. Retention and deletion" to "Local records generally remain on your device until you delete them, clear app data or uninstall the app. Backup copies may remain in Google Drive until you delete them there. Keep your own backup of important records.",
+        "7. Security and responsibility" to "Use a secure device and protect your Google account. No storage or transmission method can be guaranteed completely secure. The app cannot protect data exposed through a compromised device or account.",
+        "8. Children's privacy" to "Ledger is a bookkeeping tool and is not specifically designed for children. Do not provide personal information unless you are authorised to do so.",
+        "9. Policy changes and contact" to "This policy may be updated in future app versions. The version included in the installed app can be read offline. For questions or privacy requests, use the developer contact details shown on the app's Google Play listing."
+    ) else listOf(
+        "1. Acceptance" to "By using Align Ledger, you agree to these Terms & Conditions. If you do not agree, discontinue use of the app.",
+        "2. Intended use" to "Ledger is a bookkeeping and record-keeping tool. You are responsible for the accuracy, completeness and lawful use of all information entered into the app.",
+        "3. Your records" to "Review entries carefully and retain independent copies of important records. The app is not a substitute for professional accounting, tax, legal or financial advice, and its calculations or reports should be independently checked when relied upon for important decisions.",
+        "4. Data, backups and device changes" to "You are responsible for safeguarding your device and arranging backups. Local data may be lost if the app is uninstalled, app data is cleared, the device is damaged or access is lost. Google Drive backup or restore requires a compatible account, connectivity and the necessary permissions; availability is not guaranteed at all times.",
+        "5. Premium purchases" to "Premium features are subject to the product and purchase terms displayed by Google Play at the time of purchase. Payment, refunds and purchase disputes are handled under applicable Google Play policies and law. Premium access may require verification of the purchase.",
+        "6. Acceptable use" to "Do not misuse the app, attempt unauthorised access, interfere with its operation or use it in violation of applicable law or the rights of others.",
+        "7. Availability and limitations" to "The app is provided as a record-keeping aid. To the extent permitted by applicable law, the developer does not guarantee uninterrupted operation, error-free calculations, permanent data availability or successful recovery of every backup. Nothing in these terms excludes rights that cannot legally be excluded.",
+        "8. Changes and termination" to "Features and these terms may change in future versions. You may stop using the app at any time. Keep copies of records you need before uninstalling or clearing app data.",
+        "9. Governing law" to "These terms are subject to applicable laws of India, without limiting any mandatory rights available to consumers under applicable law.",
+        "10. Contact" to "For support or questions, use the developer contact details provided on the app's Google Play listing."
+    )
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            androidx.compose.material3.Text(
+                text = title,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+        },
+        text = {
+            androidx.compose.foundation.layout.Column(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+            ) {
+                androidx.compose.material3.Text(
+                    text = "Align Ledger • Offline document",
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                )
+                sections.forEach { (heading, body) ->
+                    androidx.compose.foundation.layout.Column(
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+                    ) {
+                        androidx.compose.material3.Text(
+                            text = heading,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            style = androidx.compose.material3.MaterialTheme.typography.titleSmall
+                        )
+                        androidx.compose.material3.Text(
+                            text = body,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+                androidx.compose.material3.Text(
+                    text = "Please review these documents carefully. They are general app terms and are not a substitute for legal advice.",
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                androidx.compose.material3.Text("Close")
+            }
+        }
+    )
+}

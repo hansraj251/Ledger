@@ -90,9 +90,6 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.rememberDatePickerState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -141,8 +138,8 @@ private fun memberRemainingBalance(
         memberReceivedTotal(memberId, settlements)
 ).coerceAtLeast(0.0)
 
-private const val FREE_GROUP_LIMIT = 1
-private const val FREE_GROUP_EXTRA_MEMBER_LIMIT = 1
+private const val FREE_GROUP_LIMIT = 4
+private const val FREE_GROUP_EXTRA_MEMBER_LIMIT = 4
 
 @Composable
 fun GroupSharingScreen(
@@ -259,7 +256,7 @@ fun GroupSharingScreen(
     val requestCreateGroup: () -> Unit = {
         if (!isPremium && groups.size >= FREE_GROUP_LIMIT) {
             freeLimitMessage =
-                "The Free plan allows only 1 group. Upgrade to Premium to create unlimited groups."
+                "The Free plan allows up to 4 groups. Upgrade to Premium to create unlimited groups."
             showFreeLimitDialog = true
         } else {
             editingGroup = null
@@ -274,7 +271,7 @@ fun GroupSharingScreen(
         }
         if (!isPremium && extraMembers >= FREE_GROUP_EXTRA_MEMBER_LIMIT) {
             freeLimitMessage =
-                "The Free plan allows You and 1 other member in a group. Upgrade to Premium for unlimited members."
+                "The Free plan allows up to 5 members per group, including You. Upgrade to Premium for unlimited members."
             showFreeLimitDialog = true
         } else {
             editingMember = null
@@ -1098,7 +1095,7 @@ Row(
                         if (existingGroupCount >= FREE_GROUP_LIMIT) {
                             showGroupEditor = false
                             freeLimitMessage =
-                                "The Free plan allows only 1 group. Upgrade to Premium to create unlimited groups."
+                                "The Free plan allows up to 4 groups. Upgrade to Premium to create unlimited groups."
                             showFreeLimitDialog = true
                             return@launch
                         }
@@ -1190,7 +1187,7 @@ Row(
                         if (extraMemberCount >= FREE_GROUP_EXTRA_MEMBER_LIMIT) {
                             showMemberEditor = false
                             freeLimitMessage =
-                                "The Free plan allows You and 1 other member in a group. Upgrade to Premium for unlimited members."
+                                "The Free plan allows up to 5 members per group, including You. Upgrade to Premium for unlimited members."
                             showFreeLimitDialog = true
                             return@launch
                         }
@@ -2291,37 +2288,28 @@ if (showMemberSearch) {
 
 
     if (showDatePicker) {
-        val pickerInitialDate = Calendar.getInstance().run {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val selected = Calendar.getInstance().apply {
             timeInMillis = expenseDate
-            val year = get(Calendar.YEAR)
-            val month = get(Calendar.MONTH)
-            val day = get(Calendar.DAY_OF_MONTH)
-            Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                clear()
-                set(year, month, day)
-            }.timeInMillis
         }
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = pickerInitialDate
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { expenseDate = it }
-                        showDatePicker = false
-                    }
-                ) { Text("Done") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
 
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                expenseDate = Calendar.getInstance().apply {
+                    clear()
+                    set(year, month, day, 12, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                showDatePicker = false
+            },
+            selected.get(Calendar.YEAR),
+            selected.get(Calendar.MONTH),
+            selected.get(Calendar.DAY_OF_MONTH)
+        ).apply {
+            setOnCancelListener { showDatePicker = false }
+        }.show()
+    }
 }
 @Composable
 private fun SettlementDialog(
@@ -2334,7 +2322,7 @@ private fun SettlementDialog(
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit
 ) {
-    var amountText by remember(member.id) { mutableStateOf("") }
+    var amountText by remember(member.id) { mutableStateOf(String.format(Locale.US, "%.2f", remainingBalance)) }
     val amount = amountText.toDoubleOrNull()
     val validAmount = amount != null &&
         amount > 0.0 &&
@@ -2369,7 +2357,10 @@ private fun SettlementDialog(
                             color = Color(0xFF555F75)
                         )
                         Text(
-                            money(remainingBalance),
+                            java.text.NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply {
+                                minimumFractionDigits = 2
+                                maximumFractionDigits = 2
+                            }.format(remainingBalance),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF2457C5)

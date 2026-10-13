@@ -9,11 +9,28 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.ledger.app"
+        applicationId = "in.alignos.ledger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.2.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(
+                providers.gradleProperty("LEDGER_UPLOAD_STORE_FILE").get()
+            )
+            storePassword = providers.gradleProperty("LEDGER_UPLOAD_STORE_PASSWORD").get()
+            keyAlias = providers.gradleProperty("LEDGER_UPLOAD_KEY_ALIAS").get()
+            keyPassword = providers.gradleProperty("LEDGER_UPLOAD_KEY_PASSWORD").get()
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     buildFeatures {

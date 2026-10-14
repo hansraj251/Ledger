@@ -73,6 +73,13 @@ internal fun GroupExpenseReportScreen(
         try {
             val result = withContext(Dispatchers.IO) {
                 val db = LedgerDatabaseProvider.get(context)
+                val profileName = db.profileDao()
+                    .getProfile()
+                    ?.name
+                    ?.trim()
+                    .orEmpty()
+                    .ifBlank { "You" }
+
                 val group = db.sharingGroupDao().getAll().firstOrNull { it.id == groupId }
                     ?: error("Group not found")
                 val allMembers = db.sharingMemberDao().getByGroup(groupId)
@@ -126,12 +133,17 @@ internal fun GroupExpenseReportScreen(
                     splits = filteredSplits,
                     settlements = filteredSettlements,
                     memberId = memberId,
+                    profileName = profileName,
                     memberPayments = memberPayments,
                     memberPaymentsByExpense = memberPaymentsByExpense,
                     memberShareTotal = memberShareTotal,
                     memberPaidTotal = memberPaidTotal
                 )
-                (selectedMember?.let { "${group.name} - ${it.name}" } ?: group.name) to file
+                (selectedMember?.let {
+                    val displayName =
+                        if (it.name.equals("You", ignoreCase = true)) profileName else it.name
+                    "${group.name} - $displayName"
+                } ?: group.name) to file
             }
             groupName = result.first
             reportFile = result.second
@@ -221,6 +233,7 @@ private fun createGroupExpenseReportPdf(
     splits: Map<Long, List<GroupExpenseSplitEntity>>,
     settlements: List<GroupSettlementEntity>,
     memberId: Long? = null,
+    profileName: String = "You",
     memberPayments: Map<Long, Double> = emptyMap(),
     memberPaymentsByExpense: Map<Long, Map<Long, Double>> = emptyMap(),
     memberShareTotal: Double? = null,
@@ -249,6 +262,8 @@ private fun createGroupExpenseReportPdf(
                 ?: memberPayments.values.sum() +
                     settlements.filter { it.memberId == memberId }.sumOf { it.amount }
             val balance = share - paid
+            val displayMemberName =
+                if (member.name.equals("You", ignoreCase = true)) profileName else member.name
 
             writer.heading("LEDGER REPORT", 18f)
             writer.line("Group: ${group.name}", 12f, true)
@@ -327,10 +342,12 @@ private fun createGroupExpenseReportPdf(
                 .sumOf { it.amount }
             val paid = expensePaid + settlementsPaid
             val balance = share - paid
+            val displayMemberName =
+                if (member.name.equals("You", ignoreCase = true)) profileName else member.name
 
-            writer.line(member.name, 11f, true)
-            writer.pair("${member.name} Share", money(share))
-            writer.pair("${member.name} Paid", money(paid))
+            writer.line(displayMemberName, 11f, true)
+            writer.pair("$displayMemberName Share", money(share))
+            writer.pair("$displayMemberName Paid", money(paid))
             if (balance >= -0.005) {
                 writer.pair("Remaining Balance", money(balance.coerceAtLeast(0.0)))
             } else {
@@ -369,7 +386,7 @@ private fun createGroupExpenseReportPdf(
                             if (index == 0) date.format(Date(expense.expenseDate)) else "",
                             if (index == 0) titleAndNote else "",
                             if (index == 0) money(expense.amount) else "",
-                            member.name,
+                            if (member.name.equals("You", ignoreCase = true)) profileName else member.name,
                             money(share),
                             money(paid)
                         )

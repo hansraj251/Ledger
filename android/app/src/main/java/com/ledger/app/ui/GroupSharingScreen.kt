@@ -207,6 +207,7 @@ fun GroupSharingScreen(
 
     var groupSearch by remember { mutableStateOf("") }
     var showHeaderMenu by remember { mutableStateOf(false) }
+    var showMemberReportPicker by remember { mutableStateOf(false) }
 
     var showGroupEditor by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<SharingGroupEntity?>(null) }
@@ -671,6 +672,20 @@ Row(
                                         activeGroupId?.let(onGroupReportClick)
                                     }
                                 )
+
+                                DropdownMenuItem(
+                                    text = { Text("Member Report") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Description,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showHeaderMenu = false
+                                        showMemberReportPicker = true
+                                    }
+                                )
                             }
                         }
                     }
@@ -781,10 +796,29 @@ Row(
                             }
                         }
                     }
-                    Box(
+                    Column(
                         modifier = Modifier.align(Alignment.BottomEnd)
-                            .padding(end = 16.dp, bottom = 14.dp)
+                            .padding(end = 16.dp, bottom = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.End
                     ) {
+                        FloatingActionButton(
+                            onClick = {
+                                editingExpense = null
+                                showExpenseEditor = true
+                            },
+                            shape = RoundedCornerShape(18.dp),
+                            containerColor = if (isPremium) Color(0xFFFFC247)
+                                else MaterialTheme.colorScheme.primary,
+                            contentColor = if (isPremium) Color(0xFF302000)
+                                else MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ReceiptLong,
+                                contentDescription = "Add Expense"
+                            )
+                        }
+
                         FloatingActionButton(
                             onClick = {
                                 requestAddMember()
@@ -1145,6 +1179,61 @@ val expenseSplits = splits[expense.id].orEmpty()
                 onGroupSharingClick = onBack
             )
         }
+    }
+
+    if (showMemberReportPicker) {
+        AlertDialog(
+            onDismissRequest = { showMemberReportPicker = false },
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = { Text("Select Member") },
+            text = {
+                if (members.isEmpty()) {
+                    Text("No members available in this group.")
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        members
+                            .filterNot { it.name.trim().equals("You", ignoreCase = true) }
+                            .forEach { member ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        val groupId = activeGroupId
+                                        showMemberReportPicker = false
+                                        if (groupId != null) {
+                                            onMemberReportClick(groupId, member.id)
+                                        }
+                                    },
+                                color = Color(0xFFF7F8FA),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = member.name,
+                                    modifier = Modifier.padding(
+                                        horizontal = 16.dp,
+                                        vertical = 14.dp
+                                    ),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMemberReportPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showGroupEditor) {
@@ -1623,6 +1712,19 @@ val expenseSplits = splits[expense.id].orEmpty()
             } ?: false,
             onDismiss = { showMemberEditor = false },
             onSave = { value ->
+                val normalizedName = value.trim()
+                if (normalizedName.equals("You", ignoreCase = true)) {
+                    freeLimitMessage =
+                        "The name 'You' is reserved for the default member. Please enter another name."
+                    showFreeLimitDialog = true
+                    return@NameEditorDialog
+                }
+                if (normalizedName.isBlank()) {
+                    freeLimitMessage = "Please enter a member name."
+                    showFreeLimitDialog = true
+                    return@NameEditorDialog
+                }
+
                 val groupId = activeGroupId ?: return@NameEditorDialog
                 scope.launch {
                     val oldMemberForLimit = editingMember
@@ -2707,6 +2809,8 @@ if (showMemberSearch) {
                 }
                 OutlinedButton(
                     onClick = { showPaidByDialog = true },
+                    enabled = amountText.trim().toDoubleOrNull()
+                        ?.let { it.isFinite() && it > 0.0 } == true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp)
                 ) {

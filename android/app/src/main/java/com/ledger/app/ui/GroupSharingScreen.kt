@@ -940,43 +940,50 @@ Row(
                                     }
 
                                     val expenseSplits = splits[expense.id].orEmpty()
-                                    if (expenseSplits.isNotEmpty()) {
+                                    val expensePayments = paymentsByExpense[expense.id].orEmpty()
+                                    val displayedMemberIds = (expenseSplits.map { it.memberId } +
+                                        expensePayments.map { it.memberId }).distinct()
 
-                                        expenseSplits.forEach { split ->
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(Modifier.weight(1f)) {
+                                    displayedMemberIds.forEach { memberId ->
+                                        val split = expenseSplits.firstOrNull { it.memberId == memberId }
+                                        val payment = expensePayments.firstOrNull { it.memberId == memberId }
+                                        val memberName = split?.memberNameSnapshot
+                                            ?: payment?.memberNameSnapshot.orEmpty()
+                                        val shareAmount = split?.amount ?: 0.0
+                                        val memberPaid = expensePayments
+                                            .filter { it.memberId == memberId }
+                                            .sumOf { it.amount }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    memberName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                                )
+                                                Text(
+                                                    "Paid ${money(memberPaid)}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = androidx.compose.ui.graphics.Color(0xFF737B87)
+                                                )
+                                                if (split != null && expense.splitMode == "Share") {
                                                     Text(
-                                                        split.memberNameSnapshot,
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = androidx.compose.ui.graphics.Color(0xFF202124)
-                                                    )
-                                                    val memberPaid = paymentsByExpense[expense.id].orEmpty()
-                                                        .filter { it.memberId == split.memberId }
-                                                        .sumOf { it.amount }
-                                                    Text(
-                                                        "Share ${money(split.amount)} · Paid ${money(memberPaid)}",
+                                                        "${split.shareUnits} shares",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = androidx.compose.ui.graphics.Color(0xFF737B87)
                                                     )
-                                                    if (expense.splitMode == "Share") {
-                                                        Text(
-                                                            "${split.shareUnits} shares",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = androidx.compose.ui.graphics.Color(0xFF737B87)
-                                                        )
-                                                    }
                                                 }
-                                                Text(
-                                                    money(split.amount),
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = androidx.compose.ui.graphics.Color(0xFF202124)
-                                                )
                                             }
+                                            Text(
+                                                money(shareAmount),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                            )
                                         }
                                     }
 
@@ -2561,13 +2568,67 @@ if (showMemberSearch) {
                 ) {
                     Text("Enter how much each member paid. Use 0 if they paid nothing.")
                     members.forEach { member ->
+                        val isYou = member.name.equals("You", ignoreCase = true)
+                        val expenseCents = amountText.trim().toDoubleOrNull()
+                            ?.takeIf { it.isFinite() && it > 0.0 }
+                            ?.let { (it * 100.0).roundToLong() } ?: 0L
+                        val otherMembersCents = members
+                            .filterNot { it.name.equals("You", ignoreCase = true) }
+                            .sumOf { other ->
+                                val raw = if (other.id == member.id && !isYou) {
+                                    paidAmounts[member.id].orEmpty()
+                                } else {
+                                    paidAmounts[other.id].orEmpty()
+                                }
+                                val value = raw.trim().toDoubleOrNull()
+                                    ?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+                                (value * 100.0).roundToLong()
+                            }
+                        val displayedAmount = if (isYou) {
+                            String.format(
+                                Locale.US,
+                                "%.2f",
+                                (expenseCents - otherMembersCents).coerceAtLeast(0L) / 100.0
+                            )
+                        } else {
+                            paidAmounts[member.id].orEmpty()
+                        }
+
                         OutlinedTextField(
-                            value = paidAmounts[member.id].orEmpty(),
-                            onValueChange = {
-                                paidAmounts = paidAmounts.toMutableMap().apply { put(member.id, it) }
+                            value = displayedAmount,
+                            onValueChange = { newValue ->
+                                if (!isYou) {
+                                    val candidate = newValue.trim().toDoubleOrNull()
+                                    if (candidate != null && candidate.isFinite() && candidate >= 0.0) {
+                                        val candidateCents = (candidate * 100.0).roundToLong()
+                                        val otherCents = members
+                                            .filterNot {
+                                                it.name.equals("You", ignoreCase = true) ||
+                                                    it.id == member.id
+                                            }
+                                            .sumOf { other ->
+                                                val value = paidAmounts[other.id].orEmpty()
+                                                    .trim().toDoubleOrNull()
+                                                    ?.takeIf { it.isFinite() && it >= 0.0 } ?: 0.0
+                                                (value * 100.0).roundToLong()
+                                            }
+                                        if (candidateCents + otherCents > expenseCents) {
+                                            paymentError =
+                                                "Other members cannot pay more than ${money(expenseCents / 100.0)} in total."
+                                            return@OutlinedTextField
+                                        }
+                                    }
+                                    paidAmounts = paidAmounts.toMutableMap().apply {
+                                        put(member.id, newValue)
+                                    }
+                                    paymentError = ""
+                                }
                             },
-                            label = { Text(member.name) },
+                            label = {
+                                Text(if (isYou) "You · Remaining (Auto)" else member.name)
+                            },
                             singleLine = true,
+                            readOnly = isYou,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -2590,7 +2651,16 @@ if (showMemberSearch) {
                     }
                     val expectedCents = (expenseValue * 100.0).roundToLong()
                     val result = mutableListOf<PaymentDraft>()
+                    val you = members.firstOrNull {
+                        it.name.equals("You", ignoreCase = true)
+                    }
+                    if (you == null) {
+                        paymentError = "Could not find the You member."
+                        return@Button
+                    }
+
                     for (member in members) {
+                        if (member.id == you.id) continue
                         val raw = paidAmounts[member.id].orEmpty().trim()
                         if (raw.isBlank()) continue
                         val value = raw.toDoubleOrNull()
@@ -2599,12 +2669,23 @@ if (showMemberSearch) {
                             return@Button
                         }
                         val cents = (value * 100.0).roundToLong()
-                        if (cents > 0L) result.add(PaymentDraft(member.id, member.name, cents / 100.0))
+                        if (cents > 0L) {
+                            result.add(PaymentDraft(member.id, member.name, cents / 100.0))
+                        }
                     }
-                    val paidCents = result.sumOf { (it.amount * 100.0).roundToLong() }
-                    if (paidCents != expectedCents) {
-                        paymentError = "Paid By total must equal expense amount ${money(expectedCents / 100.0)}."
+
+                    val otherMembersCents = result.sumOf {
+                        (it.amount * 100.0).roundToLong()
+                    }
+                    if (otherMembersCents > expectedCents) {
+                        paymentError =
+                            "Other members cannot pay more than ${money(expectedCents / 100.0)} in total."
                         return@Button
+                    }
+
+                    val youCents = expectedCents - otherMembersCents
+                    if (youCents > 0L) {
+                        result.add(0, PaymentDraft(you.id, you.name, youCents / 100.0))
                     }
                     paymentDrafts = result
                     paidByCustomized = true

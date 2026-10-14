@@ -99,8 +99,37 @@ internal fun GroupExpenseReportScreen(
                 val filteredMembers = if (memberId == null) allMembers else allMembers.filter { it.id == memberId }
                 val filteredSettlements = if (memberId == null) allSettlements
                     else allSettlements.filter { it.memberId == memberId }
+                val memberPayments: Map<Long, Double> =
+                    if (memberId == null) emptyMap()
+                    else filteredExpenses.associate { expense ->
+                        expense.id to allPayments[expense.id].orEmpty()
+                            .filter { it.memberId == memberId }
+                            .sumOf { it.amount }
+                    }
+                val memberShareTotal = if (memberId == null) null
+                    else filteredSplits.values.flatten().sumOf { it.amount }
+                val memberPaidTotal = if (memberId == null) null
+                    else memberPayments.values.sum() + filteredSettlements.sumOf { it.amount }
+
+                val memberPaymentsByExpense: Map<Long, Map<Long, Double>> =
+                    filteredExpenses.associate { expense ->
+                        expense.id to allPayments[expense.id].orEmpty()
+                            .groupBy { it.memberId }
+                            .mapValues { (_, payments) -> payments.sumOf { it.amount } }
+                    }
+
                 val file = createGroupExpenseReportPdf(
-                    context, group, filteredMembers, filteredExpenses, filteredSplits, filteredSettlements
+                    context = context,
+                    group = group,
+                    members = filteredMembers,
+                    expenses = filteredExpenses,
+                    splits = filteredSplits,
+                    settlements = filteredSettlements,
+                    memberId = memberId,
+                    memberPayments = memberPayments,
+                    memberPaymentsByExpense = memberPaymentsByExpense,
+                    memberShareTotal = memberShareTotal,
+                    memberPaidTotal = memberPaidTotal
                 )
                 (selectedMember?.let { "${group.name} - ${it.name}" } ?: group.name) to file
             }
@@ -123,7 +152,7 @@ internal fun GroupExpenseReportScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(if (memberId == null) "Group Expense Report" else "Member Expense Report", style = MaterialTheme.typography.titleLarge)
+                    Text(if (memberId == null) "Group Expense Report" else "Ledger Report", style = MaterialTheme.typography.titleLarge)
                     Text(groupName, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -150,7 +179,7 @@ internal fun GroupExpenseReportScreen(
                             val intent = Intent(Intent.ACTION_SEND).apply {
                                 type = "application/pdf"
                                 putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_SUBJECT, "$groupName Expense Report")
+                                putExtra(Intent.EXTRA_SUBJECT, "$groupName Ledger Report")
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.startActivity(Intent.createChooser(intent, "Share group report"))
@@ -190,7 +219,12 @@ private fun createGroupExpenseReportPdf(
     members: List<SharingMemberEntity>,
     expenses: List<GroupExpenseEntity>,
     splits: Map<Long, List<GroupExpenseSplitEntity>>,
-    settlements: List<GroupSettlementEntity>
+    settlements: List<GroupSettlementEntity>,
+    memberId: Long? = null,
+    memberPayments: Map<Long, Double> = emptyMap(),
+    memberPaymentsByExpense: Map<Long, Map<Long, Double>> = emptyMap(),
+    memberShareTotal: Double? = null,
+    memberPaidTotal: Double? = null
 ): File {
     val pdf = PdfDocument()
     val writer = GroupExpensePdfWriter(pdf)
@@ -204,72 +238,158 @@ private fun createGroupExpenseReportPdf(
     val settlementTotal = settlements.sumOf { it.amount }
 
     try {
-        writer.heading("GROUP EXPENSE REPORT", 19f)
-        writer.line(group.name, 14f, true)
-        writer.line("Generated: ${dateTime.format(Date(now))}")
-        writer.line("Members: ${members.size}    Expenses: ${ordered.size}")
-        writer.gap(10f)
-        writer.section("EXPENSE SUMMARY")
-        writer.pair("Total recorded expenses", money(total))
-        writer.pair("Number of expenses", ordered.size.toString())
-        writer.pair("Total allocated member shares", money(splitTotal))
-        writer.pair("Total recorded settlements", money(settlementTotal))
-        writer.gap(12f)
+        if (memberId != null) {
+            val member = members.firstOrNull { it.id == memberId }
+                ?: error("Member not found while generating report")
 
-        writer.section("MEMBER-WISE SUMMARY")
+            val totalExpense = ordered.sumOf { it.amount }
+            val share = memberShareTotal
+                ?: splits.values.flatten().filter { it.memberId == memberId }.sumOf { it.amount }
+            val paid = memberPaidTotal
+                ?: memberPayments.values.sum() +
+                    settlements.filter { it.memberId == memberId }.sumOf { it.amount }
+            val balance = share - paid
+
+            writer.heading("LEDGER REPORT", 18f)
+            writer.line("Group: ${group.name}", 12f, true)
+            writer.line("Member: ${member.name}", 11f, true)
+            writer.line("Generated on: ${date.format(Date(now))}", 10f)
+            writer.gap(8f)
+
+            writer.section("SUMMARY")
+            writer.pair("Total Expense", money(totalExpense))
+            writer.pair("${member.name} Share", money(share))
+            writer.pair("${member.name} Paid", money(paid))
+            if (balance >= -0.005) {
+                writer.pair("Remaining Balance", money(balance.coerceAtLeast(0.0)))
+            } else {
+                writer.pair("Excess Balance", money(-balance))
+            }
+
+            writer.gap(8f)
+            writer.section("EXPENSE DETAILS")
+            val headers = listOf("Date", "Title / Note", "Total", "Share", "Paid")
+            val rows = ordered.map { expense ->
+                val expenseShare = splits[expense.id].orEmpty()
+                    .firstOrNull { it.memberId == memberId }?.amount ?: 0.0
+                val expensePaid = memberPayments[expense.id] ?: 0.0
+                val titleAndNote = if (expense.note.isBlank()) expense.title
+                    else "${expense.title}\n${expense.note}"
+                listOf(
+                    date.format(Date(expense.expenseDate)),
+                    titleAndNote,
+                    money(expense.amount),
+                    money(expenseShare),
+                    money(expensePaid)
+                )
+            }
+
+            if (rows.isEmpty()) {
+                writer.line("No expenses recorded for this member.")
+            } else {
+                writer.table(headers, rows)
+            }
+
+            writer.line("End of report", 9f)
+            writer.finish()
+
+            val directory = File(context.cacheDir, "group_reports").apply { mkdirs() }
+            fun safeName(value: String): String =
+                value.trim().replace(Regex("[^A-Za-z0-9._-]+"), "_")
+                    .trim('_').ifBlank { "member" }
+
+            val output = File(
+                directory,
+                "${safeName(group.name)}_${safeName(member.name)}_ledger_report.pdf"
+            )
+            output.outputStream().use { pdf.writeTo(it) }
+            return output
+        }
+
+        writer.heading("LEDGER REPORT", 18f)
+        writer.line("Group: ${group.name}", 12f, true)
+        writer.line("Generated on: ${date.format(Date(now))}", 10f)
+        writer.gap(8f)
+
+        writer.section("SUMMARY")
+        writer.pair("Total Expense", money(total))
+        writer.pair("Number of Expenses", ordered.size.toString())
+        writer.gap(5f)
+
         members.forEach { member ->
             val share = splits.values.flatten()
                 .filter { it.memberId == member.id }
                 .sumOf { it.amount }
-            val settled = settlements.filter { it.memberId == member.id }.sumOf { it.amount }
-            val remaining = (share - settled).coerceAtLeast(0.0)
+            val expensePaid = memberPaymentsByExpense.values
+                .sumOf { it[member.id] ?: 0.0 }
+            val settlementsPaid = settlements
+                .filter { it.memberId == member.id }
+                .sumOf { it.amount }
+            val paid = expensePaid + settlementsPaid
+            val balance = share - paid
+
             writer.line(member.name, 11f, true)
-            writer.pair("  Allocated expense share", money(share))
-            writer.pair("  Recorded settlements", money(settled))
-            writer.pair("  Remaining balance", money(remaining))
+            writer.pair("${member.name} Share", money(share))
+            writer.pair("${member.name} Paid", money(paid))
+            if (balance >= -0.005) {
+                writer.pair("Remaining Balance", money(balance.coerceAtLeast(0.0)))
+            } else {
+                writer.pair("Excess Balance", money(-balance))
+            }
             writer.gap(5f)
         }
 
-        writer.section("DETAILED EXPENSES")
-        if (ordered.isEmpty()) writer.line("No expenses recorded for this group.")
-        ordered.forEachIndexed { index, expense ->
-            writer.line("${index + 1}. ${expense.title}", 12f, true)
-            writer.pair("Date", date.format(Date(expense.expenseDate)))
-            writer.pair("Category", expense.category.ifBlank { "Uncategorised" })
-            writer.pair("Amount", money(expense.amount))
-            writer.pair("Split type", expense.splitMode)
-            if (expense.note.isNotBlank()) writer.line("Note: ${expense.note}")
-            val expenseSplits = splits[expense.id].orEmpty()
-            writer.line("Member allocation:", 10f, true)
-            if (expenseSplits.isEmpty()) {
-                writer.line("  No split details recorded")
+        writer.section("EXPENSE DETAILS")
+        val headers = listOf("Date", "Title / Note", "Total", "Member", "Share", "Paid")
+        val rows = mutableListOf<List<String>>()
+
+        ordered.forEach { expense ->
+            val titleAndNote = if (expense.note.isBlank()) expense.title
+                else "${expense.title}\n${expense.note}"
+
+            if (members.isEmpty()) {
+                rows.add(
+                    listOf(
+                        date.format(Date(expense.expenseDate)),
+                        titleAndNote,
+                        money(expense.amount),
+                        "-",
+                        money(0.0),
+                        money(0.0)
+                    )
+                )
             } else {
-                expenseSplits.forEach { split ->
-                    val units = if (expense.splitMode.equals("Share", true))
-                        " (${split.shareUnits} shares)" else ""
-                    writer.pair("  ${split.memberNameSnapshot}$units", money(split.amount))
+                members.forEachIndexed { index, member ->
+                    val share = splits[expense.id].orEmpty()
+                        .firstOrNull { it.memberId == member.id }?.amount ?: 0.0
+                    val paid = memberPaymentsByExpense[expense.id]?.get(member.id) ?: 0.0
+
+                    rows.add(
+                        listOf(
+                            if (index == 0) date.format(Date(expense.expenseDate)) else "",
+                            if (index == 0) titleAndNote else "",
+                            if (index == 0) money(expense.amount) else "",
+                            member.name,
+                            money(share),
+                            money(paid)
+                        )
+                    )
                 }
             }
-            writer.gap(8f)
         }
 
-        writer.section("SETTLEMENT HISTORY")
-        if (settlements.isEmpty()) {
-            writer.line("No settlements recorded.")
+        if (rows.isEmpty()) {
+            writer.line("No expenses recorded for this group.")
         } else {
-            settlements.sortedByDescending { it.receivedAt }.forEachIndexed { index, settlement ->
-                writer.line("${index + 1}. ${settlement.memberNameSnapshot}", 11f, true)
-                writer.pair("Date", dateTime.format(Date(settlement.receivedAt)))
-                writer.pair("Amount", money(settlement.amount))
-                writer.gap(4f)
-            }
+            writer.table(headers, rows)
         }
+
         writer.line("End of report", 9f)
         writer.finish()
         val directory = File(context.cacheDir, "group_reports").apply { mkdirs() }
         val safe = group.name.trim().replace(Regex("[^A-Za-z0-9._-]+"), "_")
             .ifBlank { "group" }
-        val output = File(directory, "${safe}_expense_report.pdf")
+        val output = File(directory, "${safe}_ledger_report.pdf")
         output.outputStream().use { pdf.writeTo(it) }
         return output
     } finally {
@@ -376,6 +496,82 @@ private class GroupExpensePdfWriter(private val pdf: PdfDocument) {
         y += height
     }
 
+    fun table(headers: List<String>, rows: List<List<String>>) {
+        val widths = if (headers.size == 6)
+            listOf(65f, 140f, 70f, 85f, 80f, 79f)
+        else listOf(75f, 180f, 88f, 88f, 88f)
+        val rowHeight = 40f
+
+        fun drawRow(cells: List<String>, header: Boolean) {
+            val canvas = page!!.canvas
+            val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = if (header) android.graphics.Color.rgb(35, 73, 112)
+                    else android.graphics.Color.WHITE
+            }
+            val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 0.6f
+                color = android.graphics.Color.LTGRAY
+            }
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (header) android.graphics.Color.WHITE
+                    else android.graphics.Color.rgb(38, 43, 50)
+                textSize = 8f
+                typeface = Typeface.create(
+                    Typeface.DEFAULT,
+                    if (header) Typeface.BOLD else Typeface.NORMAL
+                )
+            }
+            val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.DKGRAY
+                textSize = 7f
+            }
+
+            var x = left
+            for (i in widths.indices) {
+                val width = widths[i]
+                val rect = android.graphics.RectF(x, y - 15f, x + width, y + 25f)
+                canvas.drawRect(rect, bg)
+                canvas.drawRect(rect, border)
+
+                val cell = cells.getOrElse(i) { "" }
+                val parts = cell.split("\n", limit = 2)
+                val maxWidth = width - 8f
+
+                fun fit(value: String, paint: Paint): String {
+                    val originalValue = value.replace(Regex("[\r\t]"), " ").trim()
+                    var result = originalValue
+                    while (result.isNotEmpty() && paint.measureText(result) > maxWidth) {
+                        result = result.dropLast(1)
+                    }
+                    if (result.length < originalValue.length && result.isNotEmpty()) {
+                        result = result.dropLast(1) + "…"
+                    }
+                    return result
+                }
+
+                canvas.drawText(fit(parts[0], textPaint), x + 4f, y + 1f, textPaint)
+                if (!header && parts.size > 1 && parts[1].isNotBlank()) {
+                    canvas.drawText(fit(parts[1], notePaint), x + 4f, y + 14f, notePaint)
+                }
+                x += width
+            }
+            y += rowHeight
+        }
+
+        if (page == null) startPage()
+        drawRow(headers, true)
+
+        rows.forEach { row ->
+            if (y + rowHeight > 790f) {
+                startPage()
+                drawRow(headers, true)
+            }
+            drawRow(row, false)
+        }
+    }
+
     fun finish() {
         page?.let { pdf.finishPage(it) }
         page = null
@@ -385,7 +581,8 @@ private class GroupExpensePdfWriter(private val pdf: PdfDocument) {
 private fun downloadGroupReportPdf(context: Context, source: File, groupName: String): String {
     val safe = groupName.trim().replace(Regex("[^A-Za-z0-9._-]+"), "_").ifBlank { "group" }
     val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-    val fileName = "${safe}_expense_report_$stamp.pdf"
+    val reportSuffix = if (source.name.endsWith("_ledger_report.pdf")) "ledger_report" else "expense_report"
+    val fileName = "${safe}_${reportSuffix}_$stamp.pdf"
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val values = ContentValues().apply {

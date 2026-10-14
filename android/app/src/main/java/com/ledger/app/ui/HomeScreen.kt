@@ -116,6 +116,7 @@ fun HomeScreen(
     var receivableInterestTotal by remember { mutableStateOf(0.0) }
     var payableInterestTotal by remember { mutableStateOf(0.0) }
     var groupReceivableTotal by remember { mutableStateOf(0.0) }
+    var groupPayableTotal by remember { mutableStateOf(0.0) }
     var isReceivableExpanded by rememberSaveable { mutableStateOf(false) }
     var isPayableExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
@@ -190,7 +191,7 @@ fun HomeScreen(
             val paymentDao = database.groupExpensePaymentDao()
             val settlementDao = database.groupSettlementDao()
 
-            val groupsTotal = database.sharingGroupDao().getAll().sumOf { group ->
+            val groupTotals = database.sharingGroupDao().getAll().fold(0.0 to 0.0) { totals, group ->
                 val members = memberDao.getByGroup(group.id)
                     .filterNot { it.name.trim().equals("You", ignoreCase = true) }
                 val expenses = expenseDao.getByGroup(group.id)
@@ -202,31 +203,31 @@ fun HomeScreen(
                 }
                 val settlements = settlementDao.getByGroup(group.id)
 
-                members.sumOf { member ->
+                val balances = members.map { member ->
                     val spent = splitsByExpense.values.asSequence()
                         .flatten()
                         .filter { it.memberId == member.id }
                         .sumOf { it.amount }
-
                     val paid = paymentsByExpense.values.asSequence()
                         .flatten()
                         .filter { it.memberId == member.id }
                         .sumOf { it.amount }
-
                     val received = settlements.asSequence()
                         .filter { it.memberId == member.id }
                         .sumOf { it.amount }
-
-                    (spent - paid - received).coerceAtLeast(0.0)
+                    spent - paid - received
                 }
-            }
 
-            Triple(interestTotal, payableInterest, groupsTotal)
+                (totals.first + balances.sumOf { it.coerceAtLeast(0.0) }) to
+                    (totals.second + balances.sumOf { (-it).coerceAtLeast(0.0) })
+            }
+            Triple(interestTotal, payableInterest, groupTotals.first) to groupTotals.second
         }
 
-        receivableInterestTotal = totals.first
-        payableInterestTotal = totals.second
-        groupReceivableTotal = totals.third
+        receivableInterestTotal = totals.first.first
+        payableInterestTotal = totals.first.second
+        groupReceivableTotal = totals.first.third
+        groupPayableTotal = totals.second
     }
 
     LaunchedEffect(Unit) {
@@ -477,7 +478,8 @@ item {
                         expanded = isPayableExpanded,
                         onClick = { isPayableExpanded = !isPayableExpanded },
                         details = listOf(
-                            "Payable Int." to payableInterestTotal
+                            "Payable Int." to payableInterestTotal,
+                            "Group Payable" to groupPayableTotal
                         )
                     )
                 }

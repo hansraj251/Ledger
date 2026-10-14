@@ -963,13 +963,17 @@ Row(
                                                     memberName,
                                                     style = MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = androidx.compose.ui.graphics.Color(0xFF202124)
+                                                    color = if (memberPaid > 0.009)
+                                                        androidx.compose.ui.graphics.Color(0xFF166534)
+                                                    else androidx.compose.ui.graphics.Color(0xFF202124)
                                                 )
-                                                Text(
-                                                    "Paid ${money(memberPaid)}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = androidx.compose.ui.graphics.Color(0xFF737B87)
-                                                )
+                                                if (memberPaid > 0.009) {
+                                                    Text(
+                                                        "Paid ${money(memberPaid)}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = androidx.compose.ui.graphics.Color(0xFF737B87)
+                                                    )
+                                                }
                                                 if (split != null && expense.splitMode == "Share") {
                                                     Text(
                                                         "${split.shareUnits} shares",

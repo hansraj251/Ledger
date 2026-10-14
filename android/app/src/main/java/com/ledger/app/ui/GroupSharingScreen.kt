@@ -164,7 +164,8 @@ fun GroupSharingScreen(
     isPremium: Boolean = false,
     onUpgradeClick: () -> Unit = {},
     onGroupDeleted: () -> Unit = {},
-    onGroupReportClick: (Long) -> Unit = {}
+    onGroupReportClick: (Long) -> Unit = {},
+    onMemberReportClick: (Long, Long) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
@@ -192,7 +193,7 @@ fun GroupSharingScreen(
         mutableStateOf(initialGroupId)
     }
     var selectedGroupSection by remember(activeGroupId) {
-        mutableStateOf("Expense")
+        mutableStateOf("Members")
     }
     var refresh by remember { mutableStateOf(0) }
 
@@ -218,6 +219,8 @@ fun GroupSharingScreen(
     var editingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
     var memberName by remember { mutableStateOf("") }
     var deletingMember by remember { mutableStateOf<SharingMemberEntity?>(null) }
+    var selectedMemberDetail by remember { mutableStateOf<SharingMemberEntity?>(null) }
+    var showMemberDetailMenu by remember { mutableStateOf(false) }
     var groupDeleteBlocked by remember { mutableStateOf(false) }
     var showFreeLimitDialog by remember { mutableStateOf(false) }
     var freeLimitMessage by remember { mutableStateOf("") }
@@ -704,11 +707,7 @@ Row(
                                                 )
                                             } else {
                                                 Modifier.combinedClickable(
-                                                    onClick = {
-                                                        editingMember = member
-                                                        memberName = member.name
-                                                        showMemberEditor = true
-                                                    },
+                                                    onClick = { selectedMemberDetail = member },
                                                     onLongClick = {
                                                         defaultShareMember = member
                                                         defaultShareText = decimal(member.defaultShareUnits)
@@ -1336,6 +1335,264 @@ val expenseSplits = splits[expense.id].orEmpty()
             }
         )
     }
+
+    if (selectedMemberDetail != null && activeGroup != null) {
+        val detailMember = selectedMemberDetail!!
+        val detailExpenses = expenses.filter { expense ->
+            splits[expense.id].orEmpty().any { it.memberId == detailMember.id } ||
+                paymentsByExpense[expense.id].orEmpty().any { it.memberId == detailMember.id }
+        }.sortedWith(
+            compareByDescending<GroupExpenseEntity> { it.expenseDate }
+                .thenByDescending { it.id }
+        )
+
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { selectedMemberDetail = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 3.dp
+                    ) {
+                        Box(modifier = Modifier.statusBarsPadding()) {
+                            Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { selectedMemberDetail = null }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+
+                            Surface(
+                                modifier = Modifier.size(44.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = detailMember.name.trim().take(1).uppercase().ifBlank { "M" },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        editingMember = detailMember
+                                        memberName = detailMember.name
+                                        showMemberEditor = true
+                                    }
+                            ) {
+                                Text(
+                                    text = detailMember.name,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = activeGroup.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+
+                            Box {
+                                IconButton(onClick = { showMemberDetailMenu = true }) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.MoreVert,
+                                        contentDescription = "Member options"
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMemberDetailMenu,
+                                    onDismissRequest = { showMemberDetailMenu = false },
+                                    modifier = Modifier.background(Color.White)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Reports") },
+                                        onClick = {
+                                            showMemberDetailMenu = false
+                                            onMemberReportClick(activeGroup.id, detailMember.id)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        }
+                    }
+
+                    val totalMemberShare = detailExpenses.sumOf { expense ->
+                        splits[expense.id].orEmpty()
+                            .firstOrNull { it.memberId == detailMember.id }
+                            ?.amount ?: 0.0
+                    }
+                    val totalMemberPaid = detailExpenses.sumOf { expense ->
+                        paymentsByExpense[expense.id].orEmpty()
+                            .filter { it.memberId == detailMember.id }
+                            .sumOf { it.amount }
+                    } + memberReceivedTotal(detailMember.id, settlements)
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color.White
+                            ),
+                            elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                defaultElevation = 1.dp
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 16.dp)
+                            ) {
+                                Text(
+                                    text = "Share",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF667085)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = money(totalMemberShare),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF202939),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
+                        androidx.compose.material3.Card(
+                            modifier = Modifier.weight(1f).clickable { settlingMember = detailMember },
+                            shape = RoundedCornerShape(18.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color.White
+                            ),
+                            elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                defaultElevation = 1.dp
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 16.dp)
+                            ) {
+                                Text(
+                                    text = "Paid",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF667085)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = money(totalMemberPaid),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF16804A),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+
+                    if (detailExpenses.isEmpty()) {
+                        Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                            Text("No expenses or payments recorded for this member.")
+                        }
+                    } else {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(detailExpenses, key = { it.id }) { expense ->
+                                val memberPayment = paymentsByExpense[expense.id].orEmpty()
+                                    .filter { it.memberId == detailMember.id }.sumOf { it.amount }
+                                val memberSplit = splits[expense.id].orEmpty()
+                                    .firstOrNull { it.memberId == detailMember.id }
+
+                                androidx.compose.material3.Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(18.dp),
+                                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                                        containerColor = Color.White
+                                    )
+                                ) {
+                                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.Top) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(expense.title,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold)
+                                                Text(
+                                                    java.text.SimpleDateFormat(
+                                                        "dd MMM yyyy", java.util.Locale.getDefault()
+                                                    ).format(java.util.Date(expense.expenseDate)),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Text(money(expense.amount),
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold)
+                                        }
+                                        if (expense.note.isNotBlank()) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Text(expense.note, style = MaterialTheme.typography.bodyMedium)
+                                        }
+                                        if (memberSplit != null) {
+                                            Spacer(Modifier.height(8.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("${detailMember.name} Share", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Spacer(Modifier.weight(1f))
+                                                Text(money(memberSplit.amount), fontWeight = FontWeight.Medium)
+                                            }
+                                        }
+                                        if (memberPayment > 0.009) {
+                                            Spacer(Modifier.height(6.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("${detailMember.name} Paid", color = Color(0xFF15803D))
+                                                Spacer(Modifier.weight(1f))
+                                                Text(money(memberPayment), fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFF15803D))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
 
     if (showMemberEditor && activeGroupId != null) {
         NameEditorDialog(

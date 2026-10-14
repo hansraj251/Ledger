@@ -223,6 +223,7 @@ class MainActivity : ComponentActivity() {
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
+                var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
                 var showGroupExpenseReport by remember { mutableStateOf(false) }
 fun setDailyExpenseScreenVisible(visible: Boolean) {
                     showDailyExpenseScreen = visible
@@ -284,7 +285,11 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                 } else if (showGroupExpenseReport) {
                     GroupExpenseReportScreen(
                         groupId = selectedSharingGroupId ?: 0L,
-                        onBack = { showGroupExpenseReport = false }
+                        memberId = selectedSharingMemberId,
+                        onBack = {
+                            showGroupExpenseReport = false
+                            selectedSharingMemberId = null
+                        }
                     )
                 } else if (showProfileScreen) {
                     ProfileScreen(
@@ -322,6 +327,12 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         onUpgradeClick = { launchPremiumPurchase() },
                         onGroupReportClick = { groupId ->
                             selectedSharingGroupId = groupId
+                            selectedSharingMemberId = null
+                            showGroupExpenseReport = true
+                        },
+                        onMemberReportClick = { groupId, memberId ->
+                            selectedSharingGroupId = groupId
+                            selectedSharingMemberId = memberId
                             showGroupExpenseReport = true
                         },
                         onGroupDeleted = {

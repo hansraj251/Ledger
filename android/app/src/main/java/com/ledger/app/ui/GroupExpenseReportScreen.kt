@@ -57,7 +57,8 @@ import java.util.Locale
 @Composable
 internal fun GroupExpenseReportScreen(
     groupId: Long,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    memberId: Long? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -66,7 +67,7 @@ internal fun GroupExpenseReportScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var groupName by remember { mutableStateOf("Group Expense Report") }
 
-    LaunchedEffect(groupId) {
+    LaunchedEffect(groupId, memberId) {
         isGenerating = true
         errorMessage = null
         try {
@@ -74,14 +75,34 @@ internal fun GroupExpenseReportScreen(
                 val db = LedgerDatabaseProvider.get(context)
                 val group = db.sharingGroupDao().getAll().firstOrNull { it.id == groupId }
                     ?: error("Group not found")
-                val members = db.sharingMemberDao().getByGroup(groupId)
-                val expenses = db.groupExpenseDao().getByGroup(groupId)
-                val splits = expenses.associate { it.id to db.groupExpenseSplitDao().getByExpense(it.id) }
-                val settlements = db.groupSettlementDao().getByGroup(groupId)
+                val allMembers = db.sharingMemberDao().getByGroup(groupId)
+                val allExpenses = db.groupExpenseDao().getByGroup(groupId)
+                val allSplits = allExpenses.associate {
+                    it.id to db.groupExpenseSplitDao().getByExpense(it.id)
+                }
+                val allPayments = allExpenses.associate {
+                    it.id to db.groupExpensePaymentDao().getByExpense(it.id)
+                }
+                val allSettlements = db.groupSettlementDao().getByGroup(groupId)
+                val selectedMember = memberId?.let { id -> allMembers.firstOrNull { it.id == id } }
+                if (memberId != null && selectedMember == null) error("Member not found")
+
+                val filteredExpenses = if (memberId == null) allExpenses else allExpenses.filter { expense ->
+                    allSplits[expense.id].orEmpty().any { it.memberId == memberId } ||
+                        allPayments[expense.id].orEmpty().any { it.memberId == memberId }
+                }
+                val filteredSplits = filteredExpenses.associate { expense ->
+                    expense.id to allSplits[expense.id].orEmpty().filter {
+                        memberId == null || it.memberId == memberId
+                    }
+                }
+                val filteredMembers = if (memberId == null) allMembers else allMembers.filter { it.id == memberId }
+                val filteredSettlements = if (memberId == null) allSettlements
+                    else allSettlements.filter { it.memberId == memberId }
                 val file = createGroupExpenseReportPdf(
-                    context, group, members, expenses, splits, settlements
+                    context, group, filteredMembers, filteredExpenses, filteredSplits, filteredSettlements
                 )
-                group.name to file
+                (selectedMember?.let { "${group.name} - ${it.name}" } ?: group.name) to file
             }
             groupName = result.first
             reportFile = result.second
@@ -102,7 +123,7 @@ internal fun GroupExpenseReportScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                 }
                 Column(Modifier.weight(1f)) {
-                    Text("Group Expense Report", style = MaterialTheme.typography.titleLarge)
+                    Text(if (memberId == null) "Group Expense Report" else "Member Expense Report", style = MaterialTheme.typography.titleLarge)
                     Text(groupName, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

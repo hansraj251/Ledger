@@ -224,6 +224,7 @@ fun GroupSharingScreen(
 
     var showExpenseEditor by remember { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<GroupExpenseEntity?>(null) }
+    var expandedExpenseIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var deletingExpense by remember { mutableStateOf<GroupExpenseEntity?>(null) }
 
     LaunchedEffect(refresh, activeGroupId) {
@@ -869,10 +870,20 @@ Row(
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        editingExpense = expense
-                                        showExpenseEditor = true
-                                    },
+                                    .combinedClickable(
+                                        onClick = {
+                                            expandedExpenseIds =
+                                                if (expense.id in expandedExpenseIds) {
+                                                    expandedExpenseIds - expense.id
+                                                } else {
+                                                    expandedExpenseIds + expense.id
+                                                }
+                                        },
+                                        onLongClick = {
+                                            editingExpense = expense
+                                            showExpenseEditor = true
+                                        }
+                                    ),
                                 shape = RoundedCornerShape(18.dp),
                                 colors = androidx.compose.material3.CardDefaults.cardColors(
                                     containerColor = androidx.compose.ui.graphics.Color.White
@@ -924,22 +935,24 @@ Row(
                                         )
                                     }
 
+                                    if (expense.id in expandedExpenseIds) {
                                     if (expense.note.isNotBlank()) {
-                                        Surface(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            color = androidx.compose.ui.graphics.Color(0xFFF5F7FA),
-                                            shape = RoundedCornerShape(10.dp)
-                                        ) {
-                                            Text(
-                                                text = expense.note,
-                                                modifier = Modifier.padding(10.dp),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = androidx.compose.ui.graphics.Color(0xFF424A55)
-                                            )
+                                            Surface(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                color = androidx.compose.ui.graphics.Color(0xFFF5F7FA),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text(
+                                                    text = expense.note,
+                                                    modifier = Modifier.padding(10.dp),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = androidx.compose.ui.graphics.Color(0xFF424A55)
+                                                )
+                                            }
                                         }
-                                    }
 
-                                    val expenseSplits = splits[expense.id].orEmpty()
+
+val expenseSplits = splits[expense.id].orEmpty()
                                     val expensePayments = paymentsByExpense[expense.id].orEmpty()
                                     val displayedMemberIds = (expenseSplits.map { it.memberId } +
                                         expensePayments.map { it.memberId }).distinct()
@@ -991,6 +1004,7 @@ Row(
                                         }
                                     }
 
+                                }
                                 }
                             }
                         }

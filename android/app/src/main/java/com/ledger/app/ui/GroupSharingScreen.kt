@@ -206,6 +206,13 @@ fun GroupSharingScreen(
     }
 
     var groupSearch by remember { mutableStateOf("") }
+    var expenseSearch by remember(activeGroupId) { mutableStateOf("") }
+    var expenseFromDate by remember(activeGroupId) { mutableStateOf<Long?>(null) }
+    var expenseToDate by remember(activeGroupId) { mutableStateOf<Long?>(null) }
+    var showExpenseFromPicker by remember { mutableStateOf(false) }
+    var showExpenseDateFilters by remember { mutableStateOf(false) }
+    var showExpenseSearch by remember { mutableStateOf(false) }
+    var showExpenseToPicker by remember { mutableStateOf(false) }
     var showHeaderMenu by remember { mutableStateOf(false) }
     var showMemberReportPicker by remember { mutableStateOf(false) }
 
@@ -279,6 +286,34 @@ fun GroupSharingScreen(
     }
 
     val activeGroup = groups.firstOrNull { it.id == activeGroupId }
+
+    val filteredExpenses = remember(expenses, expenseSearch, expenseFromDate, expenseToDate) {
+        val query = expenseSearch.trim()
+        fun localDateKey(millis: Long): String =
+            java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.ROOT)
+                .format(java.util.Date(millis))
+
+        fun pickerDateKey(millis: Long): String =
+            java.time.Instant.ofEpochMilli(millis)
+                .atZone(java.time.ZoneOffset.UTC)
+                .toLocalDate()
+                .format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+
+        val fromKey = expenseFromDate?.let(::pickerDateKey)
+        val toKey = expenseToDate?.let(::pickerDateKey)
+
+        expenses.filter { expense ->
+            val matchesText = query.isBlank() ||
+                expense.title.contains(query, ignoreCase = true) ||
+                expense.note.contains(query, ignoreCase = true)
+
+            val dateKey = localDateKey(expense.expenseDate)
+            val matchesFrom = fromKey == null || dateKey >= fromKey
+            val matchesTo = toKey == null || dateKey <= toKey
+
+            matchesText && matchesFrom && matchesTo
+        }.sortedByDescending { it.expenseDate }
+    }
     val requestCreateGroup: () -> Unit = {
         if (!isPremium && groups.size >= FREE_GROUP_LIMIT) {
             freeLimitMessage =
@@ -619,6 +654,46 @@ Row(
                                         androidx.compose.ui.graphics.RectangleShape
                                     )
                             ) {
+if (selectedGroupSection != "Members") {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = showExpenseSearch,
+                                                    onCheckedChange = null
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Search")
+                                            }
+                                        },
+                                        onClick = {
+                                            showHeaderMenu = false
+                                            showExpenseSearch = !showExpenseSearch
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Checkbox(
+                                                    checked = showExpenseDateFilters,
+                                                    onCheckedChange = null
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Filter")
+                                            }
+                                        },
+                                        onClick = {
+                                            showHeaderMenu = false
+                                            showExpenseDateFilters = !showExpenseDateFilters
+                                            if (!showExpenseDateFilters) {
+                                                expenseFromDate = null
+                                                expenseToDate = null
+                                                showExpenseFromPicker = false
+                                                showExpenseToPicker = false
+                                            }
+                                        }
+                                    )
+}
                                 DropdownMenuItem(
                                     text = { Text("Add Member") },
                                     leadingIcon = {
@@ -696,6 +771,58 @@ Row(
                 Spacer(Modifier.height(8.dp))
 
                 if (selectedGroupSection == "Members") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                            defaultElevation = 2.dp
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ReceiptLong,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(12.dp).size(26.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(Modifier.width(14.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Total Expenses",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    money(expenses.sumOf { it.amount }),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                "${expenses.size} entries",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (members.isEmpty()) {
                         Text("No members yet. Use the three-dot menu to add a member.")
@@ -705,7 +832,7 @@ Row(
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(members, key = { it.id }) { member ->
+                        items(members, key = { it.id }) { member ->
                                 val memberBalance = memberRemainingBalance(member.id, splits, settlements, paymentsByExpense)
 
                                 androidx.compose.material3.Card(
@@ -841,8 +968,147 @@ Row(
 
 
  else {
+                    if (showExpenseSearch) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = expenseSearch,
+                        onValueChange = { expenseSearch = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp),
+                        singleLine = true,
+                        label = { Text("Search expenses") },
+                        placeholder = { Text("Search title or note") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = null,
+                                tint = Color(0xFF667085)
+                            )
+                        },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = Color(0xFFE4E7EC),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = Color(0xFF667085)
+                        ),
+                        trailingIcon = {
+                            if (expenseSearch.isNotEmpty()) {
+                                IconButton(onClick = { expenseSearch = "" }) {
+                                    Icon(Icons.Outlined.Close, contentDescription = "Clear search")
+                                }
+                            }
+                        }
+                    )
+                    }
+                    if (showExpenseDateFilters) {
+                        Text(
+                            text = "DATE RANGE",
+                            modifier = Modifier.padding(
+                                start = 20.dp, end = 16.dp, top = 5.dp, bottom = 2.dp
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF667085),
+                            letterSpacing = 1.sp
+                        )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { showExpenseFromPicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, Color(0xFFE4E7EC)
+                            ),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF344054)
+                            ),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 10.dp, vertical = 12.dp
+                            )
+                        ) {
+                            Text(expenseFromDate?.let {
+                                java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC)
+                                    .toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                            } ?: "From date", maxLines = 1)
+                        }
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { showExpenseToPicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, Color(0xFFE4E7EC)
+                            ),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = Color(0xFF344054)
+                            ),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 10.dp, vertical = 12.dp
+                            )
+                        ) {
+                            Text(expenseToDate?.let {
+                                java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC)
+                                    .toLocalDate().format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                            } ?: "To date", maxLines = 1)
+                        }
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                expenseSearch = ""
+                                expenseFromDate = null
+                                expenseToDate = null
+                            }
+                        ) { Text("Clear") }
+                    }
+
+                    }
+
+                    if (showExpenseDateFilters && (showExpenseFromPicker || showExpenseToPicker)) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val isFromPicker = showExpenseFromPicker
+                        val currentDate = if (isFromPicker) expenseFromDate else expenseToDate
+                        val calendar = java.util.Calendar.getInstance().apply {
+                            if (currentDate != null) {
+                                timeInMillis = currentDate
+                            }
+                        }
+
+                        android.app.DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                val selectedMillis = java.util.Calendar.getInstance().apply {
+                                    clear()
+                                    set(year, month, day, 12, 0, 0)
+                                    set(java.util.Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+
+                                if (isFromPicker) {
+                                    expenseFromDate = selectedMillis
+                                    showExpenseFromPicker = false
+                                } else {
+                                    expenseToDate = selectedMillis
+                                    showExpenseToPicker = false
+                                }
+                            },
+                            calendar.get(java.util.Calendar.YEAR),
+                            calendar.get(java.util.Calendar.MONTH),
+                            calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                        ).apply {
+                            setOnCancelListener {
+                                showExpenseFromPicker = false
+                                showExpenseToPicker = false
+                            }
+                        }.show()
+                    }
+
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    if (expenses.isEmpty()) {
+                    if (filteredExpenses.isEmpty()) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -879,13 +1145,13 @@ Row(
                                     verticalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Text(
-                                        "No expenses yet",
+                                        if (expenses.isEmpty()) "No expenses yet" else "No matching expenses",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = androidx.compose.ui.graphics.Color(0xFF202124)
                                     )
                                     Text(
-                                        "Expenses added to this group will appear here.",
+                                        if (expenses.isEmpty()) "Expenses added to this group will appear here." else "Try changing your search or date range.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -899,7 +1165,7 @@ Row(
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 96.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(expenses, key = { it.id }) { expense ->
+                        items(filteredExpenses, key = { it.id }) { expense ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()

@@ -843,16 +843,28 @@ if (selectedGroupSection != "Members") {
                                                 Modifier.combinedClickable(
                                                     onClick = { selectedMemberDetail = member },
                                                     onLongClick = {
-                                                        defaultShareMember = member
-                                                        defaultShareText = decimal(member.defaultShareUnits)
+                                                        if (!isPremium) {
+                                                            freeLimitMessage =
+                                                                "Default Share is a Premium feature. Upgrade to Premium to set a member's default share."
+                                                            showFreeLimitDialog = true
+                                                        } else {
+                                                            defaultShareMember = member
+                                                            defaultShareText = decimal(member.defaultShareUnits)
+                                                        }
                                                     }
                                                 )
                                             } else {
                                                 Modifier.combinedClickable(
                                                     onClick = { selectedMemberDetail = member },
                                                     onLongClick = {
-                                                        defaultShareMember = member
-                                                        defaultShareText = decimal(member.defaultShareUnits)
+                                                        if (!isPremium) {
+                                                            freeLimitMessage =
+                                                                "Default Share is a Premium feature. Upgrade to Premium to set a member's default share."
+                                                            showFreeLimitDialog = true
+                                                        } else {
+                                                            defaultShareMember = member
+                                                            defaultShareText = decimal(member.defaultShareUnits)
+                                                        }
                                                     }
                                                 )
                                             }

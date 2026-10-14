@@ -2636,10 +2636,6 @@ if (showMemberSearch) {
                     if (paymentError.isNotBlank()) {
                         Text(paymentError, color = MaterialTheme.colorScheme.error)
                     }
-                    val totalPaid = paidAmounts.values.sumOf {
-                        it.toDoubleOrNull()?.takeIf { value -> value.isFinite() && value >= 0.0 } ?: 0.0
-                    }
-                    Text("Total paid: ${money(totalPaid)}")
                 }
             },
             confirmButton = {

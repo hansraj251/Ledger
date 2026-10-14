@@ -714,7 +714,7 @@ Row(
                                         .then(
                                             if (member.name.equals("You", ignoreCase = true)) {
                                                 Modifier.combinedClickable(
-                                                    onClick = { },
+                                                    onClick = { selectedMemberDetail = member },
                                                     onLongClick = {
                                                         defaultShareMember = member
                                                         defaultShareText = decimal(member.defaultShareUnits)
@@ -1480,11 +1480,15 @@ val expenseSplits = splits[expense.id].orEmpty()
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clickable {
-                                        editingMember = detailMember
-                                        memberName = detailMember.name
-                                        showMemberEditor = true
-                                    }
+                                    .then(
+                                        if (!detailMember.name.equals("You", ignoreCase = true)) {
+                                            Modifier.clickable {
+                                                editingMember = detailMember
+                                                memberName = detailMember.name
+                                                showMemberEditor = true
+                                            }
+                                        } else Modifier
+                                    )
                             ) {
                                 Text(
                                     text = detailMember.name,
@@ -1500,7 +1504,8 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 )
                             }
 
-                            Box {
+                            if (!detailMember.name.equals("You", ignoreCase = true)) {
+                    Box {
                                 IconButton(onClick = { showMemberDetailMenu = true }) {
                                     Icon(
                                         imageVector = Icons.Outlined.MoreVert,
@@ -1521,6 +1526,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     )
                                 }
                             }
+                }
                         }
                         }
                     }
@@ -1574,35 +1580,39 @@ val expenseSplits = splits[expense.id].orEmpty()
                             }
                         }
 
-                        androidx.compose.material3.Card(
-                            modifier = Modifier.weight(1f).clickable { settlingMember = detailMember },
-                            shape = RoundedCornerShape(18.dp),
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = Color.White
-                            ),
-                            elevation = androidx.compose.material3.CardDefaults.cardElevation(
-                                defaultElevation = 1.dp
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 16.dp)
+                        if (!detailMember.name.equals("You", ignoreCase = true)) {
+                            androidx.compose.material3.Card(
+                                modifier = Modifier.weight(1f).clickable {
+                                    settlingMember = detailMember
+                                },
+                                shape = RoundedCornerShape(18.dp),
+                                colors = androidx.compose.material3.CardDefaults.cardColors(
+                                    containerColor = Color.White
+                                ),
+                                elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                    defaultElevation = 1.dp
+                                )
                             ) {
-                                Text(
-                                    text = "Paid",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF667085)
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = money(totalMemberPaid),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF16804A),
-                                    maxLines = 1
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 16.dp)
+                                ) {
+                                    Text(
+                                        text = "Paid",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF667085)
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        text = money(totalMemberPaid),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF16804A),
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
@@ -1657,7 +1667,9 @@ val expenseSplits = splits[expense.id].orEmpty()
                                         if (memberSplit != null) {
                                             Spacer(Modifier.height(8.dp))
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("${detailMember.name} Share", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(
+    if (detailMember.name.equals("You", ignoreCase = true)) "Your Share"
+    else "${detailMember.name} Share", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Spacer(Modifier.weight(1f))
                                                 Text(money(memberSplit.amount), fontWeight = FontWeight.Medium)
                                             }

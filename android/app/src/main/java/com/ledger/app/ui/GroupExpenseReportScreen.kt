@@ -164,7 +164,7 @@ internal fun GroupExpenseReportScreen(
                     Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(if (memberId == null) "Group Expense Report" else "Ledger Report", style = MaterialTheme.typography.titleLarge)
+                    Text("Ledger Report", style = MaterialTheme.typography.titleLarge)
                     Text(groupName, style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -347,11 +347,14 @@ private fun createGroupExpenseReportPdf(
 
             writer.line(displayMemberName, 11f, true)
             writer.pair("$displayMemberName Share", money(share))
-            writer.pair("$displayMemberName Paid", money(paid))
-            if (balance >= -0.005) {
-                writer.pair("Remaining Balance", money(balance.coerceAtLeast(0.0)))
-            } else {
-                writer.pair("Excess Balance", money(-balance))
+
+            if (!member.name.equals("You", ignoreCase = true)) {
+                writer.pair("$displayMemberName Paid", money(paid))
+                if (balance >= -0.005) {
+                    writer.pair("Remaining Balance", money(balance.coerceAtLeast(0.0)))
+                } else {
+                    writer.pair("Excess Balance", money(-balance))
+                }
             }
             writer.gap(5f)
         }
@@ -376,11 +379,19 @@ private fun createGroupExpenseReportPdf(
                     )
                 )
             } else {
-                members.forEachIndexed { index, member ->
+                val visibleMembers = members.mapNotNull { member ->
                     val share = splits[expense.id].orEmpty()
                         .firstOrNull { it.memberId == member.id }?.amount ?: 0.0
                     val paid = memberPaymentsByExpense[expense.id]?.get(member.id) ?: 0.0
 
+                    if (kotlin.math.abs(share) < 0.005 && kotlin.math.abs(paid) < 0.005) {
+                        null
+                    } else {
+                        Triple(member, share, paid)
+                    }
+                }
+
+                visibleMembers.forEachIndexed { index, (member, share, paid) ->
                     rows.add(
                         listOf(
                             if (index == 0) date.format(Date(expense.expenseDate)) else "",

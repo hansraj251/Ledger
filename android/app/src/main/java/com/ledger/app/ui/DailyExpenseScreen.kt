@@ -1,5 +1,13 @@
 package com.ledger.app.ui
 
+import androidx.compose.material.icons.outlined.Share
+
+import androidx.compose.material.icons.outlined.Download
+
+import androidx.core.content.FileProvider
+
+import android.content.Intent
+
 import com.ledger.app.data.CurrencySettings
 
 import androidx.compose.material.icons.filled.ArrowBack
@@ -214,7 +222,9 @@ fun DailyExpenseScreen(
     onProfileClick: () -> Unit,
     onExpenseDataChanged: () -> Unit,
     isPremium: Boolean,
-    onUpgradeClick: () -> Unit = {}
+    onUpgradeClick: () -> Unit = {
+
+}
 ) {
     val context = LocalContext.current
     val database = remember(context) {
@@ -244,6 +254,9 @@ fun DailyExpenseScreen(
     var editingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
 
     var showUpgradeDialog by remember { mutableStateOf(false) }
+var isReportLimitReached by remember { mutableStateOf(false) }
+
+    var showAllTimeRecords by remember { mutableStateOf(false) }
 
     val openExpenseDatePicker: () -> Unit = {
     val selected = Calendar.getInstance().apply {
@@ -256,6 +269,7 @@ fun DailyExpenseScreen(
                 clear()
                 set(year, month, day, 0, 0, 0)
             }.timeInMillis
+            showAllTimeRecords = false
             showSelectedDayRecords = true
             showMonthRecords = false
             showYearRecords = false
@@ -283,9 +297,80 @@ fun DailyExpenseScreen(
     var deletingExpense by remember { mutableStateOf<DailyExpenseEntity?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
+    var showReportOptions by remember { mutableStateOf(false) }
+    var dailyReportPreviewFile by remember { mutableStateOf<java.io.File?>(null) }
+    var dailyReportPreviewYear by remember { mutableStateOf<Int?>(null) }
+
+
+
+    val generateDailyExpenseReport: (Int?) -> Unit = { reportYear ->
+        scope.launch {
+            try {
+                // DAILY_REPORT_FREE_LIMIT_V1: three successful reports for free users.
+                val reportLimitPrefs = context.getSharedPreferences(
+                    "daily_expense_report_limits", 0
+                )
+                if (!isPremium &&
+                    reportLimitPrefs.getInt("generated_count", 0) >= 3
+                ) {
+                    showReportOptions = false
+                    isReportLimitReached = true
+                    showUpgradeDialog = true
+                    return@launch
+                }
+
+                val reportExpenses = withContext(Dispatchers.IO) {
+                    val all = dao.getAll()
+                    if (reportYear == null) {
+                        all
+                    } else {
+                        val start = Calendar.getInstance().apply {
+                            clear()
+                            set(Calendar.YEAR, reportYear)
+                            set(Calendar.MONTH, Calendar.JANUARY)
+                            set(Calendar.DAY_OF_MONTH, 1)
+                        }.timeInMillis
+                        val end = Calendar.getInstance().apply {
+                            timeInMillis = start
+                            add(Calendar.YEAR, 1)
+                        }.timeInMillis
+                        all.filter {
+                            it.expenseDate >= start && it.expenseDate < end
+                        }
+                    }.sortedWith(
+                        compareByDescending<DailyExpenseEntity> { it.expenseDate }
+                            .thenByDescending { it.id }
+                    )
+                }
+
+                val pdf = withContext(Dispatchers.IO) {
+                    createDailyExpenseReportPdf(context, reportExpenses, reportYear)
+                }
+
+                // Count only after PDF creation succeeds; premium reports are unlimited.
+                if (!isPremium) {
+                    val currentCount = reportLimitPrefs.getInt("generated_count", 0)
+                    reportLimitPrefs.edit()
+                        .putInt("generated_count", currentCount + 1)
+                        .apply()
+                }
+
+                dailyReportPreviewYear = reportYear
+
+
+                dailyReportPreviewFile = pdf
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Report could not be created: ${e.message ?: "Unknown error"}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
     var showCategoryChart by remember { mutableStateOf(false) }
 
-    LaunchedEffect(showMonthRecords, showYearRecords, showSelectedDayRecords, selectedDayStart, selectedMonthStart, selectedExpenseYear, refreshKey) {
+    LaunchedEffect(showAllTimeRecords, showMonthRecords, showYearRecords, showSelectedDayRecords, selectedDayStart, selectedMonthStart, selectedExpenseYear, refreshKey) {
         isLoading = true
         expenses = withContext(Dispatchers.IO) {
             val all = dao.getAll()
@@ -312,7 +397,8 @@ fun DailyExpenseScreen(
                 }
             }.timeInMillis
 
-            all.filter { it.expenseDate >= start && it.expenseDate < end }
+            if (showAllTimeRecords) all
+            else all.filter { it.expenseDate >= start && it.expenseDate < end }
         }
         isLoading = false
     }
@@ -332,6 +418,47 @@ fun DailyExpenseScreen(
         }
     }
 
+
+    if (showReportOptions) {
+        AlertDialog(
+            onDismissRequest = { showReportOptions = false },
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            title = { Text("Expense Report") },
+            text = {
+                Column {
+                    TextButton(
+                        onClick = {
+                            showReportOptions = false
+                            showAllTimeRecords = true
+                            showSelectedDayRecords = false
+                            showMonthRecords = false
+                            showYearRecords = false
+                            refreshKey++
+                            generateDailyExpenseReport(null)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("All Time", modifier = Modifier.fillMaxWidth())
+                    }
+                    TextButton(
+                        onClick = {
+                            showReportOptions = false
+                            yearPickerValue = Calendar.getInstance().get(Calendar.YEAR)
+                            showYearPicker = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Select Year", modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showReportOptions = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
 
     if (showYearPicker) {
         AlertDialog(
@@ -360,9 +487,12 @@ fun DailyExpenseScreen(
                 TextButton(
                     onClick = {
                         selectedExpenseYear = yearPickerValue
+                        showAllTimeRecords = false
+                        showSelectedDayRecords = false
                         showYearRecords = true
                         showMonthRecords = false
                         showYearPicker = false
+                        generateDailyExpenseReport(yearPickerValue)
                     }
                 ) {
                     Text("Select")
@@ -562,6 +692,19 @@ fun DailyExpenseScreen(
                                     requestAddExpense()
                                 }
                             )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Report",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    showReportOptions = true
+                                }
+                            )
                         }
                     }
                 }
@@ -612,6 +755,7 @@ fun DailyExpenseScreen(
                     Column(Modifier.padding(20.dp)) {
                         Text(
                             when {
+                                showAllTimeRecords -> "ALL-TIME EXPENSE"
                                 showYearRecords -> "YEARLY EXPENSE"
                                 showMonthRecords -> "MONTHLY EXPENSE"
                                 else -> "TODAY\'S EXPENSE"
@@ -963,7 +1107,10 @@ fun DailyExpenseScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     androidx.compose.material3.Text(
-                        "You've reached the Free plan limit of 100 expenses.",
+                        if (isReportLimitReached)
+                            "You've reached the free plan limit of 3 Daily Expense Reports. Upgrade to Premium for unlimited reports."
+                        else
+                            "You've reached the Free plan limit of 100 expenses.",
                         color = Color(0xFF55566A)
                     )
                     Surface(
@@ -1014,6 +1161,100 @@ fun DailyExpenseScreen(
 
 
 
+
+
+    dailyReportPreviewFile?.let { previewFile ->
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { dailyReportPreviewFile = null },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
+        ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { dailyReportPreviewFile = null }) {
+                            Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Daily Expense Report Preview",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                if (dailyReportPreviewYear == null) "All Time"
+                                else "Year: ${dailyReportPreviewYear}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    try {
+                                        val saved = withContext(Dispatchers.IO) {
+                                            saveDailyExpenseReportPdf(
+                                                context, previewFile, dailyReportPreviewYear
+                                            )
+                                        }
+                                        android.widget.Toast.makeText(
+                                            context, "Report saved: $saved",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(
+                                            context, "Download failed: ${e.message}",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Download, contentDescription = "Download report")
+                        }
+                        IconButton(
+                            onClick = {
+                                try {
+                                    val uri = FileProvider.getUriForFile(
+                                        context, "${context.packageName}.fileprovider", previewFile
+                                    )
+                                    val intent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/pdf"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_SUBJECT, "Daily Expense Report")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(
+                                        Intent.createChooser(intent, "Share daily expense report")
+                                    )
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(
+                                        context, "Share failed: ${e.message}",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Share, contentDescription = "Share report")
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PdfPreview(file = previewFile, modifier = Modifier.fillMaxSize())
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1580,4 +1821,310 @@ private fun ExpenseCategoryChartScreen(
             }
         }
     }
+}
+
+private fun createDailyExpenseReportPdf(
+    context: android.content.Context,
+    expenses: List<DailyExpenseEntity>,
+    year: Int?
+): java.io.File {
+    val pdf = android.graphics.pdf.PdfDocument()
+    val ordered = expenses.sortedWith(
+        compareByDescending<DailyExpenseEntity> { it.expenseDate }
+            .thenByDescending { it.id }
+    )
+    val total = ordered.sumOf { it.amount }
+    val categorySummaries = ordered
+        .groupBy { it.category.ifBlank { "Uncategorized" } }
+        .map { (category, items) ->
+            Triple(category, items.size, items.sumOf { it.amount })
+        }
+        .sortedByDescending { it.third }
+
+    val dateFormat = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+    val generatedAt = dateFormat.format(java.util.Date())
+    val pageWidth = 595
+    val pageHeight = 842
+    val left = 36f
+    val tableWidth = 523f
+    val widths = listOf(82f, 100f, 235f, 106f)
+    val headers = listOf("Date", "Category", "Note", "Amount")
+    val rowHeight = 34f
+
+    var page: android.graphics.pdf.PdfDocument.Page? = null
+    var y = 0f
+    var pageNumber = 0
+    var categorySummaryDrawn = false
+
+    fun paint(
+        color: Int = android.graphics.Color.BLACK,
+        size: Float = 10f,
+        bold: Boolean = false
+    ) = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        textSize = size
+        typeface = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT,
+            if (bold) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+        )
+    }
+
+    fun fitText(value: String, maxWidth: Float, textPaint: android.graphics.Paint): String {
+        var result = value.replace('\n', ' ').replace('\r', ' ').trim()
+        if (textPaint.measureText(result) <= maxWidth) return result
+        while (result.isNotEmpty() && textPaint.measureText("$result…") > maxWidth) {
+            result = result.dropLast(1)
+        }
+        return "$result…"
+    }
+
+    fun drawTableHeader() {
+        val canvas = page!!.canvas
+        val bg = paint(android.graphics.Color.WHITE, 9f, true)
+        var x = left
+        headers.forEachIndexed { index, label ->
+            canvas.drawRect(
+                x, y, x + widths[index], y + rowHeight,
+                paint(android.graphics.Color.rgb(35, 73, 112))
+            )
+            canvas.drawText(label, x + 7f, y + 21f, bg)
+            canvas.drawRect(
+                x, y, x + widths[index], y + rowHeight,
+                paint(android.graphics.Color.LTGRAY).apply {
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 0.6f
+                }
+            )
+            x += widths[index]
+        }
+        y += rowHeight
+    }
+
+    fun startPage() {
+        page?.let { pdf.finishPage(it) }
+        pageNumber++
+        page = pdf.startPage(
+            android.graphics.pdf.PdfDocument.PageInfo.Builder(
+                pageWidth, pageHeight, pageNumber
+            ).create()
+        )
+        val canvas = page!!.canvas
+        y = 36f
+
+        canvas.drawText(
+            "DAILY EXPENSE REPORT",
+            left, y + 10f, paint(android.graphics.Color.rgb(35, 73, 112), 18f, true)
+        )
+        y += 24f
+        canvas.drawText(
+            if (year == null) "Period: All Time" else "Period: 1 Jan $year - 31 Dec $year",
+            left, y + 5f, paint(android.graphics.Color.DKGRAY, 10f)
+        )
+        y += 18f
+        canvas.drawText(
+            "Generated: $generatedAt",
+            left, y + 4f, paint(android.graphics.Color.DKGRAY, 9f)
+        )
+        y += 25f
+
+        canvas.drawRoundRect(
+            left, y, left + tableWidth, y + 47f, 6f, 6f,
+            paint(android.graphics.Color.rgb(235, 242, 249))
+        )
+        canvas.drawText(
+            "TOTAL EXPENSE",
+            left + 12f, y + 17f, paint(android.graphics.Color.DKGRAY, 9f, true)
+        )
+        canvas.drawText(
+            CurrencySettings.format(total),
+            left + 12f, y + 37f,
+            paint(android.graphics.Color.rgb(35, 73, 112), 14f, true)
+        )
+        canvas.drawText(
+            "${ordered.size} records",
+            left + tableWidth - 90f, y + 28f,
+            paint(android.graphics.Color.DKGRAY, 9f)
+        )
+        y += 61f
+        if (!categorySummaryDrawn) {
+            categorySummaryDrawn = true
+            val canvas = page!!.canvas
+            canvas.drawText(
+                "CATEGORY-WISE EXPENSE",
+                left, y + 12f,
+                paint(android.graphics.Color.rgb(35, 73, 112), 11f, true)
+            )
+            y += 20f
+
+            val summaryWidths = listOf(220f, 130f, 173f)
+            val summaryHeaders = listOf("Category", "No. of Expenses", "Total Amount")
+
+            fun drawSummaryRow(cells: List<String>, header: Boolean = false, totalRow: Boolean = false) {
+                val height = 25f
+                var x = left
+                cells.forEachIndexed { index, value ->
+                    val bgColor = if (header) {
+                        android.graphics.Color.rgb(35, 73, 112)
+                    } else if (totalRow) {
+                        android.graphics.Color.rgb(235, 242, 249)
+                    } else {
+                        android.graphics.Color.WHITE
+                    }
+                    canvas.drawRect(
+                        x, y, x + summaryWidths[index], y + height,
+                        paint(bgColor)
+                    )
+                    canvas.drawRect(
+                        x, y, x + summaryWidths[index], y + height,
+                        paint(android.graphics.Color.LTGRAY).apply {
+                            style = android.graphics.Paint.Style.STROKE
+                            strokeWidth = 0.6f
+                        }
+                    )
+                    val textColor = if (header) android.graphics.Color.WHITE
+                        else android.graphics.Color.rgb(38, 43, 50)
+                    val textPaint = paint(textColor, 8.5f, header || totalRow || index == 2)
+                    canvas.drawText(
+                        fitText(value, summaryWidths[index] - 12f, textPaint),
+                        x + 6f, y + 16f, textPaint
+                    )
+                    x += summaryWidths[index]
+                }
+                y += height
+            }
+
+            drawSummaryRow(summaryHeaders, header = true)
+            categorySummaries.forEach { (category, count, amount) ->
+                drawSummaryRow(
+                    listOf(category, count.toString(), CurrencySettings.format(amount))
+                )
+            }
+            drawSummaryRow(
+                listOf("Grand Total", ordered.size.toString(), CurrencySettings.format(total)),
+                totalRow = true
+            )
+            y += 12f
+        }
+        drawTableHeader()
+    }
+
+    try {
+        startPage()
+
+        if (ordered.isEmpty()) {
+            page!!.canvas.drawText(
+                "No expenses recorded for this period.",
+                left + 6f, y + 24f, paint(android.graphics.Color.DKGRAY, 11f)
+            )
+            y += rowHeight
+        } else {
+            ordered.forEach { expense ->
+                if (y + rowHeight > 790f) startPage()
+
+                val cells = listOf(
+                    dateFormat.format(java.util.Date(expense.expenseDate)),
+                    expense.category.ifBlank { "Uncategorized" },
+                    expense.note.ifBlank { "-" },
+                    CurrencySettings.format(expense.amount)
+                )
+                var x = left
+                cells.forEachIndexed { index, value ->
+                    val canvas = page!!.canvas
+                    val cellPaint = paint(
+                        android.graphics.Color.rgb(38, 43, 50),
+                        8.5f,
+                        index == 3
+                    )
+                    canvas.drawRect(
+                        x, y, x + widths[index], y + rowHeight,
+                        paint(android.graphics.Color.WHITE)
+                    )
+                    canvas.drawRect(
+                        x, y, x + widths[index], y + rowHeight,
+                        paint(android.graphics.Color.LTGRAY).apply {
+                            style = android.graphics.Paint.Style.STROKE
+                            strokeWidth = 0.6f
+                        }
+                    )
+                    canvas.drawText(
+                        fitText(value, widths[index] - 12f, cellPaint),
+                        x + 6f, y + 21f, cellPaint
+                    )
+                    x += widths[index]
+                }
+                y += rowHeight
+            }
+        }
+
+        page!!.canvas.drawText(
+            "Page $pageNumber",
+            pageWidth - 75f, 820f,
+            paint(android.graphics.Color.GRAY, 8f)
+        )
+
+        page?.let { pdf.finishPage(it) }
+        page = null
+
+        val directory = java.io.File(context.cacheDir, "daily_reports").apply { mkdirs() }
+        val output = java.io.File(directory, "daily_expense_report.pdf")
+        output.outputStream().use { pdf.writeTo(it) }
+        return output
+    } finally {
+        page?.let {
+            try { pdf.finishPage(it) } catch (_: Exception) { }
+        }
+        pdf.close()
+    }
+}
+
+private fun saveDailyExpenseReportPdf(
+    context: android.content.Context,
+    source: java.io.File,
+    year: Int?
+): String {
+    val stamp = java.text.SimpleDateFormat(
+        "yyyyMMdd_HHmmss", java.util.Locale.getDefault()
+    ).format(java.util.Date())
+    val period = year?.toString() ?: "all_time"
+    val fileName = "daily_expense_report_${period}_$stamp.pdf"
+
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+        val values = android.content.ContentValues().apply {
+            put(android.provider.MediaStore.Downloads.DISPLAY_NAME, fileName)
+            put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf")
+            put(
+                android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                "${android.os.Environment.DIRECTORY_DOWNLOADS}/Ledger"
+            )
+            put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(
+            android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+        ) ?: error("Could not create report in Downloads")
+
+        try {
+            resolver.openOutputStream(uri)?.use { output ->
+                source.inputStream().use { input -> input.copyTo(output) }
+            } ?: error("Could not write report file")
+
+            values.clear()
+            values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
+            return "Downloads/Ledger/$fileName"
+        } catch (e: Exception) {
+            resolver.delete(uri, null, null)
+            throw e
+        }
+    }
+
+    val directory = java.io.File(
+        context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS),
+        "Ledger"
+    ).apply { mkdirs() }
+    val output = java.io.File(directory, fileName)
+    source.inputStream().use { input ->
+        output.outputStream().use { out -> input.copyTo(out) }
+    }
+    return output.absolutePath
 }

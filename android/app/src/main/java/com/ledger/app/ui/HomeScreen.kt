@@ -543,11 +543,6 @@ item {
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Text(
-                                text = "Group",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                             Spacer(Modifier.height(5.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -562,19 +557,13 @@ item {
                                 Text(
                                     text = java.text.NumberFormat.getCurrencyInstance(
                                         java.util.Locale("en", "IN")
-                                    ).format(groupExpenseTotals[group.id] ?: 0.0),
+                                    ).format(groupExpenseTotals[group.id] ?: 0.0).substringBefore("."),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF1565C0)
                                 )
                             }
                         }
-                        Icon(
-                            imageVector = Icons.Outlined.ArrowForwardIos,
-                            contentDescription = "Open group",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }

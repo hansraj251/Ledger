@@ -2263,7 +2263,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                 }
             },
             onDismiss = { settlingMember = null },
-            onSave = { amount ->
+            onSave = { amount, receivedAt ->
                 settlingMember = null
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -2272,7 +2272,8 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 groupId = member.groupId,
                                 memberId = member.id,
                                 memberNameSnapshot = member.name,
-                                amount = amount
+                                amount = amount,
+                                receivedAt = receivedAt
                             )
                         )
                     }
@@ -3397,9 +3398,13 @@ private fun SettlementDialog(
     history: List<GroupSettlementEntity>,
     onDelete: (GroupSettlementEntity) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (Double) -> Unit
+    onSave: (Double, Long) -> Unit
 ) {
     var amountText by remember(member.id) { mutableStateOf(String.format(Locale.US, "%.2f", remainingBalance)) }
+    var settlementToDelete by remember(member.id) { mutableStateOf<GroupSettlementEntity?>(null) }
+    var settlementDate by remember(member.id) { mutableStateOf(System.currentTimeMillis()) }
+    var showSettlementDatePicker by remember { mutableStateOf(false) }
+    val settlementContext = androidx.compose.ui.platform.LocalContext.current
     val amount = amountText.toDoubleOrNull()
     val validAmount = amount != null &&
         amount > 0.0 &&
@@ -3457,6 +3462,24 @@ private fun SettlementDialog(
                     shape = RoundedCornerShape(15.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
+                OutlinedTextField(
+                    value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                        .format(Date(settlementDate)),
+                    onValueChange = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showSettlementDatePicker = true },
+                    readOnly = true,
+                    label = { Text("Settlement Date") },
+                    trailingIcon = {
+                        TextButton(onClick = { showSettlementDatePicker = true }) {
+                            Text("Choose")
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp)
+                )
+
                 Text("Settlement History", fontWeight = FontWeight.SemiBold)
                 androidx.compose.material3.HorizontalDivider(
                     color = Color(0xFFE8E8EC)
@@ -3482,7 +3505,7 @@ private fun SettlementDialog(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
-                            IconButton(onClick = { onDelete(record) }) {
+                            IconButton(onClick = { settlementToDelete = record }) {
                                 Icon(
                                     imageVector = Icons.Outlined.DeleteOutline,
                                     contentDescription = "Delete settlement",
@@ -3496,7 +3519,7 @@ private fun SettlementDialog(
         },
         confirmButton = {
             Button(
-                onClick = { if (validAmount) onSave(amount!!) },
+                onClick = { if (validAmount) onSave(amount!!, settlementDate) },
                 enabled = validAmount,
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -3507,6 +3530,59 @@ private fun SettlementDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+
+    if (showSettlementDatePicker) {
+        val initialCalendar = java.util.Calendar.getInstance().apply {
+            timeInMillis = settlementDate
+        }
+        android.app.DatePickerDialog(
+            settlementContext,
+            { _, year, month, day ->
+                val selectedCalendar = java.util.Calendar.getInstance().apply {
+                    timeInMillis = settlementDate
+                    set(java.util.Calendar.YEAR, year)
+                    set(java.util.Calendar.MONTH, month)
+                    set(java.util.Calendar.DAY_OF_MONTH, day)
+                }
+                settlementDate = selectedCalendar.timeInMillis
+                showSettlementDatePicker = false
+            },
+            initialCalendar.get(java.util.Calendar.YEAR),
+            initialCalendar.get(java.util.Calendar.MONTH),
+            initialCalendar.get(java.util.Calendar.DAY_OF_MONTH)
+        ).apply {
+            setOnCancelListener { showSettlementDatePicker = false }
+        }.show()
+    }
+
+    settlementToDelete?.let { record ->
+        AlertDialog(
+            onDismissRequest = { settlementToDelete = null },
+            title = { Text("Delete settlement?") },
+            text = {
+                Text("Delete the received amount ${money(record.amount)} from settlement history? This action cannot be undone.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        settlementToDelete = null
+                        onDelete(record)
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFDC2626)
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { settlementToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 }
 
 private fun money(amount: Double): String = CurrencySettings.format(amount)

@@ -3485,7 +3485,9 @@ private fun SettlementDialog(
             ) {
                 Text("Total Share: ${money(totalExpense)}")
                 Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
-                Text("Amount received: ${money(totalReceived)}")
+                if (totalReceived > 0.009) {
+                    Text("Amount received: ${money(totalReceived)}")
+                }
                 if (excessPaid <= 0.009) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

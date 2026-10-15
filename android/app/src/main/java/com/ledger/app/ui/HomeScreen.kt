@@ -87,7 +87,8 @@ fun HomeScreen(
     premiumPrice: String,
     onUpgradeClick: () -> Unit,
 
-    onDataChanged: () -> Unit) {
+    onDataChanged: () -> Unit,
+    onGroupLongClick: (Long) -> Unit = { onGroupClick(it) }) {
     var profileName by rememberSaveable {
         mutableStateOf("")
     }
@@ -434,20 +435,39 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    requestAddParty()
-                },
+            Surface(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .combinedClickable(
+                        onClick = {
+                            requestAddParty()
+                        },
+                        onLongClick = {
+                            if (isPremium || sharingGroups.size < 4) {
+                                newGroupName = ""
+                                showCreateGroupDialog = true
+                            } else {
+                                showGroupUpgradeDialog = true
+                            }
+                        }
+                    ),
                 shape = RoundedCornerShape(18.dp),
-                containerColor = if (isPremium) Color(0xFFFFC247)
+                color = if (isPremium) Color(0xFFFFC247)
                     else MaterialTheme.colorScheme.primary,
                 contentColor = if (isPremium) Color(0xFF302000)
-                    else MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onPrimary,
+                shadowElevation = 6.dp
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.PersonAdd,
-                    contentDescription = "Add party"
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PersonAdd,
+                        contentDescription = "Add party"
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -510,7 +530,10 @@ item {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onGroupClick(group.id) },
+                        .combinedClickable(
+                            onClick = { onGroupClick(group.id) },
+                            onLongClick = { onGroupLongClick(group.id) }
+                        ),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
@@ -885,6 +908,12 @@ item {
                         }
 
                         Button(
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = if (isPremium) Color(0xFFFFC247)
+                                    else MaterialTheme.colorScheme.primary,
+                                contentColor = if (isPremium) Color(0xFF302000)
+                                    else MaterialTheme.colorScheme.onPrimary
+                            ),
                             onClick = {
                                 if (partyName.isNotBlank()) {
                                     isSavingParty = true
@@ -1048,58 +1077,81 @@ item {
                 )
             },
             confirmButton = {
-                Button(
-                    enabled = newGroupName.isNotBlank() && !isSavingGroup,
-                    onClick = {
-                        val name = newGroupName.trim()
-                        if (name.isNotEmpty()) {
-                            isSavingGroup = true
-                            scope.launch {
-val latestGroups =
-                                    kotlinx.coroutines.withContext(
-                                        kotlinx.coroutines.Dispatchers.IO
-                                    ) {
-                                        val existing = sharingGroupDao.getAll()
-                                        if (!isPremium && existing.size >= 4) {
-                                            null
-                                        } else {
-                                            sharingGroupDao.insert(
-                                                com.ledger.app.data.SharingGroupEntity(name = name)
-                                            )
-                                            sharingGroupDao.getAll()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showCreateGroupDialog = false },
+                        enabled = !isSavingGroup,
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Color(0xFFCBD5E1)
+                        )
+                    ) {
+                        Text("Cancel", maxLines = 1)
+                    }
+
+                    Button(
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = if (isPremium) Color(0xFFFFC247)
+                        else MaterialTheme.colorScheme.primary,
+                    contentColor = if (isPremium) Color(0xFF302000)
+                        else MaterialTheme.colorScheme.onPrimary
+                ),
+
+                        enabled = newGroupName.isNotBlank() && !isSavingGroup,
+                        onClick = {
+                            val name = newGroupName.trim()
+                            if (name.isNotEmpty()) {
+                                isSavingGroup = true
+                                scope.launch {
+                                    val latestGroups =
+                                        kotlinx.coroutines.withContext(
+                                            kotlinx.coroutines.Dispatchers.IO
+                                        ) {
+                                            val existing = sharingGroupDao.getAll()
+                                            if (!isPremium && existing.size >= 4) {
+                                                null
+                                            } else {
+                                                sharingGroupDao.insert(
+                                                    com.ledger.app.data.SharingGroupEntity(name = name)
+                                                )
+                                                sharingGroupDao.getAll()
+                                            }
                                         }
+                                    if (latestGroups == null) {
+                                        isSavingGroup = false
+                                        showGroupUpgradeDialog = true
+                                    } else {
+                                        onDataChanged()
+                                        sharingGroups = latestGroups
+                                        newGroupName = ""
+                                        isSavingGroup = false
+                                        showCreateGroupDialog = false
                                     }
-                                if (latestGroups == null) {
-                                    isSavingGroup = false
-                                    showGroupUpgradeDialog = true
-                                } else {
-                                    onDataChanged()
-                                    sharingGroups = latestGroups
-                                    newGroupName = ""
-                                    isSavingGroup = false
-                                    showCreateGroupDialog = false
                                 }
                             }
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        if (isSavingGroup) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Create Group",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                maxLines = 1
+                            )
                         }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    if (isSavingGroup) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Text("Create Group")
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showCreateGroupDialog = false },
-                    enabled = !isSavingGroup
-                ) {
-                    Text("Cancel")
                 }
             }
         )

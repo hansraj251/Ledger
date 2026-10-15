@@ -223,6 +223,7 @@ class MainActivity : ComponentActivity() {
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
+                var openGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
                 var showGroupExpenseReport by remember { mutableStateOf(false) }
 fun setDailyExpenseScreenVisible(visible: Boolean) {
@@ -308,9 +309,11 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                 } else if (showGroupSharingScreen) {
                     GroupSharingScreen(
                         initialGroupId = selectedSharingGroupId,
+                        openGroupEditorOnOpen = openGroupEditorOnOpen,
                         onBack = {
                             showGroupSharingScreen = false
                             selectedSharingGroupId = null
+                            openGroupEditorOnOpen = false
                         },
                         onPartiesClick = {
                             showGroupSharingScreen = false
@@ -370,6 +373,12 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
                         onGroupClick = { groupId ->
                             selectedSharingGroupId = groupId
+                            openGroupEditorOnOpen = false
+                            showGroupSharingScreen = true
+                        },
+                        onGroupLongClick = { groupId ->
+                            selectedSharingGroupId = groupId
+                            openGroupEditorOnOpen = true
                             showGroupSharingScreen = true
                         },
                         onGroupSharingClick = {

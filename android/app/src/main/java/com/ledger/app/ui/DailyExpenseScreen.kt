@@ -913,7 +913,10 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                             .clickable {
                                 requestAddExpense()
                             },
-                        shape = RoundedCornerShape(20.dp)
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        )
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth().padding(28.dp),

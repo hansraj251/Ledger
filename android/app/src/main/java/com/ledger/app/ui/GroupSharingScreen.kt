@@ -166,7 +166,8 @@ fun GroupSharingScreen(
     onGroupDeleted: () -> Unit = {},
     onGroupReportClick: (Long) -> Unit = {},
     onMemberReportClick: (Long, Long) -> Unit = { _, _ -> }
-) {
+,
+    openGroupEditorOnOpen: Boolean = false) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
     val groupDao = remember(database) { database.sharingGroupDao() }
@@ -286,6 +287,23 @@ fun GroupSharingScreen(
     }
 
     val activeGroup = groups.firstOrNull { it.id == activeGroupId }
+
+    var didAutoOpenGroupEditor by remember(
+        initialGroupId, openGroupEditorOnOpen
+    ) { mutableStateOf(false) }
+
+    LaunchedEffect(initialGroupId, openGroupEditorOnOpen, groups) {
+        if (openGroupEditorOnOpen && !didAutoOpenGroupEditor) {
+            val groupToEdit = groups.firstOrNull { it.id == initialGroupId }
+            if (groupToEdit != null) {
+                editingGroup = groupToEdit
+                groupName = groupToEdit.name
+                showGroupEditor = true
+                didAutoOpenGroupEditor = true
+            }
+        }
+    }
+
 
     val filteredExpenses = remember(expenses, expenseSearch, expenseFromDate, expenseToDate) {
         val query = expenseSearch.trim()
@@ -1806,6 +1824,19 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     modifier = Modifier.background(Color.White)
                                 ) {
                                     DropdownMenuItem(
+                                        text = { Text("Settle") },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Outlined.AccountBalanceWallet,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showMemberDetailMenu = false
+                                            settlingMember = detailMember
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text("Reports") },
                                         onClick = {
                                             showMemberDetailMenu = false
@@ -1862,9 +1893,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     text = money(totalMemberShare),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (detailMember.name.equals("You", ignoreCase = true))
-                                        Color(0xFFD4A017)
-                                    else Color(0xFF202939),
+                                    color = Color(0xFFE53935),
                                     maxLines = 1
                                 )
                             }
@@ -1959,9 +1988,15 @@ val expenseSplits = splits[expense.id].orEmpty()
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
     if (detailMember.name.equals("You", ignoreCase = true)) "Your Share"
-    else "${detailMember.name} Share", color = MaterialTheme.colorScheme.onSurfaceVariant)
+    else "${detailMember.name} Share",
+    color = Color(0xFFE53935)
+)
                                                 Spacer(Modifier.weight(1f))
-                                                Text(money(memberSplit.amount), fontWeight = FontWeight.Medium)
+                                                Text(
+    money(memberSplit.amount),
+    fontWeight = FontWeight.Medium,
+    color = Color(0xFFE53935)
+)
                                             }
                                         }
                                         if (memberPayment > 0.009) {
@@ -2058,11 +2093,17 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     )
                                 }
                                 memberDao.insert(
-                                    SharingMemberEntity(groupId = groupId, name = value)
+                                    SharingMemberEntity(groupId = groupId, name = normalizedName)
                                 )
                             }
                         } else if (!old.name.equals("You", ignoreCase = true)) {
-                            memberDao.update(old.copy(name = value))
+                            memberDao.update(old.copy(name = normalizedName))
+                        }
+                    }
+                    // Immediately refresh the currently open Member Details header.
+                    oldMemberForLimit?.let { savedMember ->
+                        if (selectedMemberDetail?.id == savedMember.id) {
+                            selectedMemberDetail = savedMember.copy(name = normalizedName)
                         }
                     }
                     onDataChanged()

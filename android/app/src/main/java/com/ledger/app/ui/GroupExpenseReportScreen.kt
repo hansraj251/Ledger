@@ -305,6 +305,33 @@ private fun createGroupExpenseReportPdf(
                 writer.table(headers, rows)
             }
 
+            // Payment details: expense payments total plus dated settlement history.
+            writer.gap(8f)
+            writer.section("PAYMENT DETAILS")
+            val expensePaymentsTotal = memberPayments.values.sum()
+            writer.pair("Total Paid in Expenses", money(expensePaymentsTotal))
+
+            writer.gap(4f)
+            writer.line("PAYMENT HISTORY", 10f, true)
+            val memberSettlements = settlements
+                .filter { it.memberId == memberId }
+                .sortedByDescending { it.receivedAt }
+
+            if (memberSettlements.isEmpty()) {
+                writer.line("No settlement records found for this member.")
+            } else {
+                val settlementRows = memberSettlements.map { settlement ->
+                    listOf(
+                        date.format(Date(settlement.receivedAt)),
+                        money(settlement.amount)
+                    )
+                }
+                writer.table(
+                    listOf("Date", "Amount"),
+                    settlementRows
+                )
+            }
+
             writer.line("End of report", 9f)
             writer.finish()
 

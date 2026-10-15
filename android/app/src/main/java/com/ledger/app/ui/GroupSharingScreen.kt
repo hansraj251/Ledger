@@ -2279,13 +2279,17 @@ val expenseSplits = splits[expense.id].orEmpty()
         val totalReceived = memberReceivedTotal(member.id, settlements)
         val totalPaid = paymentsByExpense.values.asSequence().flatten()
             .filter { it.memberId == member.id }.sumOf { it.amount }
-        val balance = (totalExpense - totalReceived - totalPaid).coerceAtLeast(0.0)
+        val signedBalance = totalExpense - totalReceived - totalPaid
+        val balance = signedBalance.coerceAtLeast(0.0)
+        val excessPaid = (-signedBalance).coerceAtLeast(0.0)
 
         SettlementDialog(
             member = member,
             totalExpense = totalExpense,
             totalReceived = totalReceived,
+            totalPaidInExpense = totalPaid,
             remainingBalance = balance,
+            excessPaid = excessPaid,
             history = settlements.filter { it.memberId == member.id },
             onDelete = { record ->
                 scope.launch {
@@ -2796,7 +2800,21 @@ private fun GroupExpenseEditorDialog(
         mutableStateOf(initial?.amount?.let { decimal(it) } ?: "")
     }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
-    var mode by remember(initial?.id) { mutableStateOf(initial?.splitMode ?: "Equal") }
+    val expenseEditorContext = LocalContext.current
+    val splitModePreferences = remember(expenseEditorContext) {
+        expenseEditorContext.getSharedPreferences(
+            "group_expense_preferences",
+            android.content.Context.MODE_PRIVATE
+        )
+    }
+    val modePreferenceKey = "last_split_mode_${members.firstOrNull()?.groupId ?: -1L}"
+    var mode by remember(initial?.id, modePreferenceKey) {
+        mutableStateOf(
+            initial?.splitMode
+                ?: splitModePreferences.getString(modePreferenceKey, "Equal")
+                ?: "Equal"
+        )
+    }
     var error by remember(initial?.id) { mutableStateOf("") }
 
     val initialIds = initialSplits.map { it.memberId }.toSet()
@@ -2951,7 +2969,12 @@ private fun GroupExpenseEditorDialog(
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .clickable { mode = option },
+                                .clickable {
+                                    mode = option
+                                    splitModePreferences.edit()
+                                        .putString(modePreferenceKey, option)
+                                        .apply()
+                                },
                             shape = RoundedCornerShape(14.dp),
                             color = if (isSelected) {
                                 if (isPremium) Color(0xFFFFC247)
@@ -3428,7 +3451,9 @@ private fun SettlementDialog(
     member: SharingMemberEntity,
     totalExpense: Double,
     totalReceived: Double,
+    totalPaidInExpense: Double,
     remainingBalance: Double,
+    excessPaid: Double,
     history: List<GroupSettlementEntity>,
     onDelete: (GroupSettlementEntity) -> Unit,
     onDismiss: () -> Unit,
@@ -3458,8 +3483,10 @@ private fun SettlementDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Total expense: ${money(totalExpense)}")
+                Text("Total Share: ${money(totalExpense)}")
+                Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
                 Text("Amount received: ${money(totalReceived)}")
+                if (excessPaid <= 0.009) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -3468,7 +3495,7 @@ private fun SettlementDialog(
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Text(
-                            "Remaining balance",
+                            "Remaining Balance",
                             style = MaterialTheme.typography.labelMedium,
                             color = Color(0xFF555F75)
                         )
@@ -3483,38 +3510,63 @@ private fun SettlementDialog(
                         )
                     }
                 }
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { input ->
-                        if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
-                            amountText = input
+                }
+                if (excessPaid > 0.009) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFFE8F5E9),
+                        border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(
+                                "Excess Paid",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFF2E7D32)
+                            )
+                            Text(
+                                money(excessPaid),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32)
+                            )
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Received Amount") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(15.dp),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                )
-                OutlinedTextField(
-                    value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                        .format(Date(settlementDate)),
-                    onValueChange = {},
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showSettlementDatePicker = true },
-                    readOnly = true,
-                    label = { Text("Settlement Date") },
-                    trailingIcon = {
-                        TextButton(onClick = { showSettlementDatePicker = true }) {
-                            Text("Choose")
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(15.dp)
-                )
+                    }
+                }
+                if (excessPaid <= 0.009) {
+                    OutlinedTextField(
+                        value = amountText,
+                        onValueChange = { input ->
+                            if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                                amountText = input
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Received Amount") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(15.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    OutlinedTextField(
+                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                            .format(Date(settlementDate)),
+                        onValueChange = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showSettlementDatePicker = true },
+                        readOnly = true,
+                        label = { Text("Settlement Date") },
+                        trailingIcon = {
+                            TextButton(onClick = { showSettlementDatePicker = true }) {
+                                Text("Choose")
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(15.dp)
+                    )
 
-                Text("Settlement History", fontWeight = FontWeight.SemiBold)
+                }
+                Text("Payment History", fontWeight = FontWeight.SemiBold)
                 androidx.compose.material3.HorizontalDivider(
                     color = Color(0xFFE8E8EC)
                 )

@@ -113,6 +113,9 @@ fun HomeScreen(
     var sharingGroups by remember {
         mutableStateOf(emptyList<com.ledger.app.data.SharingGroupEntity>())
     }
+    var groupExpenseTotals by remember {
+        mutableStateOf(emptyMap<Long, Double>())
+    }
     var receivableInterestTotal by remember { mutableStateOf(0.0) }
     var payableInterestTotal by remember { mutableStateOf(0.0) }
     var groupReceivableTotal by remember { mutableStateOf(0.0) }
@@ -166,6 +169,17 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         sharingGroups = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             sharingGroupDao.getAll()
+        }
+    }
+
+    LaunchedEffect(sharingGroups) {
+        groupExpenseTotals = kotlinx.coroutines.withContext(
+            kotlinx.coroutines.Dispatchers.IO
+        ) {
+            val expenseDao = LedgerDatabaseProvider.get(context).groupExpenseDao()
+            sharingGroups.associate { group ->
+                group.id to expenseDao.getByGroup(group.id).sumOf { it.amount }
+            }
         }
     }
 
@@ -460,8 +474,7 @@ item {
                         title = "Receivable",
                         amount = receivable,
                         modifier = Modifier.weight(1f),
-                        amountColor = if (isPremium) Color(0xFF1B5E20)
-                            else MaterialTheme.colorScheme.primary,
+                        amountColor = Color(0xFFC62828),
                         expanded = isReceivableExpanded,
                         onClick = { isReceivableExpanded = !isReceivableExpanded },
                         details = listOf(
@@ -474,7 +487,7 @@ item {
                         title = "Payable",
                         amount = payable,
                         modifier = Modifier.weight(1f),
-                        amountColor = MaterialTheme.colorScheme.error,
+                        amountColor = Color(0xFF2E7D32),
                         expanded = isPayableExpanded,
                         onClick = { isPayableExpanded = !isPayableExpanded },
                         details = listOf(
@@ -535,6 +548,26 @@ item {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.height(5.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Total Expense",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = java.text.NumberFormat.getCurrencyInstance(
+                                        java.util.Locale("en", "IN")
+                                    ).format(groupExpenseTotals[group.id] ?: 0.0),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1565C0)
+                                )
+                            }
                         }
                         Icon(
                             imageVector = Icons.Outlined.ArrowForwardIos,
@@ -1312,11 +1345,25 @@ private fun PartyCard(
                     modifier = Modifier.height(4.dp)
                 )
 
-                Text(
-                    text = party.mobile.ifBlank { "No mobile number added" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (balance > 0.0) {
+                    Text(
+                        text = "You will get",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFFC62828)
+                    )
+                } else if (balance < 0.0) {
+                    Text(
+                        text = "You will give",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF2E7D32)
+                    )
+                } else {
+                    Text(
+                        text = "Settled",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             Text(
@@ -1324,10 +1371,9 @@ private fun PartyCard(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (balance >= 0) {
-                    if (isPremium) Color(0xFF1B5E20)
-                    else MaterialTheme.colorScheme.primary
+                    Color(0xFFC62828)
                 } else {
-                    MaterialTheme.colorScheme.error
+                    Color(0xFF2E7D32)
                 }
             )
         }

@@ -1194,6 +1194,9 @@ private fun EditTransactionDialog(
                         modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
                         singleLine = true,
                         label = { Text("Amount") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
                         prefix = { Text("${CurrencySettings.symbol} ") },
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                     )
@@ -1555,8 +1558,8 @@ private fun BalanceHero(
     val negative = balance < 0
 
     val accent = when {
-        positive -> MaterialTheme.colorScheme.tertiary
-        negative -> MaterialTheme.colorScheme.error
+        positive -> MaterialTheme.colorScheme.error
+        negative -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.primary
     }
 
@@ -2536,9 +2539,9 @@ private fun TransactionCard(
     val isCredit = entry.type == EntryType.CREDIT
 
     val accent = if (isCredit) {
-        MaterialTheme.colorScheme.tertiary
-    } else {
         MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.tertiary
     }
 
     Card(

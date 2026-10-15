@@ -774,6 +774,7 @@ if (selectedGroupSection != "Members") {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable { selectedGroupSection = "Expense" }
                             .padding(horizontal = 16.dp, vertical = 4.dp),
                         shape = RoundedCornerShape(20.dp),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -812,7 +813,7 @@ if (selectedGroupSection != "Members") {
                                     money(expenses.sumOf { it.amount }),
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = if (isPremium) Color(0xFFD4A017) else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Text(
@@ -834,6 +835,7 @@ if (selectedGroupSection != "Members") {
                         ) {
                         items(members, key = { it.id }) { member ->
                                 val memberBalance = memberRemainingBalance(member.id, splits, settlements, paymentsByExpense)
+                                val isYou = member.name.equals("You", ignoreCase = true)
 
                                 androidx.compose.material3.Card(
                                     modifier = Modifier
@@ -907,29 +909,37 @@ if (selectedGroupSection != "Members") {
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Medium
                                             )
-                                            if (!member.name.equals("You", ignoreCase = true)) {
-                                                val isExcessPaid = memberBalance < -0.009
-                                                Text(
-                                                    text = if (isExcessPaid) "Excess Paid" else "Remaining balance",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = if (isExcessPaid) Color(0xFFDC2626)
-                                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
+                                            val isYou = member.name.equals("You", ignoreCase = true)
+                                            val isExcessPaid = memberBalance < -0.009
+                                            Text(
+                                                text = when {
+                                                    isYou -> "Your Share"
+                                                    isExcessPaid -> "Excess Paid"
+                                                    else -> "Remaining balance"
+                                                },
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = when {
+                                                    isYou -> Color(0xFFD4A017)
+                                                    isExcessPaid -> Color(0xFF14532D)
+                                                    else -> Color(0xFFDC2626)
+                                                }
+                                            )
                                         }
 
                                         Spacer(Modifier.width(12.dp))
 
-                                        if (!member.name.equals("You", ignoreCase = true)) {
-                                            val isExcessPaid = memberBalance < -0.009
-                                            Text(
-                                                text = money(if (isExcessPaid) kotlin.math.abs(memberBalance) else memberBalance),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isExcessPaid) Color(0xFFDC2626)
-                                                    else MaterialTheme.colorScheme.primary
-                                            )
-                                        }
+                                        val isExcessPaid = memberBalance < -0.009
+                                        Text(
+                                            text = if (isYou) money(memberExpenseTotal(member.id, splits))
+                                        else money(if (isExcessPaid) kotlin.math.abs(memberBalance) else memberBalance),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                isYou -> Color(0xFFD4A017)
+                                                isExcessPaid -> Color(0xFF14532D)
+                                                else -> Color(0xFFDC2626)
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -1852,7 +1862,9 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     text = money(totalMemberShare),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF202939),
+                                    color = if (detailMember.name.equals("You", ignoreCase = true))
+                                        Color(0xFFD4A017)
+                                    else Color(0xFF202939),
                                     maxLines = 1
                                 )
                             }
@@ -2147,11 +2159,20 @@ val expenseSplits = splits[expense.id].orEmpty()
                         ) {
                             settlementMembers.forEach { member ->
                                 val remaining = memberRemainingBalance(
+
                                     member.id,
+
                                     splits,
-                                    settlements
+
+                                    settlements,
+
+                                    paymentsByExpense
+
                                 )
-                                val isSettled = remaining <= 0.009
+
+                                val isExcessPaid = remaining < -0.009
+
+                                val isSettled = kotlin.math.abs(remaining) <= 0.009
 
                                 Row(
                                     modifier = Modifier
@@ -2166,13 +2187,13 @@ val expenseSplits = splits[expense.id].orEmpty()
                                             showSettlementMemberPicker = false
                                             settlingMember = member
                                         }
-                                        .padding(14.dp),
+                                        .padding(start = 8.dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(44.dp)
+                                            .size(40.dp)
                                             .clip(CircleShape)
                                             .background(
                                                 MaterialTheme.colorScheme.primary.copy(
@@ -2181,10 +2202,14 @@ val expenseSplits = splits[expense.id].orEmpty()
                                             ),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.PersonAdd,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary
+                                        Text(
+                                            text = member.name.trim()
+                                                .firstOrNull()
+                                                ?.uppercaseChar()
+                                                ?.toString() ?: "?",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     }
 
@@ -2198,9 +2223,17 @@ val expenseSplits = splits[expense.id].orEmpty()
                                             fontWeight = FontWeight.SemiBold
                                         )
                                         Text(
-                                            text = if (isSettled) "Settled" else "Remaining balance",
+                                            text = when {
+                                                isExcessPaid -> "Excess Paid"
+                                                isSettled -> "Settled"
+                                                else -> "Remaining Balance"
+                                            },
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = when {
+                                                isExcessPaid -> Color(0xFF14532D)
+                                                isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                else -> Color(0xFFDC2626)
+                                            }
                                         )
                                     }
 
@@ -2209,13 +2242,14 @@ val expenseSplits = splits[expense.id].orEmpty()
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
                                         Text(
-                                            text = money(remaining),
+                                            text = money(if (isExcessPaid) kotlin.math.abs(remaining) else remaining),
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isSettled)
-                                                MaterialTheme.colorScheme.onSurfaceVariant
-                                            else
-                                                MaterialTheme.colorScheme.primary
+                                            color = when {
+                                                isExcessPaid -> Color(0xFF14532D)
+                                                isSettled -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                else -> Color(0xFFDC2626)
+                                            }
                                         )
                                         Icon(
                                             imageVector = Icons.Outlined.ChevronRight,

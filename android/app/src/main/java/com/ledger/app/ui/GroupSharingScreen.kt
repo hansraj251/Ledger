@@ -70,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -986,21 +987,6 @@ if (selectedGroupSection != "Members") {
                             )
                         }
 
-                        FloatingActionButton(
-                            onClick = {
-                                requestAddMember()
-                            },
-                            shape = RoundedCornerShape(18.dp),
-                            containerColor = if (isPremium) Color(0xFFFFC247)
-                                else MaterialTheme.colorScheme.primary,
-                            contentColor = if (isPremium) Color(0xFF302000)
-                                else MaterialTheme.colorScheme.onPrimary
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.PersonAdd,
-                                contentDescription = "Add Member"
-                            )
-                        }
                     }
 
                     }
@@ -1433,7 +1419,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                         Surface(
                             modifier = Modifier.weight(1f)
                                 .clip(RoundedCornerShape(17.dp))
-                                .clickable { selectedGroupSection = "Members" },
+                                .clickable { if (selectedGroupSection == "Members") requestAddMember() else selectedGroupSection = "Members" },
                             shape = RoundedCornerShape(17.dp),
                             border = if (selectedGroupSection != "Members") {
                                 if (isPremium) BorderStroke(1.dp, Color(0xFFFFC247))
@@ -1460,7 +1446,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "Members (${members.size})",
+                                    text = if (selectedGroupSection == "Members") "Add Member" else "Members (${members.size})",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isPremium) Color(0xFF302000)
@@ -2342,7 +2328,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                 }
             },
             onDismiss = { settlingMember = null },
-            onSave = { amount, receivedAt ->
+            onSave = { amount, receivedAt, paymentType ->
                 settlingMember = null
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -2352,7 +2338,8 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 memberId = member.id,
                                 memberNameSnapshot = member.name,
                                 amount = amount,
-                                receivedAt = receivedAt
+                                receivedAt = receivedAt,
+                                paymentType = paymentType
                             )
                         )
                     }
@@ -2504,7 +2491,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                 showExpenseEditor = false
                 if (expense != null) deletingExpense = expense
             },
-            onSave = { title, amount, expenseDate, note, mode, drafts, paymentDrafts ->
+            onSave = { title, amount, expenseDate, note, paymentType, mode, drafts, paymentDrafts ->
                 val groupId = activeGroupId ?: return@GroupExpenseEditorDialog
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -2515,7 +2502,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     groupId = groupId,
                                     title = title,
                                     amount = amount,
-                                    category = "General",
+                                    category = paymentType,
                                     note = note,
                                     expenseDate = expenseDate,
                                     splitMode = mode
@@ -2526,7 +2513,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 old.copy(
                                     title = title,
                                     amount = amount,
-                                    category = old.category,
+                                    category = paymentType,
                                     note = note,
                                     expenseDate = expenseDate,
                                     splitMode = mode
@@ -2817,7 +2804,7 @@ private fun GroupExpenseEditorDialog(
     initialPayments: List<GroupExpensePaymentEntity>,
     isPremium: Boolean,
     onDismiss: () -> Unit,
-    onSave: (String, Double, Long, String, String, List<SplitDraft>, List<PaymentDraft>) -> Unit,
+    onSave: (String, Double, Long, String, String, String, List<SplitDraft>, List<PaymentDraft>) -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
     var showMemberSearch by remember { mutableStateOf(false) }
@@ -2841,6 +2828,9 @@ private fun GroupExpenseEditorDialog(
         mutableStateOf(initial?.amount?.let { decimal(it) } ?: "")
     }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
+    var paymentType by remember(initial?.id) {
+        mutableStateOf(if (initial?.category == "Online") "Online" else "Cash")
+    }
     val expenseEditorContext = LocalContext.current
     val splitModePreferences = remember(expenseEditorContext) {
         expenseEditorContext.getSharedPreferences(
@@ -2849,6 +2839,41 @@ private fun GroupExpenseEditorDialog(
         )
     }
     val modePreferenceKey = "last_split_mode_${members.firstOrNull()?.groupId ?: -1L}"
+    val titleHistoryKey = "previous_group_expense_titles_v1"
+    val titleHistory = remember(splitModePreferences) {
+        mutableStateListOf<String>().apply {
+            val raw = splitModePreferences.getString(titleHistoryKey, "[]").orEmpty()
+            try {
+                val saved = org.json.JSONArray(raw)
+                for (i in 0 until saved.length()) {
+                    val item = saved.optString(i).trim()
+                    if (item.isNotBlank() && none { it.equals(item, ignoreCase = true) }) {
+                        add(item)
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore malformed history and allow new titles to be saved.
+            }
+        }
+    }
+    var showTitleSuggestions by remember { mutableStateOf(false) }
+
+    fun persistTitleHistory(items: List<String>) {
+        val json = org.json.JSONArray()
+        items.forEach { json.put(it) }
+        splitModePreferences.edit().putString(titleHistoryKey, json.toString()).apply()
+    }
+
+    fun rememberExpenseTitle(value: String) {
+        val clean = value.trim()
+        if (clean.isBlank()) return
+        val updated = (listOf(clean) + titleHistory.filterNot {
+            it.equals(clean, ignoreCase = true)
+        }).take(20)
+        titleHistory.clear()
+        titleHistory.addAll(updated)
+        persistTitleHistory(updated)
+    }
     var mode by remember(initial?.id, modePreferenceKey) {
         mutableStateOf(
             initial?.splitMode
@@ -2934,10 +2959,15 @@ private fun GroupExpenseEditorDialog(
                 ) {
                     OutlinedTextField(
                         value = title,
-                        onValueChange = { title = it },
+                        onValueChange = {
+                            title = it
+                            showTitleSuggestions = true
+                        },
                         label = { Text("Title") },
                         singleLine = true,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).onFocusChanged {
+                            if (it.isFocused) showTitleSuggestions = true
+                        },
                         shape = RoundedCornerShape(15.dp)
                     )
                     OutlinedTextField(
@@ -2966,7 +2996,111 @@ private fun GroupExpenseEditorDialog(
                         shape = RoundedCornerShape(15.dp)
                     )
                 }
-                Row(
+                if (showTitleSuggestions && titleHistory.isNotEmpty() && initial == null) {
+                    val matchingTitles = titleHistory.filter {
+                        title.isBlank() || it.contains(title.trim(), ignoreCase = true)
+                    }
+                    if (matchingTitles.isNotEmpty()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 160.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            matchingTitles.forEach { savedTitle ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = savedTitle,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                title = savedTitle
+                                                showTitleSuggestions = false
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            val updated = titleHistory.filterNot {
+                                                it.equals(savedTitle, ignoreCase = true)
+                                            }
+                                            titleHistory.clear()
+                                            titleHistory.addAll(updated)
+                                            persistTitleHistory(updated)
+                                            if (titleHistory.isEmpty()) {
+                                                showTitleSuggestions = false
+                                            }
+                                        },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Text(
+                                            text = "×",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = Color(0xFF667085)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Payment type",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf("Cash", "Online").forEach { option ->
+                    val selected = paymentType == option
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { paymentType = option },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (selected) {
+                            androidx.compose.ui.graphics.Color(0xFFB8C9F5)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 9.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = option,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                color = if (selected) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -3306,7 +3440,9 @@ if (showMemberSearch) {
                     )
                 }
                 error = ""
-                onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), mode, drafts, paymentDrafts)
+                rememberExpenseTitle(title)
+                showTitleSuggestions = false
+                onSave(title.trim(), totalCents / 100.0, expenseDate, note.trim(), paymentType, mode, drafts, paymentDrafts)
             }, shape = RoundedCornerShape(14.dp)) { Text("Save") }
             }
             }
@@ -3498,11 +3634,12 @@ private fun SettlementDialog(
     history: List<GroupSettlementEntity>,
     onDelete: (GroupSettlementEntity) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (Double, Long) -> Unit
+    onSave: (Double, Long, String) -> Unit
 ) {
     var amountText by remember(member.id) { mutableStateOf(String.format(Locale.US, "%.2f", remainingBalance)) }
     var settlementToDelete by remember(member.id) { mutableStateOf<GroupSettlementEntity?>(null) }
     var settlementDate by remember(member.id) { mutableStateOf(System.currentTimeMillis()) }
+    var paymentType by remember(member.id) { mutableStateOf("Cash") }
     var showSettlementDatePicker by remember { mutableStateOf(false) }
     val settlementContext = androidx.compose.ui.platform.LocalContext.current
     val amount = amountText.toDoubleOrNull()
@@ -3525,7 +3662,9 @@ private fun SettlementDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("Total Share: ${money(totalExpense)}")
-                Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
+                if (totalPaidInExpense > 0.009) {
+                    Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
+                }
                 if (totalReceived > 0.009) {
                     Text("Amount received: ${money(totalReceived)}")
                 }
@@ -3590,6 +3729,31 @@ private fun SettlementDialog(
                         shape = RoundedCornerShape(15.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                     )
+                    Text("Payment Type", fontWeight = FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        listOf("Cash", "Online").forEach { mode ->
+                            Button(
+                                onClick = { paymentType = mode },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                    containerColor = if (paymentType == mode)
+                                        Color(0xFFB8C9F5) else Color(0xFFF1F3F9),
+                                    contentColor = Color(0xFF202124)
+                                )
+                            ) {
+                                Text(
+                                    mode,
+                                    fontWeight = if (paymentType == mode)
+                                        FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
                             .format(Date(settlementDate)),
@@ -3633,6 +3797,11 @@ private fun SettlementDialog(
                                     ).format(Date(record.receivedAt)),
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                                Text(
+                                    "Payment: ${record.paymentType}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             IconButton(onClick = { settlementToDelete = record }) {
                                 Icon(
@@ -3647,17 +3816,29 @@ private fun SettlementDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = { if (validAmount) onSave(amount!!, settlementDate) },
-                enabled = validAmount,
-                shape = RoundedCornerShape(16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Save Settlement")
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = { if (validAmount) onSave(amount!!, settlementDate, paymentType) },
+                    enabled = validAmount,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Save")
+                }
             }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        dismissButton = {}
     )
 
     if (showSettlementDatePicker) {

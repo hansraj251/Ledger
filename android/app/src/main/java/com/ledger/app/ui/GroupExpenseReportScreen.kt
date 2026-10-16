@@ -283,13 +283,21 @@ private fun createGroupExpenseReportPdf(
 
             writer.gap(8f)
             writer.section("EXPENSE DETAILS")
-            val headers = listOf("Date", "Title / Note", "Total", "Share", "Paid")
+            val headers = listOf("Date", "Title / Note / Payment", "Total", "Share", "Paid")
             val rows = ordered.map { expense ->
                 val expenseShare = splits[expense.id].orEmpty()
                     .firstOrNull { it.memberId == memberId }?.amount ?: 0.0
                 val expensePaid = memberPayments[expense.id] ?: 0.0
-                val titleAndNote = if (expense.note.isBlank()) expense.title
-                    else "${expense.title}\n${expense.note}"
+                val paymentType = if (expense.category.equals("Online", ignoreCase = true)) {
+                    "Online"
+                } else {
+                    "Cash"
+                }
+                val titleAndNote = buildString {
+                    append(expense.title)
+                    if (expense.note.isNotBlank()) append("\n").append(expense.note)
+                    append("\nPayment: ").append(paymentType)
+                }
                 listOf(
                     date.format(Date(expense.expenseDate)),
                     titleAndNote,
@@ -323,11 +331,12 @@ private fun createGroupExpenseReportPdf(
                 val settlementRows = memberSettlements.map { settlement ->
                     listOf(
                         date.format(Date(settlement.receivedAt)),
-                        money(settlement.amount)
+                        money(settlement.amount),
+                        settlement.paymentType
                     )
                 }
                 writer.table(
-                    listOf("Date", "Amount"),
+                    listOf("Date", "Amount", "Payment Type"),
                     settlementRows
                 )
             }
@@ -387,12 +396,20 @@ private fun createGroupExpenseReportPdf(
         }
 
         writer.section("EXPENSE DETAILS")
-        val headers = listOf("Date", "Title / Note", "Total", "Member", "Share", "Paid")
+        val headers = listOf("Date", "Title / Note / Payment", "Total", "Member", "Share", "Paid")
         val rows = mutableListOf<List<String>>()
 
         ordered.forEach { expense ->
-            val titleAndNote = if (expense.note.isBlank()) expense.title
-                else "${expense.title}\n${expense.note}"
+            val paymentType = if (expense.category.equals("Online", ignoreCase = true)) {
+                "Online"
+            } else {
+                "Cash"
+            }
+            val titleAndNote = buildString {
+                append(expense.title)
+                if (expense.note.isNotBlank()) append("\n").append(expense.note)
+                append("\nPayment: ").append(paymentType)
+            }
 
             if (members.isEmpty()) {
                 rows.add(
@@ -586,12 +603,12 @@ private class GroupExpensePdfWriter(private val pdf: PdfDocument) {
             var x = left
             for (i in widths.indices) {
                 val width = widths[i]
-                val rect = android.graphics.RectF(x, y - 15f, x + width, y + 25f)
+                val rect = android.graphics.RectF(x, y - 15f, x + width, y + 34f)
                 canvas.drawRect(rect, bg)
                 canvas.drawRect(rect, border)
 
                 val cell = cells.getOrElse(i) { "" }
-                val parts = cell.split("\n", limit = 2)
+                val parts = cell.split("\n")
                 val maxWidth = width - 8f
 
                 fun fit(value: String, paint: Paint): String {
@@ -606,13 +623,16 @@ private class GroupExpensePdfWriter(private val pdf: PdfDocument) {
                     return result
                 }
 
-                canvas.drawText(fit(parts[0], textPaint), x + 4f, y + 1f, textPaint)
+                canvas.drawText(fit(parts.getOrElse(0) { "" }, textPaint), x + 4f, y + 1f, textPaint)
                 if (!header && parts.size > 1 && parts[1].isNotBlank()) {
                     canvas.drawText(fit(parts[1], notePaint), x + 4f, y + 14f, notePaint)
                 }
+                if (!header && parts.size > 2 && parts[2].isNotBlank()) {
+                    canvas.drawText(fit(parts.drop(2).joinToString(" "), notePaint), x + 4f, y + 27f, notePaint)
+                }
                 x += width
             }
-            y += rowHeight
+            y += (rowHeight + 12f)
         }
 
         if (page == null) startPage()

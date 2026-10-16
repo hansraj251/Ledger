@@ -40,7 +40,8 @@ data class GroupSettlementEntity(
     val memberId: Long,
     val memberNameSnapshot: String,
     val amount: Double,
-    val receivedAt: Long = System.currentTimeMillis()
+    val receivedAt: Long = System.currentTimeMillis(),
+    val paymentType: String = "Cash"
 )
 
 @Entity(

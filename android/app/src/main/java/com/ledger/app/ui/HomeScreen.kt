@@ -72,9 +72,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ledger.app.data.PartyEntity
+import com.ledger.app.data.StaffEntity
+import com.ledger.app.data.SalaryRevisionEntity
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun HomeScreen(
@@ -93,7 +97,8 @@ fun HomeScreen(
     onDataChanged: () -> Unit,
     onGroupLongClick: (Long) -> Unit = { onGroupClick(it) },
     openSidebarOnLaunch: Boolean = false,
-    onSidebarLaunchHandled: () -> Unit = {}
+    onSidebarLaunchHandled: () -> Unit = {},
+    onStaffClick: (Long) -> Unit = {}
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -113,6 +118,14 @@ fun HomeScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
+    var staffMembers by remember { mutableStateOf<List<StaffEntity>>(emptyList()) }
+    var showAddStaffDialog by rememberSaveable { mutableStateOf(false) }
+    var newStaffName by rememberSaveable { mutableStateOf("") }
+    var newStaffMobile by rememberSaveable { mutableStateOf("") }
+    var newStaffRole by rememberSaveable { mutableStateOf("") }
+    var newStaffSalary by rememberSaveable { mutableStateOf("") }
+    var newStaffJoiningDate by rememberSaveable { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) }
+    var isSavingStaff by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val sharingGroupDao = remember(context) {
         LedgerDatabaseProvider.get(context).sharingGroupDao()
@@ -184,6 +197,12 @@ fun HomeScreen(
         }
     }
 
+
+    LaunchedEffect(Unit) {
+        staffMembers = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            LedgerDatabaseProvider.get(context).staffDao().getAllStaff()
+        }
+    }
 
     LaunchedEffect(Unit) {
         sharingGroups = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -681,6 +700,41 @@ fun HomeScreen(
                                                 }
 
                                                 Surface(
+    modifier = Modifier
+        .fillMaxWidth()
+        .clickable {
+            showMenu = false
+            newStaffName = ""
+            newStaffMobile = ""
+            newStaffRole = ""
+            newStaffSalary = ""
+            newStaffJoiningDate = java.text.SimpleDateFormat(
+                "yyyy-MM-dd", java.util.Locale.US
+            ).format(java.util.Date())
+            showAddStaffDialog = true
+        },
+    shape = RoundedCornerShape(13.dp),
+    color = Color.Transparent
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.PersonAdd,
+            contentDescription = null,
+            tint = Color(0xFF6D6557)
+        )
+        Text(
+            text = "Add Staff",
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.titleSmall,
+            color = Color(0xFF303030)
+        )
+    }
+}
+
+Surface(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clickable {
@@ -889,11 +943,69 @@ item {
                 }
             }
 
+            if (staffMembers.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Staff",
+                        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                items(items = staffMembers, key = { "staff-${it.id}" }) { staff ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onStaffClick(staff.id) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(15.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(44.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.PersonAdd,
+                                        contentDescription = "Staff"
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(staff.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    listOf(staff.role, staff.mobile)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(" • ").ifBlank { "Staff member" },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Outlined.ArrowForwardIos,
+                                contentDescription = "Open staff details",
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             if (uiState.isLoading) {
                 item {
                     LoadingState()
                 }
-            } else if (uiState.filteredParties.isEmpty() && sharingGroups.isEmpty()) {
+            } else if (uiState.filteredParties.isEmpty() && sharingGroups.isEmpty() && staffMembers.isEmpty()) {
                 item {
                     EmptyPartyState(
                         hasSearch = uiState.searchQuery.isNotBlank(),
@@ -925,6 +1037,71 @@ item {
                 }
             }
         }
+    }
+
+    if (showAddStaffDialog) {
+        StaffFormDialog(
+            title = "Add Staff",
+            initialName = newStaffName,
+            initialMobile = newStaffMobile,
+            initialRole = newStaffRole,
+            initialSalary = newStaffSalary,
+            initialJoiningDate = runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                    .apply { isLenient = false }
+                    .parse(newStaffJoiningDate)?.time
+            }.getOrNull() ?: System.currentTimeMillis(),
+            showSalary = true,
+            saving = isSavingStaff,
+            onDismiss = { if (!isSavingStaff) showAddStaffDialog = false },
+            onSave = { name, mobile, role, date, salaryText ->
+                isSavingStaff = true
+                val salary = salaryText.toDoubleOrNull() ?: 0.0
+                scope.launch {
+                    try {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val dao = LedgerDatabaseProvider.get(context).staffDao()
+                            val id = dao.insertStaff(
+                                StaffEntity(
+                                    name = name,
+                                    mobile = mobile,
+                                    role = role,
+                                    joiningDate = date
+                                )
+                            )
+                            if (salary > 0.0) {
+                                dao.insertSalaryRevision(
+                                    SalaryRevisionEntity(
+                                        staffId = id,
+                                        amount = salary,
+                                        effectiveDate = date,
+                                        note = "Starting salary"
+                                    )
+                                )
+                            }
+                        }
+                        staffMembers = kotlinx.coroutines.withContext(
+                            kotlinx.coroutines.Dispatchers.IO
+                        ) {
+                            LedgerDatabaseProvider.get(context).staffDao().getAllStaff()
+                        }
+                        showAddStaffDialog = false
+                        newStaffName = ""
+                        newStaffMobile = ""
+                        newStaffRole = ""
+                        newStaffSalary = ""
+                        newStaffJoiningDate = java.text.SimpleDateFormat(
+                            "yyyy-MM-dd", java.util.Locale.US
+                        ).format(java.util.Date())
+                        onDataChanged()
+                    } catch (error: Exception) {
+                        android.util.Log.e("LedgerStaff", "Unable to save staff", error)
+                    } finally {
+                        isSavingStaff = false
+                    }
+                }
+            }
+        )
     }
 
     editingParty?.let { targetParty ->

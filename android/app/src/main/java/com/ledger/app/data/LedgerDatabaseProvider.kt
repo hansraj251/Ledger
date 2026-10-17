@@ -165,6 +165,95 @@ private val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+
+
+private val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("CREATE TABLE IF NOT EXISTS staff_advance_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, staffId INTEGER NOT NULL, transactionType TEXT NOT NULL, amount REAL NOT NULL, transactionDate INTEGER NOT NULL, note TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_staff_advance_transactions_staffId ON staff_advance_transactions (staffId)")
+    }
+}
+
+private val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS staff_bonus_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                staffId INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                bonusDate INTEGER NOT NULL,
+                note TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_staff_bonus_payments_staffId " +
+                "ON staff_bonus_payments(staffId)"
+        )
+    }
+}
+
+private val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE salary_payments ADD COLUMN salaryMonth TEXT NOT NULL DEFAULT ''"
+        )
+        database.execSQL(
+            "UPDATE salary_payments SET salaryMonth = " +
+                "strftime('%Y-%m', paymentDate / 1000, 'unixepoch', 'localtime') " +
+                "WHERE salaryMonth = ''"
+        )
+    }
+}
+
+private val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS staff_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                name TEXT NOT NULL,
+                mobile TEXT NOT NULL,
+                role TEXT NOT NULL,
+                joiningDate INTEGER NOT NULL,
+                notes TEXT NOT NULL,
+                isActive INTEGER NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS salary_revisions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                staffId INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                effectiveDate INTEGER NOT NULL,
+                note TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_salary_revisions_staffId " +
+                "ON salary_revisions(staffId)"
+        )
+
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS salary_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                staffId INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                paymentDate INTEGER NOT NULL,
+                paymentMode TEXT NOT NULL,
+                note TEXT NOT NULL,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+        database.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_salary_payments_staffId " +
+                "ON salary_payments(staffId)"
+        )
+    }
+}
+
 object LedgerDatabaseProvider {
 
 
@@ -221,7 +310,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .build().also {
                 instance = it
             }

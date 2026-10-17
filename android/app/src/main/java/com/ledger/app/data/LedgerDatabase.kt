@@ -17,9 +17,14 @@ import androidx.room.RoomDatabase
         GroupExpenseSplitEntity::class,
         GroupExpensePaymentEntity::class,
         GroupSettlementEntity::class,
-        AppSettingsEntity::class
+        AppSettingsEntity::class,
+        StaffEntity::class,
+        SalaryRevisionEntity::class,
+        SalaryPaymentEntity::class,
+        StaffAdvanceTransactionEntity::class,
+        StaffBonusEntity::class
     ],
-    version = 12,
+    version = 16,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -47,4 +52,6 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun groupSettlementDao(): GroupSettlementDao
 
     abstract fun appSettingsDao(): AppSettingsDao
+
+    abstract fun staffDao(): StaffDao
 }

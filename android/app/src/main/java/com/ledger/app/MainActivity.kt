@@ -76,6 +76,7 @@ import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
 import com.ledger.app.ui.PartyLedgerScreen
+import com.ledger.app.ui.StaffDetailScreen
 import com.ledger.app.billing.PremiumBillingManager
 
 class MainActivity : ComponentActivity() {
@@ -209,6 +210,7 @@ class MainActivity : ComponentActivity() {
                 var selectedParty by remember {
                     mutableStateOf<PartyEntity?>(null)
                 }
+                var selectedStaffId by remember { mutableStateOf<Long?>(null) }
 
                 var showProfileScreen by remember {
                     mutableStateOf(false)
@@ -578,6 +580,12 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         isPremium = premiumBillingState.isPremium,
                         onUpgradeClick = { launchPremiumPurchase() }
                     )
+                } else if (selectedStaffId != null) {
+                    StaffDetailScreen(
+                        staffId = selectedStaffId!!,
+                        onBack = { selectedStaffId = null },
+                        onDataChanged = { googleDriveSyncCoordinator.requestAutoSync() }
+                    )
                 } else if (selectedParty == null) {
                     HomeScreen(
                         viewModel = viewModel,
@@ -615,7 +623,8 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         },
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
-                        onUpgradeClick = { launchPremiumPurchase() }
+                        onUpgradeClick = { launchPremiumPurchase() },
+                            onStaffClick = { staffId -> selectedStaffId = staffId }
                     ,
                         onDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()

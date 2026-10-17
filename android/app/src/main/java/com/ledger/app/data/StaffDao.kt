@@ -68,6 +68,12 @@ interface StaffDao {
     @Insert
     fun insertStaffBonusPayment(bonus: StaffBonusEntity): Long
 
+    @Update
+    fun updateStaffBonusPayment(bonus: StaffBonusEntity)
+
+    @Query("DELETE FROM staff_bonus_payments WHERE id = :bonusId AND staffId = :staffId")
+    fun deleteStaffBonusPaymentById(bonusId: Long, staffId: Long): Int
+
     @Query("DELETE FROM staff_bonus_payments WHERE staffId = :staffId")
     fun deleteStaffBonusPaymentsForStaff(staffId: Long): Int
 }

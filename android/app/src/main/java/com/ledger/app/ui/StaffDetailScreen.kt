@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import com.ledger.app.data.CurrencySettings
 import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.StaffEntity
 import com.ledger.app.data.SalaryRevisionEntity
@@ -71,11 +72,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 private fun staffDate(value: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(value))
 
-private fun staffMoney(value: Double): String =
-    java.text.NumberFormat.getCurrencyInstance(java.util.Locale("en", "IN")).apply {
-        maximumFractionDigits = 2
-        minimumFractionDigits = 2
-    }.format(if (kotlin.math.abs(value) < 0.005) 0.0 else value)
+private fun staffMoney(value: Double): String = CurrencySettings.format(value)
 
 private fun staffDateInput(value: String): Long? = try {
     SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
@@ -99,11 +96,13 @@ fun StaffDetailScreen(
     var advances by remember { mutableStateOf<List<StaffAdvanceTransactionEntity>>(emptyList()) }
     var bonuses by remember { mutableStateOf<List<StaffBonusEntity>>(emptyList()) }
     var showBonusDialog by remember { mutableStateOf(false) }
+    var editingBonus by remember { mutableStateOf<StaffBonusEntity?>(null) }
+    var showDeleteBonusConfirm by remember { mutableStateOf(false) }
     var bonusAmount by remember { mutableStateOf("") }
     var bonusDate by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
     var bonusNote by remember { mutableStateOf("") }
     var bonusError by remember { mutableStateOf("") }
-    var selectedStaffTab by remember { mutableIntStateOf(0) }
+    var selectedStaffTab by remember { mutableIntStateOf(1) }
     var selectedPaymentYear by remember {
         mutableStateOf(java.time.Year.now().value.toString())
     }
@@ -242,17 +241,62 @@ fun StaffDetailScreen(
         }
     }
 
-    val paymentYears = remember(payments) {
-        (
-            payments.map {
-                SimpleDateFormat("yyyy", Locale.US).format(Date(it.paymentDate))
-            } + java.time.Year.now().value.toString()
-        ).distinct().sortedDescending()
+    fun paymentRecordYear(timestamp: Long): Int {
+        // Support timestamps stored in either milliseconds or seconds.
+        val millis = if (kotlin.math.abs(timestamp) < 100_000_000_000L) {
+            timestamp * 1000L
+        } else {
+            timestamp
+        }
+        return java.time.Instant.ofEpochMilli(millis)
+            .atZone(java.time.ZoneId.systemDefault())
+            .year
     }
+
+    val paymentYears = remember(payments, advances) {
+        val recordedYears = payments.flatMap { payment ->
+            buildList {
+                add(paymentRecordYear(payment.paymentDate))
+                payment.salaryMonth.takeIf { it.length >= 4 }
+                    ?.take(4)?.toIntOrNull()?.let { add(it) }
+            }
+        } + advances.map { paymentRecordYear(it.transactionDate) }
+
+        val currentYear = java.time.Year.now().value
+        val firstYear = (recordedYears + currentYear).minOrNull() ?: currentYear
+        val lastYear = maxOf(currentYear, recordedYears.maxOrNull() ?: currentYear)
+        (firstYear..lastYear).map { it.toString() }.reversed()
+    }
+
+    // If data reloads and the selected year no longer exists, select the latest year.
+    LaunchedEffect(paymentYears) {
+        if (selectedPaymentYear !in paymentYears && paymentYears.isNotEmpty()) {
+            selectedPaymentYear = paymentYears.first()
+        }
+    }
+
     val filteredPayments = remember(payments, selectedPaymentYear) {
         payments.filter {
-            SimpleDateFormat("yyyy", Locale.US).format(Date(it.paymentDate)) ==
-                selectedPaymentYear
+            paymentRecordYear(it.paymentDate).toString() == selectedPaymentYear
+        }.sortedByDescending { it.paymentDate }
+    }
+
+    val filteredAdvanceTransactions = remember(advances, selectedPaymentYear) {
+        advances.filter {
+            paymentRecordYear(it.transactionDate).toString() == selectedPaymentYear
+        }.sortedByDescending { it.transactionDate }
+    }
+
+    val combinedPaymentHistory = remember(filteredPayments, filteredAdvanceTransactions) {
+        (
+            filteredPayments.map { it as Any } +
+                filteredAdvanceTransactions.map { it as Any }
+        ).sortedByDescending { entry ->
+            when (entry) {
+                is SalaryPaymentEntity -> entry.paymentDate
+                is StaffAdvanceTransactionEntity -> entry.transactionDate
+                else -> 0L
+            }
         }
     }
 
@@ -292,7 +336,7 @@ fun StaffDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("₹", style = MaterialTheme.typography.titleLarge,
+                        Text(CurrencySettings.symbol, style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold)
                     }
                 }
@@ -353,6 +397,51 @@ fun StaffDetailScreen(
                         }
                     )
                 }
+            } else if (!loading && staff != null && showRevisionHistory) {
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
+                    Button(
+                        onClick = {
+                            editingRevision = null
+                            salaryAmount = ""
+                            salaryNote = ""
+                            salaryEffectiveDate = SimpleDateFormat(
+                                "yyyy-MM-dd", Locale.US
+                            ).format(Date())
+                            showRevisionDialog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Revise Salary")
+                    }
+                }
+            } else if (!loading && staff != null && showAdvancePage) {
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 8.dp
+                ) {
+                    Button(
+                        onClick = {
+                            advanceDialogType = "GIVE"
+                            advanceAmount = ""
+                            advanceDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                            advanceNote = ""
+                            advanceError = ""
+                            showAdvanceDialog = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Pay Advance")
+                    }
+                }
             } else if (!loading && staff != null && showBonusPage) {
                 Surface(
                     color = Color.White,
@@ -362,6 +451,7 @@ fun StaffDetailScreen(
                         onClick = {
                             bonusAmount = ""
                             bonusDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                            editingBonus = null
                             bonusNote = ""
                             bonusError = ""
                             showBonusDialog = true
@@ -412,56 +502,155 @@ fun StaffDetailScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (selectedStaffTab == 1 && !showAdvancePage && !showBonusPage && !showRevisionHistory) {
-                item {
-                    Card(
-                        modifier = Modifier.padding(top = 12.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            Color(0xFFE5E7EB)
-                        ),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White
-                        )
-                    ) {
-                        Column(Modifier.fillMaxWidth().padding(18.dp)) {
-                            Text(staff!!.name, style = MaterialTheme.typography.headlineSmall)
-                            Text(staff!!.role.ifBlank { "Staff member" })
-                            if (staff!!.mobile.isNotBlank()) Text("Mobile: ${staff!!.mobile}")
-                            Text("Joining date: ${staffDate(staff!!.joiningDate)}")
-                            Spacer(Modifier.height(12.dp))
-                            Text("Current monthly salary", style = MaterialTheme.typography.labelLarge)
-                            Text(
-                                staffMoney(currentSalary),
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text("Total recorded payments: ${staffMoney(totalPaid)}")
-                            Spacer(Modifier.height(12.dp))
-                            
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            shape = RoundedCornerShape(24.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE9D9B5)),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(18.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(13.dp)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(58.dp),
+                                        shape = RoundedCornerShape(19.dp),
+                                        color = Color(0xFFFFF0C2),
+                                        contentColor = Color(0xFF8A5B13)
+                                    ) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Text(
+                                                staff!!.name.trim().split(Regex("\\s+"))
+                                                    .filter { it.isNotBlank() }.take(2)
+                                                    .joinToString("") { it.take(1).uppercase() }
+                                                    .ifBlank { "S" },
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                        }
+                                    }
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Text(
+                                            staff!!.name,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF202124)
+                                        )
+                                        Surface(shape = RoundedCornerShape(50.dp), color = Color(0xFFF5F1E8)) {
+                                            Text(
+                                                staff!!.role.ifBlank { "Staff member" },
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF795A27)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                androidx.compose.material3.HorizontalDivider(color = Color(0xFFF0E8D9))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Text(
+                                            "MOBILE NUMBER",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF8A8D93),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            staff!!.mobile.ifBlank { "Not provided" },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF30343B)
+                                        )
+                                    }
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        Text(
+                                            "JOINING DATE",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF8A8D93),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            staffDate(staff!!.joiningDate),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF30343B)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(19.dp),
+                                    color = Color(0xFFFFF9EB),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF1E1BD))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            "CURRENT MONTHLY SALARY",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFF896A35),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            staffMoney(currentSalary),
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF493719)
+                                        )
+                                        androidx.compose.material3.HorizontalDivider(color = Color(0xFFEADBB9))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                "Total recorded payments",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color(0xFF786B55)
+                                            )
+                                            Text(
+                                                staffMoney(totalPaid),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF493719)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                }
+
                 if (showRevisionHistory) {
                     item {
-                        Button(
-                            onClick = {
-                                editingRevision = null
-                                salaryAmount = ""
-                                salaryNote = ""
-                                salaryEffectiveDate = SimpleDateFormat(
-                                    "yyyy-MM-dd", Locale.US
-                                ).format(Date())
-                                showRevisionDialog = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Revise Salary")
-                        }
+                        Spacer(Modifier.height(4.dp))
                     }
-
                     if (revisions.isEmpty()) {
                         item {
                             Text(
@@ -470,16 +659,26 @@ fun StaffDetailScreen(
                             )
                         }
                     } else {
+                        val latestRevisionId = revisions.maxWithOrNull(
+                            compareBy<SalaryRevisionEntity> { it.effectiveDate }
+                                .thenBy { it.id }
+                        )?.id
+
                         items(revisions, key = { "revision-${it.id}" }) { revision ->
+                            val isLatestRevision = revision.id == latestRevisionId
                             Card(
-                                modifier = Modifier.clickable {
-                                    editingRevision = revision
-                                    salaryAmount = revision.amount.toString()
-                                    salaryEffectiveDate = SimpleDateFormat(
-                                        "yyyy-MM-dd", Locale.US
-                                    ).format(Date(revision.effectiveDate))
-                                    salaryNote = revision.note
-                                    showRevisionDialog = true
+                                modifier = if (isLatestRevision) {
+                                    Modifier.clickable {
+                                        editingRevision = revision
+                                        salaryAmount = revision.amount.toString()
+                                        salaryEffectiveDate = SimpleDateFormat(
+                                            "yyyy-MM-dd", Locale.US
+                                        ).format(Date(revision.effectiveDate))
+                                        salaryNote = revision.note
+                                        showRevisionDialog = true
+                                    }
+                                } else {
+                                    Modifier
                                 },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
@@ -498,38 +697,7 @@ fun StaffDetailScreen(
                     }
                  } else if (showAdvancePage) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text("Advance Pay", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                Text("Outstanding advance", style = MaterialTheme.typography.labelMedium)
-                                Text(staffMoney(advanceOutstanding), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Advance is tracked separately and is not automatically deducted from salary.",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Button(
-                                    onClick = {
-                                        advanceDialogType = "GIVE"
-                                        advanceAmount = ""
-                                        advanceDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                                        advanceNote = ""
-                                        advanceError = ""
-                                        showAdvanceDialog = true
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text("Pay Advance") }
-
-                            }
-                        }
-                    }
-                    item {
-                        Text("Advance History", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        
                     }
                     if (advances.isEmpty()) {
                         item { Text("No advance transactions recorded yet.") }
@@ -551,6 +719,9 @@ fun StaffDetailScreen(
                         }
                     }
                 } else if (showBonusPage) {
+                    item {
+                        Spacer(Modifier.height(12.dp))
+                    }
 
                     if (bonuses.isEmpty()) {
                         item {
@@ -559,7 +730,18 @@ fun StaffDetailScreen(
                     } else {
                         items(bonuses, key = { "bonus-${it.id}" }) { bonus ->
                             Card(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        editingBonus = bonus
+                                        bonusAmount = bonus.amount.toString()
+                                        bonusDate = SimpleDateFormat(
+                                            "yyyy-MM-dd", Locale.US
+                                        ).format(Date(bonus.bonusDate))
+                                        bonusNote = bonus.note
+                                        bonusError = ""
+                                        showBonusDialog = true
+                                    },
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
@@ -688,53 +870,211 @@ fun StaffDetailScreen(
                 
 } else {
                     item {
-                        Box {
-                            TextButton(onClick = { showPaymentYearMenu = true }) {
-                                Text("Year: $selectedPaymentYear  ▾")
-                            }
-                            DropdownMenu(
-                                expanded = showPaymentYearMenu,
-                                onDismissRequest = { showPaymentYearMenu = false }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(15.dp))
+                                    .clickable { showPaymentYearMenu = true },
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFFF4D7),
+                                contentColor = Color(0xFF694710),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, Color(0xFFEAD39A)
+                                ),
+                                shadowElevation = 1.dp
                             ) {
-                                paymentYears.forEach { year ->
-                                    DropdownMenuItem(
-                                        text = { Text(year) },
-                                        onClick = {
-                                            selectedPaymentYear = year
-                                            showPaymentYearMenu = false
-                                        }
+                                Row(
+                                    modifier = Modifier.padding(
+                                        horizontal = 15.dp, vertical = 11.dp
+                                    ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CalendarMonth,
+                                        contentDescription = "Filter by year"
                                     )
+                                    Text(
+                                        selectedPaymentYear,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text("▾", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
-                    }
-                    if (filteredPayments.isEmpty()) {
-                        item { Text("No salary payments recorded for $selectedPaymentYear.") }
-                    } else {
-                        items(filteredPayments, key = { "payment-${it.id}" }) { payment ->
-                            Card(
-                                modifier = Modifier.clickable {
-                                    editingPayment = payment
-                                    editPaymentAmount = payment.amount.toString()
-                                    editPaymentDate = SimpleDateFormat(
-                                        "yyyy-MM-dd", Locale.US
-                                    ).format(Date(payment.paymentDate))
-                                    editPaymentMode = payment.paymentMode
-                                    editPaymentNote = payment.note
-                                    editSalaryMonth = payment.salaryMonth
-                                    showPaymentDialog = true
+
+                        if (showPaymentYearMenu) {
+                            AlertDialog(
+                                onDismissRequest = { showPaymentYearMenu = false },
+                                containerColor = Color.White,
+                                shape = RoundedCornerShape(26.dp),
+                                title = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(
+                                            "Filter payments",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "Select a year to view its payment history",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF777777)
+                                        )
+                                    }
                                 },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                                    Text(
-                                        staffMoney(payment.amount),
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text("${staffDate(payment.paymentDate)} • ${payment.paymentMode}")
-                                    if (payment.note.isNotBlank()) Text(payment.note)
+                                text = {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        paymentYears.chunked(3).forEach { yearRow ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                yearRow.forEach { year ->
+                                                    val selected = year == selectedPaymentYear
+                                                    Surface(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clip(RoundedCornerShape(13.dp))
+                                                            .clickable {
+                                                                selectedPaymentYear = year
+                                                                showPaymentYearMenu = false
+                                                            },
+                                                        shape = RoundedCornerShape(13.dp),
+                                                        color = if (selected) Color(0xFFFFC247)
+                                                            else Color(0xFFF6F6F6),
+                                                        contentColor = if (selected) Color(0xFF302000)
+                                                            else Color(0xFF333333),
+                                                        border = androidx.compose.foundation.BorderStroke(
+                                                            1.dp,
+                                                            if (selected) Color(0xFFE0A92F)
+                                                            else Color(0xFFEAEAEA)
+                                                        )
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(vertical = 13.dp),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                year,
+                                                                fontWeight = if (selected)
+                                                                    FontWeight.Bold
+                                                                else FontWeight.Medium
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                repeat(3 - yearRow.size) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = { showPaymentYearMenu = false }
+                                    ) {
+                                        Text("Done")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    if (combinedPaymentHistory.isEmpty()) {
+                        item {
+                            Text("No payment or advance transactions recorded for $selectedPaymentYear.")
+                        }
+                    } else {
+                        items(
+                            combinedPaymentHistory,
+                            key = { entry ->
+                                when (entry) {
+                                    is SalaryPaymentEntity -> "payment-${entry.id}"
+                                    is StaffAdvanceTransactionEntity -> "advance-history-${entry.id}"
+                                    else -> entry.hashCode().toString()
+                                }
+                            }
+                        ) { entry ->
+                            when (entry) {
+                                is SalaryPaymentEntity -> {
+                                    Card(
+                                        modifier = Modifier.clickable {
+                                            editingPayment = entry
+                                            editPaymentAmount = entry.amount.toString()
+                                            editPaymentDate = SimpleDateFormat(
+                                                "yyyy-MM-dd", Locale.US
+                                            ).format(Date(entry.paymentDate))
+                                            editPaymentMode = entry.paymentMode
+                                            editPaymentNote = entry.note
+                                            editSalaryMonth = entry.salaryMonth
+                                            selectedSalaryMonth = entry.salaryMonth
+                                            showPaymentDialog = true
+                                        },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                "Salary Payment • ${staffMoney(entry.amount)}",
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text("${staffDate(entry.paymentDate)} • ${entry.paymentMode}")
+                                            Text(
+                                                "Salary Month: " + run {
+                                                    val parsedMonth = try {
+                                                        java.text.SimpleDateFormat(
+                                                            "yyyy-MM", java.util.Locale.US
+                                                        ).parse(entry.salaryMonth)
+                                                    } catch (_: Exception) {
+                                                        null
+                                                    }
+                                                    if (parsedMonth != null) {
+                                                        java.text.SimpleDateFormat(
+                                                            "MMM yyyy", java.util.Locale.US
+                                                        ).format(parsedMonth)
+                                                    } else {
+                                                        entry.salaryMonth
+                                                    }
+                                                }
+                                            )
+                                            if (entry.note.isNotBlank()) Text(entry.note)
+                                        }
+                                    }
+                                }
+
+                                is StaffAdvanceTransactionEntity -> {
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                (if (entry.transactionType == "GIVE")
+                                                    "Advance Paid" else "Advance Adjustment") +
+                                                    " • ${staffMoney(entry.amount)}",
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(staffDate(entry.transactionDate))
+                                            if (entry.note.isNotBlank()) Text(entry.note)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -835,6 +1175,33 @@ fun StaffDetailScreen(
     }
 
     if (showRevisionDialog) {
+        val singleRevisionEdit = revisions.size == 1 && editingRevision != null
+        val minimumRevisionDate = remember(revisions, editingRevision, staff) {
+            if (singleRevisionEdit) {
+                0L
+            } else {
+                val previousRevision = revisions
+                    .filter { it.id != editingRevision?.id }
+                    .maxWithOrNull(
+                        compareBy<SalaryRevisionEntity> { it.effectiveDate }
+                            .thenBy { it.id }
+                    )
+                val baseDate = previousRevision?.effectiveDate ?: staff?.joiningDate ?: 0L
+                if (baseDate > 0L) {
+                    java.util.Calendar.getInstance().apply {
+                        timeInMillis = baseDate
+                        add(java.util.Calendar.DAY_OF_YEAR, 1)
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                } else {
+                    0L
+                }
+            }
+        }
+
         AlertDialog(
             containerColor = Color.White,
             onDismissRequest = {
@@ -846,7 +1213,7 @@ fun StaffDetailScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         salaryAmount, { salaryAmount = it },
-                        label = { Text("New monthly salary (₹)") },
+                        label = { Text("New monthly salary (${CurrencySettings.symbol})") },
                         shape = RoundedCornerShape(10.dp),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
@@ -877,7 +1244,9 @@ fun StaffDetailScreen(
                                     calendar.get(java.util.Calendar.YEAR),
                                     calendar.get(java.util.Calendar.MONTH),
                                     calendar.get(java.util.Calendar.DAY_OF_MONTH)
-                                ).show()
+                                ).apply {
+                                    if (!singleRevisionEdit) datePicker.minDate = minimumRevisionDate
+                                }.show()
                             }) {
                                 Icon(
                                     Icons.Outlined.CalendarMonth,
@@ -900,6 +1269,7 @@ fun StaffDetailScreen(
                 ) {
                     if (editingRevision != null) {
                         androidx.compose.material3.OutlinedButton(
+                            enabled = revisions.size > 1,
                             onClick = { showDeleteRevisionConfirm = true },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp)
@@ -923,10 +1293,13 @@ fun StaffDetailScreen(
                         }
                         Button(
                             enabled = (salaryAmount.toDoubleOrNull() ?: -1.0) >= 0.0 &&
-                                staffDateInput(salaryEffectiveDate) != null,
+                                (staffDateInput(salaryEffectiveDate)?.let {
+                                    singleRevisionEdit || it >= minimumRevisionDate
+                                } == true),
                             onClick = {
                                 val amount = salaryAmount.toDoubleOrNull() ?: return@Button
                                 val date = staffDateInput(salaryEffectiveDate) ?: return@Button
+                                if (!singleRevisionEdit && date < minimumRevisionDate) return@Button
                                 val original = editingRevision
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
@@ -1161,9 +1534,10 @@ fun StaffDetailScreen(
             containerColor = Color.White,
             onDismissRequest = {
                 showBonusDialog = false
+                editingBonus = null
                 bonusError = ""
             },
-            title = { Text("Bonus Pay") },
+            title = { Text(if (editingBonus == null) "Bonus Pay" else "Edit Bonus") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -1175,7 +1549,7 @@ fun StaffDetailScreen(
                                 bonusError = ""
                             }
                         },
-                        label = { Text("Bonus Amount (₹)") },
+                        label = { Text("Bonus Amount (${CurrencySettings.symbol})") },
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -1232,13 +1606,31 @@ fun StaffDetailScreen(
                 }
             },
             confirmButton = {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (editingBonus != null) {
+                        OutlinedButton(
+                            onClick = { showDeleteBonusConfirm = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text(
+                                "Delete Bonus",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                     OutlinedButton(
                     onClick = {
                         showBonusDialog = false
+                        editingBonus = null
                         bonusError = ""
                     },
                     modifier = Modifier.weight(1f),
@@ -1262,16 +1654,30 @@ fun StaffDetailScreen(
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
                                         LedgerDatabaseProvider.get(context).staffDao()
-                                            .insertStaffBonusPayment(
-                                                StaffBonusEntity(
-                                                    staffId = staffId,
-                                                    amount = amount,
-                                                    bonusDate = date,
-                                                    note = bonusNote.trim()
-                                                )
-                                            )
+                                            .let { staffDao ->
+                                                val existing = editingBonus
+                                                if (existing == null) {
+                                                    staffDao.insertStaffBonusPayment(
+                                                        StaffBonusEntity(
+                                                            staffId = staffId,
+                                                            amount = amount,
+                                                            bonusDate = date,
+                                                            note = bonusNote.trim()
+                                                        )
+                                                    )
+                                                } else {
+                                                    staffDao.updateStaffBonusPayment(
+                                                        existing.copy(
+                                                            amount = amount,
+                                                            bonusDate = date,
+                                                            note = bonusNote.trim()
+                                                        )
+                                                    )
+                                                }
+                                            }
                                     }
                                     showBonusDialog = false
+                                    editingBonus = null
                                     bonusError = ""
                                     reload()
                                     onDataChanged()
@@ -1280,10 +1686,54 @@ fun StaffDetailScreen(
                         }
                     },
                     enabled = !loading
-                ) { Text("Save Bonus") }
+                ) { Text("Save") }
+                    }
                 }
             },
             dismissButton = {}        )
+    }
+
+
+    if (showDeleteBonusConfirm) {
+        val bonusToDelete = editingBonus
+        AlertDialog(
+            containerColor = Color.White,
+            onDismissRequest = { showDeleteBonusConfirm = false },
+            title = { Text("Delete bonus?") },
+            text = { Text("This bonus payment will be permanently deleted.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (bonusToDelete != null) {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    LedgerDatabaseProvider.get(context).staffDao()
+                                        .deleteStaffBonusPaymentById(
+                                            bonusToDelete.id, staffId
+                                        )
+                                }
+                                showDeleteBonusConfirm = false
+                                showBonusDialog = false
+                                editingBonus = null
+                                bonusError = ""
+                                reload()
+                                onDataChanged()
+                            }
+                        } else {
+                            showDeleteBonusConfirm = false
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete permanently") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteBonusConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showAdvanceDialog) {
@@ -1306,7 +1756,7 @@ fun StaffDetailScreen(
                                 advanceError = ""
                             }
                         },
-                        label = { Text("Amount (₹)") },
+                        label = { Text("Amount (${CurrencySettings.symbol})") },
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -1452,7 +1902,7 @@ Button(
                                     paymentAmount = input
                                 }
                             },
-                            label = { Text("Amount (₹)") },
+                            label = { Text("Amount (${CurrencySettings.symbol})") },
                             singleLine = true,
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal

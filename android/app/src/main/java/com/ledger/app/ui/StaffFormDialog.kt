@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -142,7 +144,7 @@ fun StaffFormDialog(
                         OutlinedTextField(
                             value = salary,
                             onValueChange = { salary = it },
-                            label = { Text("Starting monthly salary (₹)") },
+                            label = { Text("Starting monthly salary (${CurrencySettings.symbol})") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),

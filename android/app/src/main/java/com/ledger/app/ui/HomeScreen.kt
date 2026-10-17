@@ -34,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.MoreVert
@@ -98,7 +97,8 @@ fun HomeScreen(
     onGroupLongClick: (Long) -> Unit = { onGroupClick(it) },
     openSidebarOnLaunch: Boolean = false,
     onSidebarLaunchHandled: () -> Unit = {},
-    onStaffClick: (Long) -> Unit = {}
+    onStaffClick: (Long) -> Unit = {},
+    onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -127,12 +127,46 @@ fun HomeScreen(
     var newStaffJoiningDate by rememberSaveable { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) }
     var isSavingStaff by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val homeFilterPrefs = remember(context) {
+        context.getSharedPreferences(
+            "ledger_home_filter_preferences",
+            android.content.Context.MODE_PRIVATE
+        )
+    }
+    var homeFilter by remember(context) {
+        mutableStateOf(homeFilterPrefs.getString("selected_filter", "All") ?: "All")
+    }
+
     val sharingGroupDao = remember(context) {
         LedgerDatabaseProvider.get(context).sharingGroupDao()
     }
     var sharingGroups by remember {
         mutableStateOf(emptyList<com.ledger.app.data.SharingGroupEntity>())
     }
+
+    val availableHomeFilters = buildList {
+            if (uiState.parties.isNotEmpty()) add("Parties")
+            if (sharingGroups.isNotEmpty()) add("Groups")
+            if (staffMembers.isNotEmpty()) add("Staff")
+        }
+        val activeHomeFilter =
+            if (homeFilter == "All" || homeFilter in availableHomeFilters) homeFilter
+            else "All"
+
+        val visibleGroups = if (
+            activeHomeFilter == "All" || activeHomeFilter == "Groups"
+        ) sharingGroups else emptyList()
+
+        val visibleStaff = if (
+            activeHomeFilter == "All" || activeHomeFilter == "Staff"
+        ) staffMembers else emptyList()
+
+        val visibleParties = if (
+            activeHomeFilter == "All" || activeHomeFilter == "Parties"
+        ) uiState.filteredParties else emptyList()
+
+
+
     var groupExpenseTotals by remember {
         mutableStateOf(emptyMap<Long, Double>())
     }
@@ -829,7 +863,7 @@ Surface(
                 .padding(paddingValues)
                 .padding(horizontal = 8.dp),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                top = 18.dp,
+                top = 6.dp,
                 bottom = 110.dp
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -875,8 +909,64 @@ item {
             }
 
 
+            item {
+                if (availableHomeFilters.size >= 2) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    ) {
+                        (listOf("All") + availableHomeFilters).forEach { filter ->
+                            val selected = activeHomeFilter == filter
+                            val label = when (filter) {
+                                "All" -> "All"
+                                "Parties" -> "Parties"
+                                "Groups" -> "Groups"
+                                else -> "Staff"
+                            }
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        homeFilter = filter
+                                        homeFilterPrefs.edit()
+                                            .putString("selected_filter", filter)
+                                            .apply()
+                                    },
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (selected) Color(0xFFFFC247)
+                                    else MaterialTheme.colorScheme.surface,
+                                contentColor = if (selected) Color(0xFF302000)
+                                    else MaterialTheme.colorScheme.onSurface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    if (selected) 1.5.dp else 1.dp,
+                                    if (selected) Color(0xFFE2A323)
+                                    else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                shadowElevation = if (selected) 2.dp else 0.dp
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 2.dp, vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selected) FontWeight.Bold
+                                            else FontWeight.Medium,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             items(
-                items = sharingGroups,
+                items = visibleGroups,
                 key = { "sharing-group-${it.id}" }
             ) { group ->
                 Card(
@@ -944,38 +1034,34 @@ item {
             }
 
             if (staffMembers.isNotEmpty()) {
-                item {
-                    Text(
-                        text = "Staff",
-                        modifier = Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                items(items = staffMembers, key = { "staff-${it.id}" }) { staff ->
+                items(items = visibleStaff, key = { "staff-${it.id}" }) { staff ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onStaffClick(staff.id) },
-                        shape = RoundedCornerShape(16.dp),
+                            .combinedClickable(
+                                onClick = { onStaffClick(staff.id) },
+                                onLongClick = { onStaffLongClick(staff.id) }
+                            ),
+                        shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
-                        )
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(15.dp),
+                                .padding(horizontal = 16.dp, vertical = 15.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Surface(
-                                modifier = Modifier.size(44.dp),
+                                modifier = Modifier.size(46.dp),
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.secondaryContainer
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Outlined.PersonAdd,
+                                        imageVector = Icons.Outlined.AccountCircle,
                                         contentDescription = "Staff"
                                     )
                                 }
@@ -991,11 +1077,6 @@ item {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Icon(
-                                imageVector = Icons.Outlined.ArrowForwardIos,
-                                contentDescription = "Open staff details",
-                                modifier = Modifier.size(15.dp)
-                            )
                         }
                     }
                 }
@@ -1005,7 +1086,7 @@ item {
                 item {
                     LoadingState()
                 }
-            } else if (uiState.filteredParties.isEmpty() && sharingGroups.isEmpty() && staffMembers.isEmpty()) {
+            } else if (visibleParties.isEmpty() && visibleGroups.isEmpty() && visibleStaff.isEmpty()) {
                 item {
                     EmptyPartyState(
                         hasSearch = uiState.searchQuery.isNotBlank(),
@@ -1015,8 +1096,7 @@ item {
                     )
                 }
             } else {
-                items(
-                    items = uiState.filteredParties,
+                items(items = visibleParties,
                     key = {
                         it.id
                     }

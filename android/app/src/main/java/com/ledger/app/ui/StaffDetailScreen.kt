@@ -1,6 +1,7 @@
 package com.ledger.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
@@ -38,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -69,6 +71,8 @@ import androidx.compose.material.icons.outlined.History
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Share
 
 private fun staffDate(value: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(value))
@@ -85,12 +89,14 @@ private fun staffDateInput(value: String): Long? = try {
 @Composable
 fun StaffDetailScreen(
     staffId: Long,
+    openStaffEditorOnOpen: Boolean = false,
     onBack: () -> Unit,
     onDataChanged: () -> Unit,
     isPremium: Boolean = false
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var staffPaymentReportPreviewFile by remember { mutableStateOf<java.io.File?>(null) }
     var staff by remember { mutableStateOf<StaffEntity?>(null) }
     var revisions by remember { mutableStateOf<List<SalaryRevisionEntity>>(emptyList()) }
     var payments by remember { mutableStateOf<List<SalaryPaymentEntity>>(emptyList()) }
@@ -125,6 +131,12 @@ fun StaffDetailScreen(
     var advanceError by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var showStaffEditDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(staff, openStaffEditorOnOpen) {
+        if (openStaffEditorOnOpen && staff != null) {
+            showStaffEditDialog = true
+        }
+    }
     var showDeleteStaffConfirm by remember { mutableStateOf(false) }
     var isSavingStaffEdit by remember { mutableStateOf(false) }
     var showRevisionDialog by remember { mutableStateOf(false) }
@@ -141,7 +153,12 @@ fun StaffDetailScreen(
     var paymentDate by remember {
         mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()))
     }
-    var paymentMode by remember { mutableStateOf("Cash") }
+    val paymentModePrefs = remember(context) {
+        context.getSharedPreferences("staff_salary_payment_preferences", android.content.Context.MODE_PRIVATE)
+    }
+    var paymentMode by remember(staffId) {
+        mutableStateOf(paymentModePrefs.getString("last_payment_mode_$staffId", "Cash") ?: "Cash")
+    }
     var paymentNote by remember { mutableStateOf("") }
 
     var editingPayment by remember { mutableStateOf<SalaryPaymentEntity?>(null) }
@@ -186,9 +203,10 @@ fun StaffDetailScreen(
     var showStaffMenu by remember { mutableStateOf(false) }
 
     val currentSalary = revisions.firstOrNull()?.amount ?: 0.0
-    // Total recorded outflow: salary payments plus advances actually given.
+    // Total recorded outflow: salary payments, advances given, bonuses and allowances.
     val totalPaid = payments.sumOf { it.amount } +
-        advances.filter { it.transactionType == "GIVE" }.sumOf { it.amount }
+        advances.filter { it.transactionType == "GIVE" }.sumOf { it.amount } +
+        bonuses.sumOf { it.amount }
 
     val advanceOutstanding = (advances.filter { it.transactionType == "GIVE" }.sumOf { it.amount } -
         advances.filter { it.transactionType == "ADJUST" }.sumOf { it.amount }).coerceAtLeast(0.0)
@@ -264,14 +282,15 @@ fun StaffDetailScreen(
             .year
     }
 
-    val paymentYears = remember(payments, advances) {
+    val paymentYears = remember(payments, advances, bonuses) {
         val recordedYears = payments.flatMap { payment ->
             buildList {
                 add(paymentRecordYear(payment.paymentDate))
                 payment.salaryMonth.takeIf { it.length >= 4 }
                     ?.take(4)?.toIntOrNull()?.let { add(it) }
             }
-        } + advances.map { paymentRecordYear(it.transactionDate) }
+        } + advances.map { paymentRecordYear(it.transactionDate) } +
+            bonuses.map { paymentRecordYear(it.bonusDate) }
 
         val currentYear = java.time.Year.now().value
         val firstYear = (recordedYears + currentYear).minOrNull() ?: currentYear
@@ -298,14 +317,24 @@ fun StaffDetailScreen(
         }.sortedByDescending { it.transactionDate }
     }
 
-    val combinedPaymentHistory = remember(filteredPayments, filteredAdvanceTransactions) {
+    val filteredBonuses = remember(bonuses, selectedPaymentYear) {
+        bonuses.filter {
+            paymentRecordYear(it.bonusDate).toString() == selectedPaymentYear
+        }.sortedByDescending { it.bonusDate }
+    }
+
+    val combinedPaymentHistory = remember(
+        filteredPayments, filteredAdvanceTransactions, filteredBonuses
+    ) {
         (
             filteredPayments.map { it as Any } +
-                filteredAdvanceTransactions.map { it as Any }
+                filteredAdvanceTransactions.map { it as Any } +
+                filteredBonuses.map { it as Any }
         ).sortedByDescending { entry ->
             when (entry) {
                 is SalaryPaymentEntity -> entry.paymentDate
                 is StaffAdvanceTransactionEntity -> entry.transactionDate
+                is StaffBonusEntity -> entry.bonusDate
                 else -> 0L
             }
         }
@@ -318,6 +347,16 @@ fun StaffDetailScreen(
     val settledAdvanceForSelectedMonth = advances
         .filter { it.transactionType == "ADJUST" && it.salaryMonth == selectedSalaryMonth }
         .sumOf { it.amount }
+
+    val bonusesForSelectedMonth = bonuses.filter { bonus ->
+        runCatching {
+            val date = java.time.Instant.ofEpochMilli(bonus.bonusDate)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+            date.year == selectedYearMonth.year &&
+                date.monthValue == selectedYearMonth.monthValue
+        }.getOrDefault(false)
+    }
 
     val remainingSalary =
         salaryForSelectedMonth - alreadyPaidForSelectedMonth - settledAdvanceForSelectedMonth
@@ -336,7 +375,7 @@ fun StaffDetailScreen(
                             selectedSalaryMonth = java.time.YearMonth.now().toString()
                             showSalaryMonthMenu = false
                             paymentNote = ""
-                            paymentMode = "Cash"
+                            paymentMode = paymentModePrefs.getString("last_payment_mode_$staffId", "Cash") ?: "Cash"
                             paymentDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                                 .format(Date())
                             showPaymentDialog = true
@@ -758,6 +797,8 @@ fun StaffDetailScreen(
                                     }
                                 }
 
+
+
                                 if (monthAdjustments.sumOf { it.amount } > 0.009) {
                                     Spacer(Modifier.height(1.dp))
                                     Text("Advance Settlements", fontWeight = FontWeight.SemiBold)
@@ -792,7 +833,7 @@ fun StaffDetailScreen(
                                         Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Total Advance Adjustments", fontWeight = FontWeight.Medium)
+                                        Text("Total Advance Settled", fontWeight = FontWeight.Medium)
                                         Text("− ${staffMoney(settledAdvanceForSelectedMonth)}",
                                             color = Color(0xFFB91C1C))
                                     }
@@ -911,10 +952,13 @@ fun StaffDetailScreen(
                                 },
                                 shape = RoundedCornerShape(14.dp),
                                 border = androidx.compose.foundation.BorderStroke(
-                                    1.dp, Color(0xFFE9D39A)
+                                    1.dp,
+                                    if (advance.transactionType == "GIVE")
+                                        Color(0xFFEF9A9A) else Color(0xFF66BB6A)
                                 ),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFFFFF7E2)
+                                    containerColor = if (advance.transactionType == "GIVE")
+                                        Color(0xFFFFEBEE) else Color(0xFFE8F5E9)
                                 ),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
@@ -923,7 +967,7 @@ fun StaffDetailScreen(
                                         "${if (advance.transactionType == "GIVE") "Advance Paid" else "Advance Settled"} • ${staffMoney(advance.amount)}",
                                         fontWeight = FontWeight.Bold,
                                         color = if (advance.transactionType == "GIVE") {
-                                            Color(0xFFD32F2F)
+                                            Color(0xFFC62828)
                                         } else {
                                             Color(0xFF1B5E20)
                                         }
@@ -961,11 +1005,14 @@ fun StaffDetailScreen(
                                     },
                                 shape = RoundedCornerShape(14.dp),
                                 border = androidx.compose.foundation.BorderStroke(
-                                    1.dp, Color(0xFFE9D39A)
-                                ),
+    1.dp,
+    if (bonus.bonusType == "ALLOWANCE") Color(0xFFFFCC80)
+    else Color(0xFFCE93D8)
+),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFFFFF7E2)
-                                ),
+    containerColor = if (bonus.bonusType == "ALLOWANCE") Color(0xFFFFF3E0)
+    else Color(0xFFF3E5F5)
+),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Column(
@@ -976,10 +1023,10 @@ fun StaffDetailScreen(
                                         "${if (bonus.bonusType == "ALLOWANCE") "Allowance paid" else "Bonus paid"} • ${staffMoney(bonus.amount)}",
                                         fontWeight = FontWeight.Bold,
                                         color = if (bonus.bonusType == "ALLOWANCE") {
-                                            Color(0xFF00897B)
-                                        } else {
-                                            Color(0xFFEF6C00)
-                                        }
+    Color(0xFFE65100)
+} else {
+    Color(0xFF7B1FA2)
+}
                                     )
                                     Text(staffDate(bonus.bonusDate))
                                     if (bonus.note.isNotBlank()) Text(bonus.note)
@@ -1254,6 +1301,32 @@ fun StaffDetailScreen(
                                     Text("▾", fontWeight = FontWeight.Bold)
                                 }
                             }
+                            OutlinedButton(
+                                onClick = {
+                                    val reportEntries = combinedPaymentHistory.toList()
+                                    val reportYear = selectedPaymentYear
+                                    val reportStaffName = staff?.name ?: "Staff"
+                                    scope.launch {
+                                        try {
+                                            val pdf = withContext(Dispatchers.IO) {
+                                                createStaffPaymentHistoryPdf(
+                                                    context, reportStaffName, reportYear, reportEntries
+                                                )
+                                            }
+                                            staffPaymentReportPreviewFile = pdf
+                                        } catch (e: Exception) {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Report could not be created: ${e.message}",
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(15.dp)
+                            ) {
+                                Text("Report", maxLines = 1)
+                            }
                         }
 
                         if (showPaymentYearMenu) {
@@ -1339,7 +1412,7 @@ fun StaffDetailScreen(
                     }
                     if (combinedPaymentHistory.isEmpty()) {
                         item {
-                            Text("No payment or advance transactions recorded for $selectedPaymentYear.")
+                            Text("No payment, advance, bonus or allowance records for $selectedPaymentYear.")
                         }
                     } else {
                         items(
@@ -1348,6 +1421,8 @@ fun StaffDetailScreen(
                                 when (entry) {
                                     is SalaryPaymentEntity -> "payment-${entry.id}"
                                     is StaffAdvanceTransactionEntity -> "advance-history-${entry.id}"
+                                    is StaffBonusEntity -> "bonus-history-${entry.id}"
+                                    is StaffBonusEntity -> "bonus-history-${entry.id}"
                                     else -> entry.hashCode().toString()
                                 }
                             }
@@ -1431,11 +1506,134 @@ fun StaffDetailScreen(
                                         }
                                     }
                                 }
+
+                                is StaffBonusEntity -> {
+                                    val isAllowance = entry.bonusType.equals(
+                                        "ALLOWANCE", ignoreCase = true
+                                    )
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            if (isAllowance) Color(0xFFFFCC80)
+                                            else Color(0xFFCE93D8)
+                                        ),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isAllowance) Color(0xFFFFF3E0)
+                                            else Color(0xFFF3E5F5)
+                                        ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                (if (isAllowance) "Allowance Paid" else "Bonus Paid") +
+                                                    " • ${staffMoney(entry.amount)}",
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isAllowance) Color(0xFFE65100)
+                                                else Color(0xFF7B1FA2)
+                                            )
+                                            Text(staffDate(entry.bonusDate))
+                                            if (entry.note.isNotBlank()) Text(entry.note)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+
+
+    staffPaymentReportPreviewFile?.let { previewFile ->
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { staffPaymentReportPreviewFile = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(modifier = Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { staffPaymentReportPreviewFile = null }) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                        Text(
+                            "Payment Report",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        IconButton(onClick = {
+                            scope.launch {
+                                try {
+                                    val name = "Payment_History_${selectedPaymentYear}_${System.currentTimeMillis()}.pdf"
+                                    val values = android.content.ContentValues().apply {
+                                        put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+                                        put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/pdf")
+                                        put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/Ledger")
+                                        put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+                                    }
+                                    val uri = context.contentResolver.insert(
+                                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+                                    ) ?: error("Could not create download file")
+                                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                                        previewFile.inputStream().use { it.copyTo(output) }
+                                    } ?: error("Could not open download stream")
+                                    values.clear()
+                                    values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+                                    context.contentResolver.update(uri, values, null, null)
+                                    android.widget.Toast.makeText(
+                                        context, "Report saved to Downloads/Ledger",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(
+                                        context, "Download failed: ${e.message}",
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Download, contentDescription = "Download report")
+                        }
+                        IconButton(onClick = {
+                            try {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    context, "${context.packageName}.fileprovider", previewFile
+                                )
+                                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "application/pdf"
+                                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Payment Report")
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(
+                                    android.content.Intent.createChooser(intent, "Share payment history report")
+                                )
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(
+                                    context, "Share failed: ${e.message}",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Share, contentDescription = "Share report")
+                        }
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PdfPreview(file = previewFile, modifier = Modifier.fillMaxSize())
+                    }
+                }
             }
         }
     }
@@ -2630,6 +2828,9 @@ Button(
                                         )
                                     }
                                 }
+                                paymentModePrefs.edit()
+                                    .putString("last_payment_mode_$staffId", paymentMode.trim().ifBlank { "Cash" })
+                                    .apply()
                                 showPaymentDialog = false
                                 editingPayment = null
                                 reload()
@@ -2694,4 +2895,178 @@ Button(
         )
     }
 
+}
+
+
+private fun createStaffPaymentHistoryPdf(
+    context: android.content.Context,
+    staffName: String,
+    reportYear: String,
+    entries: List<Any>
+): java.io.File {
+    val document = android.graphics.pdf.PdfDocument()
+    val width = 595
+    val height = 842
+    val margin = 36f
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.BLACK
+        textSize = 10f
+    }
+    val titlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = android.graphics.Color.BLACK
+        textSize = 18f
+        typeface = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD
+        )
+    }
+    val boldPaint = android.graphics.Paint(paint).apply {
+        typeface = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD
+        )
+    }
+    val dateFormat = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+    val sorted = entries.sortedByDescending {
+        when (it) {
+            is SalaryPaymentEntity -> it.paymentDate
+            is StaffAdvanceTransactionEntity -> it.transactionDate
+            is StaffBonusEntity -> it.bonusDate
+            else -> 0L
+        }
+    }
+    var pageNumber = 0
+    var page: android.graphics.pdf.PdfDocument.Page? = null
+    var y = 0f
+
+    fun newPage() {
+        page?.let { document.finishPage(it) }
+        pageNumber++
+        page = document.startPage(
+            android.graphics.pdf.PdfDocument.PageInfo.Builder(width, height, pageNumber).create()
+        )
+        val canvas = page!!.canvas
+        y = 42f
+        canvas.drawText("Payment Report", margin, y, titlePaint)
+        y += 24f
+        canvas.drawText("Staff: $staffName", margin, y, boldPaint)
+        y += 16f
+        canvas.drawText("Year: $reportYear", margin, y, paint)
+        y += 22f
+        canvas.drawLine(margin, y, width - margin, y, paint)
+        y += 20f
+        canvas.drawText("Date", margin, y, boldPaint)
+        canvas.drawText("Transaction", 145f, y, boldPaint)
+        canvas.drawText("Amount", 440f, y, boldPaint)
+        y += 10f
+        canvas.drawLine(margin, y, width - margin, y, paint)
+        y += 18f
+    }
+
+    // Summary is the first page of the report.
+    pageNumber++
+    page = document.startPage(
+        android.graphics.pdf.PdfDocument.PageInfo.Builder(width, height, pageNumber).create()
+    )
+    val summaryCanvas = page!!.canvas
+    var summaryY = 70f
+
+    summaryCanvas.drawText("Payment Report", margin, summaryY, titlePaint)
+    summaryY += 28f
+    summaryCanvas.drawText("Staff: $staffName", margin, summaryY, boldPaint)
+    summaryY += 18f
+    summaryCanvas.drawText("Year: $reportYear", margin, summaryY, paint)
+    summaryY += 28f
+    summaryCanvas.drawLine(margin, summaryY, width - margin, summaryY, paint)
+    summaryY += 30f
+
+    val totalSalary = sorted.sumOf {
+        if (it is SalaryPaymentEntity) it.amount else 0.0
+    }
+    val totalAdvancePaid = sorted.sumOf {
+        if (it is StaffAdvanceTransactionEntity && it.transactionType == "GIVE") it.amount else 0.0
+    }
+    val totalAdvanceSettled = sorted.sumOf {
+        if (it is StaffAdvanceTransactionEntity && it.transactionType == "ADJUST") it.amount else 0.0
+    }
+    val totalAllowance = sorted.sumOf {
+        if (it is StaffBonusEntity && it.bonusType.equals("ALLOWANCE", true)) it.amount else 0.0
+    }
+    val totalBonus = sorted.sumOf {
+        if (it is StaffBonusEntity && !it.bonusType.equals("ALLOWANCE", true)) it.amount else 0.0
+    }
+
+    summaryCanvas.drawText("Summary", margin, summaryY, boldPaint)
+    summaryY += 26f
+
+    val summaryRows = listOf(
+        "Total Salary Payment" to totalSalary,
+        "Total Advance Paid" to totalAdvancePaid,
+        "Total Advance Settled" to totalAdvanceSettled,
+        "Total Allowance Paid" to totalAllowance,
+        "Total Bonus Paid" to totalBonus
+    )
+
+    for ((label, amount) in summaryRows) {
+        summaryCanvas.drawText(label, margin, summaryY, boldPaint)
+        summaryCanvas.drawText(CurrencySettings.format(amount), 350f, summaryY, boldPaint)
+        summaryY += 36f
+        summaryCanvas.drawLine(margin, summaryY - 15f, width - margin, summaryY - 15f, paint)
+    }
+
+    summaryY += 12f
+    summaryCanvas.drawText("Total transactions: ${sorted.size}", margin, summaryY, boldPaint)
+    document.finishPage(page!!)
+    page = null
+
+    // Transaction details start on the next page.
+    newPage()
+    for (entry in sorted) {
+        val date: Long
+        val label: String
+        val amount: Double
+        val detail: String
+        when (entry) {
+            is SalaryPaymentEntity -> {
+                date = entry.paymentDate
+                label = "Salary Payment"
+                amount = entry.amount
+                detail = listOf(entry.paymentMode, entry.note)
+                    .filter { it.isNotBlank() }.joinToString(" • ")
+            }
+            is StaffAdvanceTransactionEntity -> {
+                date = entry.transactionDate
+                label = if (entry.transactionType == "GIVE") "Advance Paid" else "Advance Settled"
+                amount = entry.amount
+                detail = entry.note
+            }
+            is StaffBonusEntity -> {
+                date = entry.bonusDate
+                label = if (entry.bonusType.equals("ALLOWANCE", true)) "Allowance Paid" else "Bonus Paid"
+                amount = entry.amount
+                detail = entry.note
+            }
+            else -> continue
+        }
+
+        if (y > height - 70f) newPage()
+        val canvas = page!!.canvas
+        canvas.drawText(dateFormat.format(java.util.Date(date)), margin, y, paint)
+        canvas.drawText(label, 145f, y, paint)
+        canvas.drawText(CurrencySettings.format(amount), 440f, y, paint)
+        y += 14f
+        if (detail.isNotBlank()) {
+            canvas.drawText(detail.take(90), 145f, y, paint)
+            y += 14f
+        }
+        canvas.drawLine(margin, y, width - margin, y, paint)
+        y += 14f
+    }
+
+    if (sorted.isEmpty()) {
+        page!!.canvas.drawText("No transactions recorded for this year.", margin, y, paint)
+    }
+    page?.let { document.finishPage(it) }
+    val output = java.io.File(context.cacheDir, "payment_history_${reportYear}.pdf")
+    output.outputStream().use { document.writeTo(it) }
+    document.close()
+    return output
 }

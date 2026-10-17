@@ -211,9 +211,10 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<PartyEntity?>(null)
                 }
                 var selectedStaffId by remember { mutableStateOf<Long?>(null) }
+                var openStaffEditorOnOpen by remember { mutableStateOf(false) }
 
                 var showProfileScreen by remember {
-                    mutableStateOf(false)
+                        mutableStateOf(false)
                 }
 
                 var showAllPartiesReport by remember {
@@ -583,7 +584,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 } else if (selectedStaffId != null) {
                     StaffDetailScreen(
                         staffId = selectedStaffId!!,
-                        onBack = { selectedStaffId = null },
+                        openStaffEditorOnOpen = openStaffEditorOnOpen,
+                        onBack = {
+                            selectedStaffId = null
+                            openStaffEditorOnOpen = false
+                        },
                         onDataChanged = { googleDriveSyncCoordinator.requestAutoSync() }
                     )
                 } else if (selectedParty == null) {
@@ -624,7 +629,14 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
                         onUpgradeClick = { launchPremiumPurchase() },
-                            onStaffClick = { staffId -> selectedStaffId = staffId }
+                            onStaffClick = { staffId ->
+                                openStaffEditorOnOpen = false
+                                selectedStaffId = staffId
+                            },
+                            onStaffLongClick = { staffId ->
+                                openStaffEditorOnOpen = true
+                                selectedStaffId = staffId
+                            }
                     ,
                         onDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()

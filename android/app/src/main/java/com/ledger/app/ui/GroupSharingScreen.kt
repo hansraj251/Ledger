@@ -1329,6 +1329,21 @@ val expenseSplits = splits[expense.id].orEmpty()
                                         }
                                     }
 
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 2.dp),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "Hold to Edit",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = androidx.compose.ui.graphics.Color(0xFF8A9099)
+                                        )
+                                    }
+
+
                                 }
                                 }
                             }

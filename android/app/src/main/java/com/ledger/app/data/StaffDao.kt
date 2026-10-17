@@ -59,6 +59,12 @@ interface StaffDao {
     @Insert
     fun insertStaffAdvanceTransaction(transaction: StaffAdvanceTransactionEntity): Long
 
+    @Update
+    fun updateStaffAdvanceTransaction(transaction: StaffAdvanceTransactionEntity)
+
+    @Query("DELETE FROM staff_advance_transactions WHERE id = :transactionId AND staffId = :staffId")
+    fun deleteStaffAdvanceTransactionById(transactionId: Long, staffId: Long): Int
+
     @Query("DELETE FROM staff_advance_transactions WHERE staffId = :staffId")
     fun deleteStaffAdvanceTransactionsForStaff(staffId: Long): Int
 

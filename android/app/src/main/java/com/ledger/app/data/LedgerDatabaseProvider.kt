@@ -193,6 +193,23 @@ private val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
+private val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE staff_advance_transactions " +
+                "ADD COLUMN salaryMonth TEXT NOT NULL DEFAULT ''"
+        )
+    }
+}
+
+private val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            "ALTER TABLE staff_bonus_payments ADD COLUMN bonusType TEXT NOT NULL DEFAULT 'BONUS'"
+        )
+    }
+}
+
 private val MIGRATION_13_14 = object : Migration(13, 14) {
     override fun migrate(database: SupportSQLiteDatabase) {
         database.execSQL(
@@ -310,7 +327,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .build().also {
                 instance = it
             }

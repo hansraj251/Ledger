@@ -24,7 +24,7 @@ import androidx.room.RoomDatabase
         StaffAdvanceTransactionEntity::class,
         StaffBonusEntity::class
     ],
-    version = 16,
+    version = 18,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

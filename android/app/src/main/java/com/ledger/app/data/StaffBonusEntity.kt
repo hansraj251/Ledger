@@ -14,5 +14,6 @@ data class StaffBonusEntity(
     val amount: Double,
     val bonusDate: Long,
     val note: String = "",
+    val bonusType: String = "BONUS",
     val createdAt: Long = System.currentTimeMillis()
 )

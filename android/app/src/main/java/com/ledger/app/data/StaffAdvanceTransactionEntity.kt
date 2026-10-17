@@ -1,5 +1,6 @@
 package com.ledger.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -15,5 +16,6 @@ data class StaffAdvanceTransactionEntity(
     val amount: Double,
     val transactionDate: Long,
     val note: String = "",
+    @ColumnInfo(defaultValue = "''") val salaryMonth: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -1,4 +1,12 @@
 package com.ledger.app
+
+import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.InterestAccountEntryEntity
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.ledger.app.ui.PartyReportScreen
+import com.ledger.app.ui.PartyReportSelectionScreen
+import com.ledger.app.ui.ReportTypeSelectionScreen
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 
@@ -61,6 +69,9 @@ import com.ledger.app.ui.HomeScreen
 import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.GroupSharingScreen
 import com.ledger.app.ui.GroupExpenseReportScreen
+import com.ledger.app.ui.GroupMemberReportSelectionScreen
+import com.ledger.app.ui.GroupReportModeSelectionScreen
+import com.ledger.app.ui.GroupReportSelectionScreen
 import com.ledger.app.ui.AllPartiesReportScreen
 import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
@@ -226,6 +237,24 @@ class MainActivity : ComponentActivity() {
                 var openGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
                 var showGroupExpenseReport by remember { mutableStateOf(false) }
+
+                var showGroupReportSelection by remember { mutableStateOf(false) }
+                var showGroupReportModeSelection by remember { mutableStateOf(false) }
+                var showGroupMemberReportSelection by remember { mutableStateOf(false) }
+                var groupReportOpenedFromSelection by remember { mutableStateOf(false) }
+
+                var selectedReportGroup by remember {
+                    mutableStateOf<com.ledger.app.data.SharingGroupEntity?>(null)
+                }
+                var reportGroups by remember {
+                    mutableStateOf<List<com.ledger.app.data.SharingGroupEntity>>(emptyList())
+                }
+                var reportGroupsLoading by remember { mutableStateOf(false) }
+                var reportGroupMembers by remember {
+                    mutableStateOf<List<com.ledger.app.data.SharingMemberEntity>>(emptyList())
+                }
+                var reportGroupMembersLoading by remember { mutableStateOf(false) }
+
 fun setDailyExpenseScreenVisible(visible: Boolean) {
                     showDailyExpenseScreen = visible
                     mainPagePrefs.edit()
@@ -241,6 +270,30 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                     }
                 }
 
+                var showReportTypeSelection by remember { mutableStateOf(false) }
+                var showPartyReportSelection by remember { mutableStateOf(false) }
+                var showOnePartyReport by remember { mutableStateOf(false) }
+                var selectedReportParty by remember { mutableStateOf<PartyEntity?>(null) }
+                var reportEntries by remember { mutableStateOf<List<LedgerEntryEntity>>(emptyList()) }
+                var reportRecords by remember { mutableStateOf<List<InterestAccountEntryEntity>>(emptyList()) }
+                var reportDataLoading by remember { mutableStateOf(false) }
+                var reportParties by remember { mutableStateOf<List<PartyEntity>>(emptyList()) }
+                var reportPartiesLoading by remember { mutableStateOf(false) }
+
+
+                LaunchedEffect(showPartyReportSelection) {
+                    if (showPartyReportSelection) {
+                        reportPartiesLoading = true
+                        try {
+                            reportParties = withContext(Dispatchers.IO) {
+                                repository.getParties()
+                            }
+                        } finally {
+                            reportPartiesLoading = false
+                        }
+                    }
+                }
+
                 val viewModel = remember {
                     LedgerViewModel(
                         repository,
@@ -249,6 +302,58 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         },
                         isPremium = { premiumBillingManager.state.value.isPremium }
                     )
+                }
+
+
+
+                LaunchedEffect(showGroupReportSelection) {
+                    if (showGroupReportSelection) {
+                        reportGroupsLoading = true
+                        try {
+                            reportGroups = withContext(Dispatchers.IO) {
+                                LedgerDatabaseProvider.get(this@MainActivity)
+                                    .sharingGroupDao().getAll()
+                            }
+                        } finally {
+                            reportGroupsLoading = false
+                        }
+                    }
+                }
+
+                LaunchedEffect(selectedReportGroup?.id) {
+                    val group = selectedReportGroup
+                    if (group != null) {
+                        reportGroupMembersLoading = true
+                        try {
+                            reportGroupMembers = withContext(Dispatchers.IO) {
+                                LedgerDatabaseProvider.get(this@MainActivity)
+                                    .sharingMemberDao().getByGroup(group.id)
+                            }
+                        } finally {
+                            reportGroupMembersLoading = false
+                        }
+                    } else {
+                        reportGroupMembers = emptyList()
+                    }
+                }
+
+LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
+                    val party = selectedReportParty
+                    if (showOnePartyReport && party != null) {
+                        reportDataLoading = true
+                        try {
+                            val loadedData = withContext(Dispatchers.IO) {
+                                Pair(
+                                    repository.getEntries(party.id),
+                                    repository.getInterestAccountEntries(party.id)
+                                )
+                            }
+                            reportEntries = loadedData.first
+                            reportRecords = loadedData.second
+                        } finally {
+                            reportDataLoading = false
+                        }
+                    }
                 }
 
                 LaunchedEffect(initialDriveSetupRequired) {
@@ -276,6 +381,105 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                             )
                         }
                     )
+                } else if (showReportTypeSelection) {
+                    ReportTypeSelectionScreen(
+                        onBack = {
+                            showReportTypeSelection = false
+                        },
+                        onAllPartiesClick = {
+                            showReportTypeSelection = false
+                            showAllPartiesReport = true
+                        },
+                        onOnePartyClick = {
+                            showReportTypeSelection = false
+                            showPartyReportSelection = true
+                        },
+                        onGroupReportsClick = {
+                            showReportTypeSelection = false
+                            showGroupReportSelection = true
+                        }
+                    )
+                } else if (showGroupReportSelection) {
+                    GroupReportSelectionScreen(
+                        groups = reportGroups,
+                        isLoading = reportGroupsLoading,
+                        onBack = {
+                            showGroupReportSelection = false
+                            showReportTypeSelection = true
+                        },
+                        onGroupClick = { group ->
+                            selectedReportGroup = group
+                            showGroupReportSelection = false
+                            showGroupReportModeSelection = true
+                        }
+                    )
+                } else if (showGroupReportModeSelection && selectedReportGroup != null) {
+                    GroupReportModeSelectionScreen(
+                        groupName = selectedReportGroup!!.name,
+                        onBack = {
+                            showGroupReportModeSelection = false
+                            showGroupReportSelection = true
+                        },
+                        onAllMembersClick = {
+                            selectedSharingGroupId = selectedReportGroup!!.id
+                            selectedSharingMemberId = null
+                            groupReportOpenedFromSelection = true
+                            showGroupReportModeSelection = false
+                            showGroupExpenseReport = true
+                        },
+                        onOneMemberClick = {
+                            showGroupReportModeSelection = false
+                            showGroupMemberReportSelection = true
+                        }
+                    )
+                } else if (showGroupMemberReportSelection && selectedReportGroup != null) {
+                    GroupMemberReportSelectionScreen(
+                        members = reportGroupMembers,
+                        isLoading = reportGroupMembersLoading,
+                        onBack = {
+                            showGroupMemberReportSelection = false
+                            showGroupReportModeSelection = true
+                        },
+                        onMemberClick = { member ->
+                            selectedSharingGroupId = selectedReportGroup!!.id
+                            selectedSharingMemberId = member.id
+                            groupReportOpenedFromSelection = true
+                            showGroupMemberReportSelection = false
+                            showGroupExpenseReport = true
+                        }
+                    )
+                } else if (showPartyReportSelection) {
+                    PartyReportSelectionScreen(
+                        parties = reportParties,
+                        isLoading = reportPartiesLoading,
+                        onBack = {
+                            showPartyReportSelection = false
+                            showReportTypeSelection = true
+                        },
+                        onPartyClick = { party ->
+                            reportDataLoading = true
+                            reportEntries = emptyList()
+                            reportRecords = emptyList()
+                            selectedReportParty = party
+                            showPartyReportSelection = false
+                            showOnePartyReport = true
+                        }
+                    )
+                } else if (showOnePartyReport && selectedReportParty != null) {
+                    val reportParty = selectedReportParty!!
+                    if (reportDataLoading) {
+                        androidx.compose.material3.CircularProgressIndicator()
+                    } else {
+                        PartyReportScreen(
+                            party = reportParty,
+                            entries = reportEntries,
+                            records = reportRecords,
+                            onBack = {
+                                showOnePartyReport = false
+                                showPartyReportSelection = true
+                            }
+                        )
+                    }
                 } else if (showAllPartiesReport) {
                     AllPartiesReportScreen(
                         repository = repository,
@@ -290,6 +494,10 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         onBack = {
                             showGroupExpenseReport = false
                             selectedSharingMemberId = null
+                            if (groupReportOpenedFromSelection) {
+                                groupReportOpenedFromSelection = false
+                                showGroupReportModeSelection = true
+                            }
                         }
                     )
                 } else if (showProfileScreen) {
@@ -329,11 +537,13 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         isPremium = premiumBillingState.isPremium,
                         onUpgradeClick = { launchPremiumPurchase() },
                         onGroupReportClick = { groupId ->
+                            groupReportOpenedFromSelection = false
                             selectedSharingGroupId = groupId
                             selectedSharingMemberId = null
                             showGroupExpenseReport = true
                         },
                         onMemberReportClick = { groupId, memberId ->
+                            groupReportOpenedFromSelection = false
                             selectedSharingGroupId = groupId
                             selectedSharingMemberId = memberId
                             showGroupExpenseReport = true
@@ -368,7 +578,7 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                             showProfileScreen = true
                         },
                         onReportsClick = {
-                            showAllPartiesReport = true
+                            showReportTypeSelection = true
                         },
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
                         onGroupClick = { groupId ->

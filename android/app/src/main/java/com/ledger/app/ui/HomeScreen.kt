@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.Group
@@ -300,128 +301,262 @@ fun HomeScreen(
                             modifier = Modifier.size(46.dp),
                             shape = CircleShape,
                             color = Color.White,
-                            tonalElevation = 0.dp,
                             shadowElevation = 1.dp
                         ) {
-                            IconButton(
-                                onClick = {
-                                    showMenu = true
-                                }
-                            ) {
+                            IconButton(onClick = { showMenu = true }) {
                                 Icon(
                                     imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = "More options"
+                                    contentDescription = "Open navigation sidebar"
                                 )
                             }
                         }
+                    }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = {
-                                showMenu = false
-                            },
-                            modifier = Modifier
-                                .width(250.dp)
-                                .clip(androidx.compose.ui.graphics.RectangleShape)
-                                .background(Color.White)
-                                    .border(
-                                        1.dp,
-                                        androidx.compose.ui.graphics.Color(0xFFE7D7AE),
-                                        androidx.compose.ui.graphics.RectangleShape
-                                    )
+                    if (showMenu) {
+                        Dialog(
+                            onDismissRequest = { showMenu = false },
+                            properties = androidx.compose.ui.window.DialogProperties(
+                                usePlatformDefaultWidth = false
+                            )
                         ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.42f))
+                            ) {
+                                Row(modifier = Modifier.fillMaxSize()) {
+                                    androidx.compose.animation.AnimatedVisibility(
+                                        visible = true,
+                                        modifier = Modifier
+                                            .width(300.dp)
+                                            .fillMaxSize(),
+                                        enter = androidx.compose.animation.slideInHorizontally(
+                                            initialOffsetX = { -it }
+                                        ) + androidx.compose.animation.fadeIn(),
+                                        exit = androidx.compose.animation.slideOutHorizontally(
+                                            targetOffsetX = { -it }
+                                        ) + androidx.compose.animation.fadeOut()
                                     ) {
-                                        Text(
-                                            text = "Profile & settings",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onProfileClick()
-                                }
-                            )
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clickable(enabled = false) {},
+                                            shape = RoundedCornerShape(
+                                                topEnd = 24.dp,
+                                                bottomEnd = 24.dp
+                                            ),
+                                            color = Color(0xFFFFFEFA),
+                                            shadowElevation = 12.dp
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .statusBarsPadding()
+                                                    .navigationBarsPadding()
+                                                    .padding(
+                                                        horizontal = 18.dp,
+                                                        vertical = 18.dp
+                                                    ),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(bottom = 8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Surface(
+                                                        modifier = Modifier.size(44.dp),
+                                                        shape = RoundedCornerShape(14.dp),
+                                                        color = Color(0xFFFFE7A3)
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = Icons.Outlined.Storage,
+                                                                contentDescription = null,
+                                                                tint = Color(0xFF805B00)
+                                                            )
+                                                        }
+                                                    }
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .padding(start = 12.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "Ledger",
+                                                            style = MaterialTheme.typography.titleLarge,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF242424)
+                                                        )
+                                                        Text(
+                                                            text = profileName.ifBlank {
+                                                                "Personal Finance"
+                                                            },
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = Color(0xFF77736A),
+                                                            maxLines = 1
+                                                        )
+                                                    }
+                                                    IconButton(
+                                                        onClick = { showMenu = false }
+                                                    ) {
+                                                        Text("✕", color = Color(0xFF686868))
+                                                    }
+                                                }
 
-                            DropdownMenuItem(
-                                text = {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Reports",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Storage,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onReportsClick()
-                                }
-                            )
+                                                androidx.compose.material3.HorizontalDivider(
+                                                    color = Color(0xFFECE5D5)
+                                                )
 
-                            DropdownMenuItem(
-                                text = {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Add Party",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.PersonAdd,
-                                        contentDescription = null
-                                    )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    requestAddParty()
-                                }
-                            )
 
-                            DropdownMenuItem(
-                                text = {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        Text(
-                                            text = "Add Group",
-                                            style = MaterialTheme.typography.titleMedium
-                                        )
+
+
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            onProfileClick()
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                modifier = Modifier.padding(
+                                                    horizontal = 14.dp,
+                                                    vertical = 13.dp
+                                                ),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.AccountCircle,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF6D6557)
+                                                )
+                                                Text(
+                                                    text = "Profile & Settings",
+                                                    modifier = Modifier.padding(start = 12.dp),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = Color(0xFF303030)
+                                                )
+                                            }
+                                                }
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            onReportsClick()
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(
+                                                            horizontal = 14.dp,
+                                                            vertical = 13.dp
+                                                        ),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Storage,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF6D6557)
+                                                        )
+                                                        Text(
+                                                            text = "Reports",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            requestAddParty()
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(
+                                                            horizontal = 14.dp,
+                                                            vertical = 13.dp
+                                                        ),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.PersonAdd,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF6D6557)
+                                                        )
+                                                        Text(
+                                                            text = "Add Party",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            if (isPremium || sharingGroups.size < 4) {
+                                                                newGroupName = ""
+                                                                showCreateGroupDialog = true
+                                                            } else {
+                                                                showGroupUpgradeDialog = true
+                                                            }
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(
+                                                            horizontal = 14.dp,
+                                                            vertical = 13.dp
+                                                        ),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.Group,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF6D6557)
+                                                        )
+                                                        Text(
+                                                            text = "Add Group",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(Modifier.weight(1f))
+                                            }
+                                        }
                                     }
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Group,
-                                        contentDescription = null
+
+                                    Spacer(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxSize()
+                                            .clickable { showMenu = false }
                                     )
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    if (isPremium || sharingGroups.size < 4) {
-                                        newGroupName = ""
-                                        showCreateGroupDialog = true
-                                    } else {
-                                        showGroupUpgradeDialog = true
-                                    }
                                 }
-                            )
+                            }
                         }
-}
+                    }
                 }
             }
         },

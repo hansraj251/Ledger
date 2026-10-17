@@ -115,63 +115,71 @@ internal fun createPartyReportPdf(
 
     writer.subtitle(party.name)
 
+    // Report details table
+    val reportDetailRows = mutableListOf<List<String>>()
     if (party.mobile.isNotBlank()) {
-        writer.text("Mobile: ${party.mobile}", 10f, false)
+        reportDetailRows.add(listOf("Mobile", party.mobile))
     }
+    reportDetailRows.add(
+        listOf("Generated", dateTimeFormat.format(Date(today)))
+    )
 
-    writer.text("Generated: ${dateTimeFormat.format(Date(today))}", 9f, false)
+    writer.table(
+        headers = listOf("Report Detail", "Value"),
+        rows = reportDetailRows,
+        notes = List(reportDetailRows.size) { null },
+        widths = listOf(180f, 343f)
+    )
 
     writer.space(14f)
-
     writer.section("Account Summary")
 
     val gaveLabel = "${profileName.trim().ifEmpty { "You" }} Gave"
     val gotLabel = "${party.name.trim()} Gave"
 
-    writer.summaryRow("Total $gaveLabel", money(gave))
-    writer.summaryRow("Total $gotLabel", money(got))
+    val summaryRows = mutableListOf<List<String>>()
+    summaryRows.add(listOf("Total $gaveLabel", money(gave)))
+    summaryRows.add(listOf("Total $gotLabel", money(got)))
+
     val hasInterest = accruedInterest.receivable > 0.0 ||
         accruedInterest.payable > 0.0 ||
         recordedInterestGot > 0.0 ||
         recordedInterestGave > 0.0
 
-
-
-
     if (accruedInterest.receivable > 0.0) {
-        writer.summaryRow(
-            "Total Interest of ${party.name.trim()}",
-            money(accruedInterest.receivable)
+        summaryRows.add(
+            listOf("Total Interest of ${party.name.trim()}", money(accruedInterest.receivable))
         )
     }
     if (recordedInterestGot > 0.0) {
-        writer.summaryRow(
-            "Interest $gotLabel",
-            money(recordedInterestGot)
+        summaryRows.add(
+            listOf("Interest $gotLabel", money(recordedInterestGot))
         )
     }
     if (remainingInterest.receivable > 0.0) {
-        writer.summaryRow(
-            "Remaining Interest of ${party.name.trim()}",
-            money(remainingInterest.receivable)
+        summaryRows.add(
+            listOf("Remaining Interest of ${party.name.trim()}", money(remainingInterest.receivable))
         )
     }
     if (accruedInterest.payable > 0.0) {
-        writer.summaryRow(
-            "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
-            money(accruedInterest.payable)
+        summaryRows.add(
+            listOf(
+                "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
+                money(accruedInterest.payable)
+            )
         )
     }
     if (recordedInterestGave > 0.0) {
-        writer.summaryRow(
-            "Interest $gaveLabel",
-            money(recordedInterestGave)
+        summaryRows.add(
+            listOf("Interest $gaveLabel", money(recordedInterestGave))
         )
     }
     if (remainingInterest.payable > 0.0) {
-        writer.summaryRow(
-            "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
-            money(remainingInterest.payable)
+        summaryRows.add(
+            listOf(
+                "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
+                money(remainingInterest.payable)
+            )
         )
     }
 
@@ -184,41 +192,41 @@ internal fun createPartyReportPdf(
             if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
     }
 
-    writer.summaryRow(
-        balanceLabel,
-        money(kotlin.math.abs(netBalance)),
-        bold = true
+    summaryRows.add(
+        listOf(balanceLabel, money(kotlin.math.abs(netBalance)))
+    )
+
+    writer.table(
+        headers = listOf("Account Summary", "Amount"),
+        rows = summaryRows,
+        notes = List(summaryRows.size) { null },
+        widths = listOf(360f, 163f)
     )
 
     writer.space(14f)
-
-    writer.section(
-        "Transactions (${orderedEntries.size})"
-    )
+    writer.section("Transactions (${orderedEntries.size})")
 
     if (orderedEntries.isEmpty()) {
         writer.text("No transactions recorded.", 10f, false)
     } else {
-        orderedEntries.forEachIndexed { index, entry ->
+        val transactionRows = mutableListOf<List<String>>()
+        val transactionNotes = mutableListOf<String?>()
+
+        orderedEntries.forEach { entry ->
             val transactionDate =
-                if (entry.transactionDate > 0L) {
-                    entry.transactionDate
-                } else {
-                    entry.createdAt
-                }
+                if (entry.transactionDate > 0L) entry.transactionDate
+                else entry.createdAt
 
             val days = transactionInterestDays(
                 transactionDate = entry.transactionDate,
                 createdAt = entry.createdAt
             )
-
             val interest = calculateTransactionInterest(
                 amount = entry.amount,
                 annualRate = entry.interestRate,
                 transactionDate = entry.transactionDate,
                 createdAt = entry.createdAt
             )
-
             val total = entry.amount + interest
             val type = if (entry.type == EntryType.CREDIT) {
                 gaveLabel.uppercase()
@@ -226,41 +234,30 @@ internal fun createPartyReportPdf(
                 gotLabel.uppercase()
             }
 
-            writer.transactionHeader(
-                number = index + 1,
-                date = dateFormat.format(Date(transactionDate)),
-                type = type
-            )
-
-            writer.transactionRow(
-                "Principal",
-                money(entry.amount)
-            )
-
-            if (entry.interestRate > 0.0) {
-                writer.transactionRow(
-                    "Interest",
-                    "${formatRate(entry.interestRate)}% p.a. • $days days • ${money(interest)}"
-                )
+            val interestDetails = if (entry.interestRate > 0.0) {
+                "${money(interest)}\n${formatRate(entry.interestRate)}% p.a.\n$days days"
             } else {
-                writer.transactionRow(
-                    "Interest",
-                    "0%"
+                "${money(interest)}\n0% rate"
+            }
+
+            transactionRows.add(
+                listOf(
+                    dateFormat.format(Date(transactionDate)),
+                    type,
+                    money(entry.amount),
+                    interestDetails
                 )
-            }
-
-            writer.transactionRow(
-                "Transaction Total",
-                money(total)
             )
-
-            if (entry.note.isNotBlank()) {
-                writer.note("Note: ${entry.note}")
-            }
-
-            writer.separator()
-            writer.space(8f)
+            transactionNotes.add(
+                entry.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
+            )
         }
+
+        writer.table(
+            headers = listOf("Date", "Type", "Principal", "Interest"),
+            rows = transactionRows,
+            notes = transactionNotes
+        )
     }
 
     if (interestRecords.isNotEmpty()) {
@@ -273,37 +270,39 @@ internal fun createPartyReportPdf(
             }.thenByDescending { it.id }
         )
 
-        if (orderedInterestRecords.isEmpty()) {
-            writer.text("No interest payments or receipts recorded.", 10f, false)
-        } else {
-            orderedInterestRecords.forEachIndexed { index, record ->
-                val recordDate = if (record.transactionDate > 0L) {
-                    record.transactionDate
-                } else {
-                    record.createdAt
-                }
+        val interestRows = mutableListOf<List<String>>()
+        val interestNotes = mutableListOf<String?>()
 
-                val recordType = if (record.type == "GAVE") {
-                    "INTEREST $gaveLabel".uppercase()
-                } else {
-                    "INTEREST $gotLabel".uppercase()
-                }
-
-                writer.transactionHeader(
-                    number = index + 1,
-                    date = dateFormat.format(Date(recordDate)),
-                    type = recordType
-                )
-                writer.transactionRow("Interest Amount", money(record.amount))
-
-                if (record.note.isNotBlank()) {
-                    writer.note("Note: ${record.note}")
-                }
-
-                writer.separator()
-                writer.space(8f)
+        orderedInterestRecords.forEach { record ->
+            val recordDate = if (record.transactionDate > 0L) {
+                record.transactionDate
+            } else {
+                record.createdAt
             }
+            val recordType = if (record.type == "GAVE") {
+                "INTEREST $gaveLabel".uppercase()
+            } else {
+                "INTEREST $gotLabel".uppercase()
+            }
+
+            interestRows.add(
+                listOf(
+                    dateFormat.format(Date(recordDate)),
+                    recordType,
+                    "—",
+                    money(record.amount)
+                )
+            )
+            interestNotes.add(
+                record.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
+            )
         }
+
+        writer.table(
+            headers = listOf("Date", "Type", "Principal", "Interest"),
+            rows = interestRows,
+            notes = interestNotes
+        )
     }
 
     writer.finish()
@@ -585,6 +584,187 @@ internal class ReportPdfWriter(
         )
 
         y += 17f
+    }
+
+    fun table(
+        headers: List<String>,
+        rows: List<List<String>>,
+        notes: List<String?>,
+        widths: List<Float> = listOf(68f, 155f, 130f, 170f)
+    ) {
+        // Widths are supplied by each table; defaults suit transaction tables.
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 0.6f
+            color = android.graphics.Color.rgb(215, 220, 226)
+        }
+        val cellPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.rgb(90, 96, 105)
+            textSize = 8.5f
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        }
+
+        cellPaint.textSize = 8f
+
+        fun wrapCell(value: String, maxWidth: Float): List<String> {
+            val output = mutableListOf<String>()
+
+            value.split("\n").forEach { paragraph ->
+                if (paragraph.isEmpty()) {
+                    output.add("")
+                } else {
+                    var current = ""
+
+                    paragraph.split(Regex("\\s+")).forEach { word ->
+                        if (cellPaint.measureText(word) > maxWidth) {
+                            if (current.isNotEmpty()) {
+                                output.add(current)
+                                current = ""
+                            }
+
+                            var fragment = ""
+                            word.forEach { character ->
+                                val candidate = fragment + character
+                                if (fragment.isNotEmpty() &&
+                                    cellPaint.measureText(candidate) > maxWidth
+                                ) {
+                                    output.add(fragment)
+                                    fragment = character.toString()
+                                } else {
+                                    fragment = candidate
+                                }
+                            }
+                            current = fragment
+                        } else {
+                            val candidate =
+                                if (current.isEmpty()) word else "$current $word"
+
+                            if (cellPaint.measureText(candidate) <= maxWidth) {
+                                current = candidate
+                            } else {
+                                if (current.isNotEmpty()) output.add(current)
+                                current = word
+                            }
+                        }
+                    }
+
+                    if (current.isNotEmpty()) output.add(current)
+                }
+            }
+
+            return output.ifEmpty { listOf("") }
+        }
+
+        fun drawRow(cells: List<String>, header: Boolean): Float {
+            val wrappedCells = widths.indices.map { index ->
+                wrapCell(cells.getOrElse(index) { "" }, widths[index] - 8f)
+            }
+
+            val maxLines = wrappedCells.maxOfOrNull { it.size } ?: 1
+            val rowHeight = maxOf(31f, 14f + maxLines * 12f)
+
+            if (!header && y + rowHeight > BOTTOM) {
+                newPage()
+                drawRow(headers, true)
+            }
+
+            val currentCanvas = canvas ?: return rowHeight
+            var x = LEFT
+
+            widths.forEachIndexed { index, width ->
+                fillPaint.color = if (header) {
+                    android.graphics.Color.rgb(35, 73, 112)
+                } else {
+                    android.graphics.Color.WHITE
+                }
+
+                cellPaint.color = if (header) {
+                    android.graphics.Color.WHITE
+                } else {
+                    android.graphics.Color.rgb(38, 43, 50)
+                }
+
+                cellPaint.textSize = 8f
+                cellPaint.typeface = Typeface.create(
+                    "sans-serif",
+                    if (header) Typeface.BOLD else Typeface.NORMAL
+                )
+
+                val rect = android.graphics.RectF(
+                    x, y - 14f, x + width, y + rowHeight - 8f
+                )
+                currentCanvas.drawRect(rect, fillPaint)
+                currentCanvas.drawRect(rect, borderPaint)
+
+                wrappedCells[index].forEachIndexed { lineIndex, line ->
+                    currentCanvas.drawText(
+                        line,
+                        x + 4f,
+                        y + 1f + lineIndex * 12f,
+                        cellPaint
+                    )
+                }
+
+                x += width
+            }
+
+            y += rowHeight
+            return rowHeight
+        }
+
+        fun drawNote(note: String) {
+            val maxWidth = RIGHT - LEFT - 16f
+            val lines = mutableListOf<String>()
+            var current = ""
+
+            note.split(Regex("\\s+")).forEach { word ->
+                val candidate = if (current.isBlank()) word else "$current $word"
+                if (notePaint.measureText(candidate) <= maxWidth) {
+                    current = candidate
+                } else {
+                    if (current.isNotBlank()) lines.add(current)
+                    current = word
+                }
+            }
+            if (current.isNotBlank()) lines.add(current)
+
+            val totalHeight = lines.size * 12f + 8f
+            if (y + totalHeight > BOTTOM) {
+                newPage()
+                drawRow(headers, true)
+            }
+
+            val currentCanvas = canvas ?: return
+            val rect = android.graphics.RectF(
+                LEFT, y - 8f, RIGHT, y + totalHeight - 3f
+            )
+            fillPaint.color = android.graphics.Color.rgb(247, 248, 250)
+            currentCanvas.drawRect(rect, fillPaint)
+            currentCanvas.drawRect(rect, borderPaint)
+
+            lines.forEachIndexed { index, line ->
+                currentCanvas.drawText(
+                    line, LEFT + 8f, y + index * 12f, notePaint
+                )
+            }
+            y += totalHeight
+        }
+
+        drawRow(headers, true)
+
+        rows.forEachIndexed { index, row ->
+            drawRow(row, false)
+            notes.getOrNull(index)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { drawNote(it) }
+        }
+
+        space(8f)
     }
 
     fun note(value: String) {

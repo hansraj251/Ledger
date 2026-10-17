@@ -130,26 +130,28 @@ internal fun createAllPartiesReportPdf(
     writer.space(8f)
 
     writer.section("Overall Summary")
-    writer.summaryRow("Total You Gave", money(totalGave))
-    writer.summaryRow("Total You Received", money(totalGot))
+
+    val overallRows = mutableListOf<List<String>>()
+    overallRows.add(listOf("Total You Gave", money(totalGave)))
+    overallRows.add(listOf("Total You Received", money(totalGot)))
 
     if (totalAccruedReceivable > 0.0) {
-        writer.summaryRow("Total Interest Receivable", money(totalAccruedReceivable))
+        overallRows.add(listOf("Total Interest Receivable", money(totalAccruedReceivable)))
     }
     if (totalRecordedGot > 0.0) {
-        writer.summaryRow("Interest Received", money(totalRecordedGot))
+        overallRows.add(listOf("Interest Received", money(totalRecordedGot)))
     }
     if (totalRemainingReceivable > 0.0) {
-        writer.summaryRow("Remaining Interest Receivable", money(totalRemainingReceivable))
+        overallRows.add(listOf("Remaining Interest Receivable", money(totalRemainingReceivable)))
     }
     if (totalAccruedPayable > 0.0) {
-        writer.summaryRow("Total Interest Payable", money(totalAccruedPayable))
+        overallRows.add(listOf("Total Interest Payable", money(totalAccruedPayable)))
     }
     if (totalRecordedGave > 0.0) {
-        writer.summaryRow("Interest Paid", money(totalRecordedGave))
+        overallRows.add(listOf("Interest Paid", money(totalRecordedGave)))
     }
     if (totalRemainingPayable > 0.0) {
-        writer.summaryRow("Remaining Interest Payable", money(totalRemainingPayable))
+        overallRows.add(listOf("Remaining Interest Payable", money(totalRemainingPayable)))
     }
 
     val overallBalanceLabel = when {
@@ -160,13 +162,18 @@ internal fun createAllPartiesReportPdf(
         else ->
             if (hasInterest) "Current Balance (With Int.)" else "Current Balance"
     }
-    writer.summaryRow("Total Parties", parties.size.toString())
-    writer.summaryRow("Total Transactions", allEntries.size.toString())
-    writer.summaryRow(
-        overallBalanceLabel,
-        money(kotlin.math.abs(totalBalance)),
-        bold = true
+
+    overallRows.add(listOf("Total Parties", parties.size.toString()))
+    overallRows.add(listOf("Total Transactions", allEntries.size.toString()))
+    overallRows.add(listOf(overallBalanceLabel, money(kotlin.math.abs(totalBalance))))
+
+    writer.table(
+        headers = listOf("Overall Summary", "Amount"),
+        rows = overallRows,
+        notes = List(overallRows.size) { null },
+        widths = listOf(360f, 163f)
     )
+
 
     parties.forEachIndexed { index, party ->
         writer.finishCurrentPage()
@@ -227,41 +234,50 @@ internal fun createAllPartiesReportPdf(
         writer.section("Account Summary")
         val partyGaveLabel = "${party.name.trim()} Gave"
 
-        writer.summaryRow("Total You Gave", money(
-            orderedEntries.filter { it.type == EntryType.CREDIT }.sumOf { it.amount }
-        ))
-        writer.summaryRow("Total You Received", money(
-            orderedEntries.filter { it.type == EntryType.DEBIT }.sumOf { it.amount }
-        ))
+        val partySummaryRows = mutableListOf<List<String>>()
+        partySummaryRows.add(
+            listOf(
+                "Total You Gave",
+                money(orderedEntries.filter { it.type == EntryType.CREDIT }.sumOf { it.amount })
+            )
+        )
+        partySummaryRows.add(
+            listOf(
+                "Total You Received",
+                money(orderedEntries.filter { it.type == EntryType.DEBIT }.sumOf { it.amount })
+            )
+        )
 
         if (accruedInterest.receivable > 0.0) {
-            writer.summaryRow(
-                "Total Interest of ${party.name.trim()}",
-                money(accruedInterest.receivable)
+            partySummaryRows.add(
+                listOf("Total Interest of ${party.name.trim()}", money(accruedInterest.receivable))
             )
         }
         if (recordedInterestGot > 0.0) {
-            writer.summaryRow("Interest $partyGaveLabel", money(recordedInterestGot))
+            partySummaryRows.add(listOf("Interest $partyGaveLabel", money(recordedInterestGot)))
         }
         if (remainingInterest.receivable > 0.0) {
-            writer.summaryRow(
-                "Remaining Interest of ${party.name.trim()}",
-                money(remainingInterest.receivable)
+            partySummaryRows.add(
+                listOf("Remaining Interest of ${party.name.trim()}", money(remainingInterest.receivable))
             )
         }
         if (accruedInterest.payable > 0.0) {
-            writer.summaryRow(
-                "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
-                money(accruedInterest.payable)
+            partySummaryRows.add(
+                listOf(
+                    "Total Interest of ${profileName.trim().ifEmpty { "You" }}",
+                    money(accruedInterest.payable)
+                )
             )
         }
         if (recordedInterestGave > 0.0) {
-            writer.summaryRow("Interest $gaveLabel", money(recordedInterestGave))
+            partySummaryRows.add(listOf("Interest $gaveLabel", money(recordedInterestGave)))
         }
         if (remainingInterest.payable > 0.0) {
-            writer.summaryRow(
-                "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
-                money(remainingInterest.payable)
+            partySummaryRows.add(
+                listOf(
+                    "Remaining Interest of ${profileName.trim().ifEmpty { "You" }}",
+                    money(remainingInterest.payable)
+                )
             )
         }
 
@@ -273,84 +289,76 @@ internal fun createAllPartiesReportPdf(
             else ->
                 if (partyHasInterest) "Current Balance (With Int.)" else "Current Balance"
         }
-        writer.summaryRow(
-            balanceLabel,
-            money(kotlin.math.abs(balance)),
-            bold = true
+
+        partySummaryRows.add(listOf(balanceLabel, money(kotlin.math.abs(balance))))
+        partySummaryRows.add(listOf("Transactions", orderedEntries.size.toString()))
+
+        writer.table(
+            headers = listOf("Account Summary", "Amount"),
+            rows = partySummaryRows,
+            notes = List(partySummaryRows.size) { null },
+            widths = listOf(360f, 163f)
         )
-        writer.summaryRow("Transactions", orderedEntries.size.toString())
+
 
         if (orderedEntries.isNotEmpty()) {
             writer.space(8f)
+            writer.section("Transactions (${orderedEntries.size})")
 
-            writer.section(
-                "Transactions (${orderedEntries.size})"
-            )
+            val transactionRows = mutableListOf<List<String>>()
+            val transactionNotes = mutableListOf<String?>()
 
-            orderedEntries.forEachIndexed { transactionIndex, entry ->
-
-                val dateMillis =
-                    if (entry.transactionDate > 0L) {
-                        entry.transactionDate
-                    } else {
-                        entry.createdAt
-                    }
-
-                val type =
-                    if (entry.type == EntryType.CREDIT) {
-                        gaveLabel.uppercase()
-                    } else {
-                        "${party.name.trim()} Gave".uppercase()
-                    }
-
-                val interest =
-                    calculateTransactionInterest(
-                        amount = entry.amount,
-                        annualRate = entry.interestRate,
-                        transactionDate = entry.transactionDate,
-                        createdAt = entry.createdAt
-                    )
-
-                val days =
-                    transactionInterestDays(
-                        transactionDate = entry.transactionDate,
-                        createdAt = entry.createdAt
-                    )
-
-                writer.transactionHeader(
-                    number = transactionIndex + 1,
-                    date = dateFormat.format(Date(dateMillis)),
-                    type = type
-                )
-
-                writer.transactionRow(
-                    "Principal",
-                    money(entry.amount)
-                )
-
-                if (entry.interestRate > 0.0) {
-                    writer.transactionRow(
-                        "Interest",
-                        "${formatRate(entry.interestRate)}% p.a. • $days days • ${money(interest)}"
-                    )
+            orderedEntries.forEach { entry ->
+                val dateMillis = if (entry.transactionDate > 0L) {
+                    entry.transactionDate
+                } else {
+                    entry.createdAt
                 }
 
-                writer.transactionRow(
-                    "Transaction Total",
-                    money(entry.amount + interest)
-                )
-
-                if (entry.note.isNotBlank()) {
-                    writer.transactionRow(
-                        "Note",
-                        entry.note
-                    )
+                val type = if (entry.type == EntryType.CREDIT) {
+                    gaveLabel.uppercase()
+                } else {
+                    "${party.name.trim()} Gave".uppercase()
                 }
 
-                writer.separator()
-                writer.space(8f)
+                val interest = calculateTransactionInterest(
+                    amount = entry.amount,
+                    annualRate = entry.interestRate,
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt
+                )
+
+                val days = transactionInterestDays(
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt
+                )
+
+                val interestDetails = if (entry.interestRate > 0.0) {
+                    "${money(interest)}\n${formatRate(entry.interestRate)}% p.a.\n$days days"
+                } else {
+                    "${money(interest)}\n0% rate"
+                }
+
+                transactionRows.add(
+                    listOf(
+                        dateFormat.format(Date(dateMillis)),
+                        type,
+                        money(entry.amount),
+                        interestDetails
+                    )
+                )
+                transactionNotes.add(
+                    entry.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
+                )
             }
+
+            writer.table(
+                headers = listOf("Date", "Type", "Principal", "Interest"),
+                rows = transactionRows,
+                notes = transactionNotes
+            )
         }
+
 
         val orderedRecords = records.sortedWith(
             compareByDescending<InterestAccountEntryEntity> {
@@ -361,34 +369,43 @@ internal fun createAllPartiesReportPdf(
         if (orderedRecords.isNotEmpty()) {
             writer.space(8f)
             writer.section("Interest Account Records (${orderedRecords.size})")
-            if (orderedRecords.isEmpty()) {
-                writer.text("No interest payments or receipts recorded.", 10f, false)
-            } else {
-                orderedRecords.forEachIndexed { recordIndex, record ->
-                    val recordDate = if (record.transactionDate > 0L) {
-                        record.transactionDate
-                    } else {
-                        record.createdAt
-                    }
-                    val recordType = if (record.type == "GAVE") {
-                        "INTEREST $gaveLabel".uppercase()
-                    } else {
-                        "INTEREST $partyGaveLabel".uppercase()
-                    }
-                    writer.transactionHeader(
-                        number = recordIndex + 1,
-                        date = dateFormat.format(Date(recordDate)),
-                        type = recordType
-                    )
-                    writer.transactionRow("Interest Amount", money(record.amount))
-                    if (record.note.isNotBlank()) {
-                        writer.transactionRow("Note", record.note)
-                    }
-                    writer.separator()
-                    writer.space(8f)
+
+            val interestRows = mutableListOf<List<String>>()
+            val interestNotes = mutableListOf<String?>()
+
+            orderedRecords.forEach { record ->
+                val recordDate = if (record.transactionDate > 0L) {
+                    record.transactionDate
+                } else {
+                    record.createdAt
                 }
+
+                val recordType = if (record.type == "GAVE") {
+                    "INTEREST $gaveLabel".uppercase()
+                } else {
+                    "INTEREST $partyGaveLabel".uppercase()
+                }
+
+                interestRows.add(
+                    listOf(
+                        dateFormat.format(Date(recordDate)),
+                        recordType,
+                        "—",
+                        money(record.amount)
+                    )
+                )
+                interestNotes.add(
+                    record.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
+                )
             }
+
+            writer.table(
+                headers = listOf("Date", "Type", "Principal", "Interest"),
+                rows = interestRows,
+                notes = interestNotes
+            )
         }
+
 
         if (index < parties.lastIndex) {
             writer.space(10f)

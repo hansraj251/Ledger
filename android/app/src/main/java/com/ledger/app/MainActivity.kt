@@ -225,6 +225,8 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                var openDailyExpenseReportOnLaunch by remember { mutableStateOf(false) }
+                var openHomeSidebarOnLaunch by remember { mutableStateOf(false) }
                 var showDailyExpenseScreen by remember {
                     mutableStateOf(
                         mainPagePrefs.getBoolean("show_daily_expense", false)
@@ -556,6 +558,14 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
+                        onOpenHomeSidebar = {
+                            openHomeSidebarOnLaunch = true
+                            setDailyExpenseScreenVisible(false)
+                        },
+                        openReportOnLaunch = openDailyExpenseReportOnLaunch,
+                        onReportLaunchHandled = {
+                            openDailyExpenseReportOnLaunch = false
+                        },
                         onPartiesClick = { setDailyExpenseScreenVisible(false) },
                         onGroupSharingClick = {
                             setDailyExpenseScreenVisible(false)
@@ -581,6 +591,14 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             showReportTypeSelection = true
                         },
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
+                            onDailyExpenseReportClick = {
+                                openDailyExpenseReportOnLaunch = true
+                                setDailyExpenseScreenVisible(true)
+                            },
+                            openSidebarOnLaunch = openHomeSidebarOnLaunch,
+                            onSidebarLaunchHandled = {
+                                openHomeSidebarOnLaunch = false
+                            },
                         onGroupClick = { groupId ->
                             selectedSharingGroupId = groupId
                             openGroupEditorOnOpen = false

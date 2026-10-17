@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.ArrowForwardIos
@@ -82,6 +83,7 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onReportsClick: () -> Unit,
     onDailyExpenseClick: () -> Unit,
+    onDailyExpenseReportClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
     onGroupClick: (Long) -> Unit,
     isPremium: Boolean,
@@ -89,7 +91,10 @@ fun HomeScreen(
     onUpgradeClick: () -> Unit,
 
     onDataChanged: () -> Unit,
-    onGroupLongClick: (Long) -> Unit = { onGroupClick(it) }) {
+    onGroupLongClick: (Long) -> Unit = { onGroupClick(it) },
+    openSidebarOnLaunch: Boolean = false,
+    onSidebarLaunchHandled: () -> Unit = {}
+) {
     var profileName by rememberSaveable {
         mutableStateOf("")
     }
@@ -157,6 +162,18 @@ fun HomeScreen(
     var showMenu by remember {
         mutableStateOf(false)
     }
+
+    var showTipsDialog by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(openSidebarOnLaunch) {
+        if (openSidebarOnLaunch) {
+            showMenu = true
+            onSidebarLaunchHandled()
+        }
+    }
+
 
     var showUpgradeDialog by remember { mutableStateOf(false) }
     val requestAddParty: () -> Unit = {
@@ -258,6 +275,99 @@ fun HomeScreen(
         ) {
             repository.getProfile()?.name?.trim().orEmpty()
         }
+    }
+
+    if (showTipsDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showTipsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("💡", fontSize = 25.sp)
+                    Text(
+                        text = "  Tips & Tricks",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("1.", fontWeight = FontWeight.Bold, color = Color(0xFFB7791F))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Create Group", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Long-press the Add Party button to Create Group.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("2.", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Set Default Share", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Long-press a member in a Group to set their default share. It is automatically filled when you select the Share split type while adding a Group expense.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("3.", fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Daily Expenses Report", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Long-press the Add Expense button on the Daily Expense page to open the Daily Expenses Report options.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("4.", fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Edit or Delete Parties & Groups", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Long-press any Party or Group on the Home page to access the Edit and Delete options.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Text("5.", fontWeight = FontWeight.Bold, color = Color(0xFF0D9488))
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("View, Edit & Delete Group Expenses", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "Tap an expense card in a Group page to view its full details. Long-press the card to access the Edit and Delete options.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showTipsDialog = false }
+                ) {
+                    Text("Got it")
+                }
+            },
+            shape = RoundedCornerShape(24.dp)
+        )
     }
 
     Scaffold(
@@ -480,6 +590,34 @@ fun HomeScreen(
                                                         .fillMaxWidth()
                                                         .clickable {
                                                             showMenu = false
+                                                            onDailyExpenseReportClick()
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.ReceiptLong,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF6D6557)
+                                                        )
+                                                        Text(
+                                                            text = "Daily Expenses Report",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
                                                             requestAddParty()
                                                         },
                                                     shape = RoundedCornerShape(13.dp),
@@ -538,6 +676,31 @@ fun HomeScreen(
                                                             modifier = Modifier.padding(start = 12.dp),
                                                             style = MaterialTheme.typography.titleSmall,
                                                             color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            showTipsDialog = true
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color(0xFFFFF3D6)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text("💡", fontSize = 20.sp)
+                                                        Text(
+                                                            text = "Tips & Tricks",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = Color(0xFF805B00)
                                                         )
                                                     }
                                                 }

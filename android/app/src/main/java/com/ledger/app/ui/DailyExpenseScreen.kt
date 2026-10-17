@@ -1,32 +1,21 @@
 package com.ledger.app.ui
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.outlined.Share
-
 import androidx.compose.material.icons.outlined.Download
-
 import androidx.core.content.FileProvider
-
 import android.content.Intent
-
 import com.ledger.app.data.CurrencySettings
-
 import androidx.compose.material.icons.filled.ArrowBack
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
-
-
 import androidx.compose.foundation.layout.width
-
 import androidx.compose.material.icons.outlined.Search
-
 import androidx.compose.material.icons.outlined.MoreVert
-
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.ui.draw.clip
-
 import androidx.compose.foundation.background
-
 import androidx.compose.foundation.BorderStroke
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
@@ -224,7 +213,10 @@ fun DailyExpenseScreen(
     isPremium: Boolean,
     onUpgradeClick: () -> Unit = {
 
-}
+},
+    openReportOnLaunch: Boolean = false,
+    onReportLaunchHandled: () -> Unit = {},
+    onOpenHomeSidebar: () -> Unit = { onPartiesClick() }
 ) {
     val context = LocalContext.current
     val database = remember(context) {
@@ -298,6 +290,14 @@ var isReportLimitReached by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showMenu by remember { mutableStateOf(false) }
     var showReportOptions by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openReportOnLaunch) {
+        if (openReportOnLaunch) {
+            showMenu = false
+            showReportOptions = true
+            onReportLaunchHandled()
+        }
+    }
     var dailyReportPreviewFile by remember { mutableStateOf<java.io.File?>(null) }
     var dailyReportPreviewYear by remember { mutableStateOf<Int?>(null) }
 
@@ -422,39 +422,174 @@ var isReportLimitReached by remember { mutableStateOf(false) }
     if (showReportOptions) {
         AlertDialog(
             onDismissRequest = { showReportOptions = false },
-            containerColor = androidx.compose.ui.graphics.Color.White,
-            title = { Text("Expense Report") },
-            text = {
-                Column {
-                    TextButton(
-                        onClick = {
-                            showReportOptions = false
-                            showAllTimeRecords = true
-                            showSelectedDayRecords = false
-                            showMonthRecords = false
-                            showYearRecords = false
-                            refreshKey++
-                            generateDailyExpenseReport(null)
-                        },
-                        modifier = Modifier.fillMaxWidth()
+            containerColor = Color.White,
+            shape = RoundedCornerShape(28.dp),
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(54.dp),
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFFFFF2D5)
                     ) {
-                        Text("All Time", modifier = Modifier.fillMaxWidth())
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Outlined.ReceiptLong,
+                                contentDescription = null,
+                                tint = Color(0xFF946200),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
-                    TextButton(
-                        onClick = {
-                            showReportOptions = false
-                            yearPickerValue = Calendar.getInstance().get(Calendar.YEAR)
-                            showYearPicker = true
-                        },
-                        modifier = Modifier.fillMaxWidth()
+                    Text(
+                        text = "Expense Report",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF202124)
+                    )
+                    Text(
+                        text = "Choose the period for your report",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF737780)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showReportOptions = false
+                                showAllTimeRecords = true
+                                showSelectedDayRecords = false
+                                showMonthRecords = false
+                                showYearRecords = false
+                                refreshKey++
+                                generateDailyExpenseReport(null)
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFFF3FAF4),
+                        border = BorderStroke(1.dp, Color(0xFFD8EBDD))
                     ) {
-                        Text("Select Year", modifier = Modifier.fillMaxWidth())
+                        Row(
+                            modifier = Modifier.padding(
+                                horizontal = 14.dp,
+                                vertical = 16.dp
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(46.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFFE0F1E3)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ReceiptLong,
+                                        contentDescription = null,
+                                        tint = Color(0xFF287746),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "All Time",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF202124)
+                                )
+                                Text(
+                                    text = "Complete expense history",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF68716A)
+                                )
+                            }
+                            Text(
+                                text = "›",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Color(0xFF287746)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showReportOptions = false
+                                yearPickerValue = Calendar.getInstance()
+                                    .get(Calendar.YEAR)
+                                showYearPicker = true
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFFF3F6FF),
+                        border = BorderStroke(1.dp, Color(0xFFDCE4FF))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(
+                                horizontal = 14.dp,
+                                vertical = 16.dp
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(46.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFFE3EAFF)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.AccountBalanceWallet,
+                                        contentDescription = null,
+                                        tint = Color(0xFF3158B8),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Select Year",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF202124)
+                                )
+                                Text(
+                                    text = "View expenses for a specific year",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF69728A)
+                                )
+                            }
+                            Text(
+                                text = "›",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Color(0xFF3158B8)
+                            )
+                        }
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showReportOptions = false }) {
-                    Text("Close")
+                    Text(
+                        text = "Close",
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         )
@@ -637,10 +772,10 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                             tonalElevation = 0.dp,
                             shadowElevation = 1.dp
                         ) {
-                            IconButton(onClick = { showMenu = true }) {
+                            IconButton(onClick = onOpenHomeSidebar) {
                                 Icon(
-                                    imageVector = Icons.Outlined.MoreVert,
-                                    contentDescription = "More options"
+                                    imageVector = Icons.Outlined.Menu,
+                                    contentDescription = "Open navigation sidebar"
                                 )
                             }
                         }
@@ -720,20 +855,34 @@ var isReportLimitReached by remember { mutableStateOf(false) }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    requestAddExpense()
-                },
+            Surface(
+                modifier = Modifier
+                    .size(56.dp)
+                    .combinedClickable(
+                        onClick = {
+                            requestAddExpense()
+                        },
+                        onLongClick = {
+                            showMenu = false
+                            showReportOptions = true
+                        }
+                    ),
                 shape = RoundedCornerShape(18.dp),
-                containerColor = if (isPremium) Color(0xFFFFC247)
+                color = if (isPremium) Color(0xFFFFC247)
                     else MaterialTheme.colorScheme.primary,
                 contentColor = if (isPremium) Color(0xFF302000)
-                    else MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onPrimary,
+                shadowElevation = 6.dp
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.ReceiptLong,
-                    contentDescription = "Add expense"
-                )
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ReceiptLong,
+                        contentDescription = "Add expense"
+                    )
+                }
             }
         }
     ) { padding ->

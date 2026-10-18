@@ -82,4 +82,17 @@ interface StaffDao {
 
     @Query("DELETE FROM staff_bonus_payments WHERE staffId = :staffId")
     fun deleteStaffBonusPaymentsForStaff(staffId: Long): Int
+
+
+    @Query("SELECT * FROM staff_salary_deductions WHERE staffId = :staffId ORDER BY deductionDate DESC, id DESC")
+    fun getStaffSalaryDeductions(staffId: Long): List<StaffSalaryDeductionEntity>
+
+    @Insert
+    fun insertStaffSalaryDeduction(deduction: StaffSalaryDeductionEntity): Long
+
+    @Update
+    fun updateStaffSalaryDeduction(deduction: StaffSalaryDeductionEntity)
+
+    @Query("DELETE FROM staff_salary_deductions WHERE id = :deductionId AND staffId = :staffId")
+    fun deleteStaffSalaryDeductionById(deductionId: Long, staffId: Long): Int
 }

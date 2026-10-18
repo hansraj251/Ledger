@@ -54,6 +54,7 @@ import com.ledger.app.data.SalaryRevisionEntity
 import com.ledger.app.data.SalaryPaymentEntity
 import com.ledger.app.data.StaffAdvanceTransactionEntity
 import com.ledger.app.data.StaffBonusEntity
+import com.ledger.app.data.StaffSalaryDeductionEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -102,6 +103,14 @@ fun StaffDetailScreen(
     var payments by remember { mutableStateOf<List<SalaryPaymentEntity>>(emptyList()) }
     var advances by remember { mutableStateOf<List<StaffAdvanceTransactionEntity>>(emptyList()) }
     var bonuses by remember { mutableStateOf<List<StaffBonusEntity>>(emptyList()) }
+    var deductions by remember { mutableStateOf<List<StaffSalaryDeductionEntity>>(emptyList()) }
+    var showDeductionDialog by remember { mutableStateOf(false) }
+    var editingDeduction by remember { mutableStateOf<StaffSalaryDeductionEntity?>(null) }
+    var deductionToDelete by remember { mutableStateOf<StaffSalaryDeductionEntity?>(null) }
+    var deductionAmount by remember { mutableStateOf("") }
+    var deductionDate by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) }
+    var deductionNote by remember { mutableStateOf("") }
+    var deductionError by remember { mutableStateOf("") }
     var showBonusDialog by remember { mutableStateOf(false) }
     var editingBonus by remember { mutableStateOf<StaffBonusEntity?>(null) }
     var showDeleteBonusConfirm by remember { mutableStateOf(false) }
@@ -192,6 +201,9 @@ fun StaffDetailScreen(
             payments = result.first.third
             advances = result.second.first
             bonuses = result.second.second
+            deductions = withContext(Dispatchers.IO) {
+                LedgerDatabaseProvider.get(context).staffDao().getStaffSalaryDeductions(staffId)
+            }
             loading = false
         }
     }
@@ -358,8 +370,20 @@ fun StaffDetailScreen(
         }.getOrDefault(false)
     }
 
+    val deductionsForSelectedMonth = deductions.filter {
+        it.salaryMonth == selectedSalaryMonth
+    }.sortedBy { it.deductionDate }
+
+    val totalDeductionsForSelectedMonth = deductionsForSelectedMonth.sumOf { it.amount }
+
+    val remainingSalaryRaw =
+        salaryForSelectedMonth - alreadyPaidForSelectedMonth -
+            settledAdvanceForSelectedMonth - totalDeductionsForSelectedMonth
+
+    // Normalize floating-point negative zero without hiding real excess payments.
     val remainingSalary =
-        salaryForSelectedMonth - alreadyPaidForSelectedMonth - settledAdvanceForSelectedMonth
+        if (kotlin.math.abs(remainingSalaryRaw) < 0.005) 0.0
+        else remainingSalaryRaw
 
     Scaffold(
         floatingActionButton = {
@@ -821,22 +845,36 @@ fun StaffDetailScreen(
 
                                 Spacer(Modifier.height(1.dp))
                                 Row(
-                                    Modifier.fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("Total Salary Payments", fontWeight = FontWeight.Medium)
-                                    Text("− ${staffMoney(alreadyPaidForSelectedMonth)}",
-                                        color = Color(0xFFB91C1C))
+                                    Text(
+                                        "− ${staffMoney(alreadyPaidForSelectedMonth)}",
+                                        color = Color(0xFFB91C1C)
+                                    )
                                 }
                                 if (settledAdvanceForSelectedMonth > 0.009) {
                                     Row(
-                                        Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text("Total Advance Settled", fontWeight = FontWeight.Medium)
-                                        Text("− ${staffMoney(settledAdvanceForSelectedMonth)}",
-                                            color = Color(0xFFB91C1C))
+                                        Text(
+                                            "− ${staffMoney(settledAdvanceForSelectedMonth)}",
+                                            color = Color(0xFFB91C1C)
+                                        )
                                     }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Total Deduction", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "− ${staffMoney(totalDeductionsForSelectedMonth)}",
+                                        color = Color(0xFFB91C1C)
+                                    )
                                 }
                             }
                         }
@@ -869,6 +907,109 @@ fun StaffDetailScreen(
                                         "",
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                            }
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Salary Deduction", fontWeight = FontWeight.SemiBold)
+                                    Button(
+                                        onClick = {
+                                            editingDeduction = null
+                                            deductionAmount = ""
+                                            deductionDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                            deductionNote = ""
+                                            deductionError = ""
+                                            showDeductionDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF493719),
+                                            contentColor = Color.White
+                                        ),
+                                        elevation = androidx.compose.material3.ButtonDefaults.buttonElevation(
+                                            defaultElevation = 3.dp,
+                                            pressedElevation = 1.dp
+                                        )
+                                    ) {
+                                        Text(
+                                            "＋ Deduct",
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Total Deduction", fontWeight = FontWeight.Medium)
+                                    Text(
+                                        "− ${staffMoney(totalDeductionsForSelectedMonth)}",
+                                        color = Color(0xFFB91C1C),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                androidx.compose.material3.HorizontalDivider()
+
+                                if (deductionsForSelectedMonth.isEmpty()) {
+                                    Text(
+                                        "No deductions for this month.",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    deductionsForSelectedMonth.forEach { deduction ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    editingDeduction = deduction
+                                                    deductionAmount = java.math.BigDecimal.valueOf(deduction.amount).stripTrailingZeros().toPlainString()
+                                                    deductionDate = SimpleDateFormat(
+                                                        "yyyy-MM-dd", Locale.US
+                                                    ).format(Date(deduction.deductionDate))
+                                                    deductionNote = deduction.note
+                                                    deductionError = ""
+                                                    selectedSalaryMonth = deduction.salaryMonth
+                                                    showDeductionDialog = true
+                                                },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Text(
+                                                    staffDate(deduction.deductionDate),
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                                Text(
+                                                    deduction.note,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
+                                            Text(
+                                                "− ${staffMoney(deduction.amount)}",
+                                                color = Color(0xFFB91C1C),
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1731,7 +1872,18 @@ fun StaffDetailScreen(
         val singleRevisionEdit = revisions.size == 1 && editingRevision != null
         val minimumRevisionDate = remember(revisions, editingRevision, staff) {
             if (singleRevisionEdit) {
-                0L
+                val joiningDate = staff?.joiningDate ?: 0L
+                if (joiningDate > 0L) {
+                    java.util.Calendar.getInstance().apply {
+                        timeInMillis = joiningDate
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                } else {
+                    0L
+                }
             } else {
                 val previousRevision = revisions
                     .filter { it.id != editingRevision?.id }
@@ -1798,7 +1950,7 @@ fun StaffDetailScreen(
                                     calendar.get(java.util.Calendar.MONTH),
                                     calendar.get(java.util.Calendar.DAY_OF_MONTH)
                                 ).apply {
-                                    if (!singleRevisionEdit) datePicker.minDate = minimumRevisionDate
+                                    if (minimumRevisionDate > 0L) datePicker.minDate = minimumRevisionDate
                                 }.show()
                             }) {
                                 Icon(
@@ -1847,12 +1999,12 @@ fun StaffDetailScreen(
                         Button(
                             enabled = (salaryAmount.toDoubleOrNull() ?: -1.0) >= 0.0 &&
                                 (staffDateInput(salaryEffectiveDate)?.let {
-                                    singleRevisionEdit || it >= minimumRevisionDate
+                                    it >= minimumRevisionDate
                                 } == true),
                             onClick = {
                                 val amount = salaryAmount.toDoubleOrNull() ?: return@Button
                                 val date = staffDateInput(salaryEffectiveDate) ?: return@Button
-                                if (!singleRevisionEdit && date < minimumRevisionDate) return@Button
+                                if (date < minimumRevisionDate) return@Button
                                 val original = editingRevision
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
@@ -2060,7 +2212,7 @@ fun StaffDetailScreen(
                             advanceError = ""
                         } else {
                             selectedSalaryMonth = pickedMonth
-                            paymentAmount = ""
+                            // Preserve the entered amount when changing salary month.
                         }
                         showYearDropdown = false
                         showSalaryMonthMenu = false
@@ -2577,6 +2729,7 @@ Button(
                                     editingAdvance = null
                                     advanceError = ""
                                     reload()
+                                    onDataChanged()
                                 }
                             }
                         }
@@ -2588,6 +2741,220 @@ Button(
             },
             dismissButton = {}
 
+        )
+    }
+
+
+    if (showDeductionDialog) {
+AlertDialog(
+            containerColor = Color.White,
+            onDismissRequest = {
+                showDeductionDialog = false
+                editingDeduction = null
+                deductionError = ""
+            },
+            title = {
+                Text(if (editingDeduction == null) "Add Salary Deduction" else "Edit Salary Deduction")
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = deductionAmount,
+                        onValueChange = { input ->
+                            if (input.isEmpty() || input.matches(Regex("\\d*(\\.\\d{0,2})?"))) {
+                                deductionAmount = input
+                                deductionError = ""
+                            }
+                        },
+                        label = { Text("Amount (${CurrencySettings.symbol})") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                                        OutlinedTextField(
+                        value = deductionDate,
+                        onValueChange = {},
+                        label = { Text("Deduction Date") },
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                val calendar = java.util.Calendar.getInstance()
+                                runCatching {
+                                    SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                                        .parse(deductionDate)
+                                }.getOrNull()?.let { calendar.time = it }
+
+                                android.app.DatePickerDialog(
+                                    context,
+                                    { _, year, month, day ->
+                                        deductionDate = String.format(
+                                            Locale.US, "%04d-%02d-%02d",
+                                            year, month + 1, day
+                                        )
+                                        deductionError = ""
+                                    },
+                                    calendar.get(java.util.Calendar.YEAR),
+                                    calendar.get(java.util.Calendar.MONTH),
+                                    calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }) {
+                                Icon(
+                                    Icons.Outlined.CalendarMonth,
+                                    contentDescription = "Choose deduction date"
+                                )
+                            }
+                        }
+                    )
+                    OutlinedTextField(
+                        value = deductionNote,
+                        onValueChange = {
+                            deductionNote = it
+                            deductionError = ""
+                        },
+                        label = { Text("Reason for deduction") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        minLines = 2
+                    )
+                    if (deductionError.isNotBlank()) {
+                        Text(deductionError, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    if (editingDeduction != null) {
+                        androidx.compose.material3.OutlinedButton(
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                deductionToDelete = editingDeduction
+                                showDeductionDialog = false
+                                editingDeduction = null
+                                deductionError = ""
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, Color(0xFFB91C1C)
+                            ),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFFB91C1C)
+                            )
+                        ) {
+                            Text("Delete", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                    OutlinedButton(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        onClick = {
+                            showDeductionDialog = false
+                            editingDeduction = null
+                            deductionError = ""
+                        }
+                    ) { Text("Cancel", maxLines = 1) }
+
+                Button(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    onClick = {
+                    val amount = deductionAmount.toDoubleOrNull()
+                    val date = staffDateInput(deductionDate)
+                    when {
+                        amount == null || amount <= 0.0 ->
+                            deductionError = "Enter a valid amount greater than zero."
+                        amount > (remainingSalary + (editingDeduction?.amount ?: 0.0) + 0.009) ->
+                            deductionError = "Amount cannot be more than remaining salary."
+                        date == null ->
+                            deductionError = "Enter a valid date in yyyy-MM-dd format."
+                        deductionNote.isBlank() ->
+                            deductionError = "Enter the reason for this deduction."
+                        else -> {
+                            scope.launch {
+                                withContext(Dispatchers.IO) {
+                                    val dao = LedgerDatabaseProvider.get(context).staffDao()
+                                    val existing = editingDeduction
+                                    if (existing != null) {
+                                        dao.updateStaffSalaryDeduction(
+                                            existing.copy(
+                                                amount = amount,
+                                                deductionDate = date,
+                                                note = deductionNote.trim()
+                                            )
+                                        )
+                                    } else {
+                                        dao.insertStaffSalaryDeduction(
+                                            StaffSalaryDeductionEntity(
+                                                staffId = staffId,
+                                                amount = amount,
+                                                deductionDate = date,
+                                                note = deductionNote.trim(),
+                                                salaryMonth = selectedSalaryMonth
+                                            )
+                                        )
+                                    }
+                                }
+                                showDeductionDialog = false
+                                editingDeduction = null
+                                deductionError = ""
+                                reload()
+                                onDataChanged()
+                            }
+                        }
+                    }
+                }) { Text("Save") }
+                    }
+                }
+
+            },
+            dismissButton = {}
+        )
+
+
+    }
+
+    if (deductionToDelete != null) {
+        val target = deductionToDelete!!
+        AlertDialog(
+            containerColor = Color.White,
+            onDismissRequest = { deductionToDelete = null },
+            title = { Text("Delete salary deduction?") },
+            text = { Text("This deduction of ${staffMoney(target.amount)} will be permanently deleted.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                LedgerDatabaseProvider.get(context).staffDao()
+                                    .deleteStaffSalaryDeductionById(target.id, staffId)
+                            }
+                            deductionToDelete = null
+                            reload()
+                            onDataChanged()
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFB91C1C)
+                    )
+                ) { Text("Delete permanently") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deductionToDelete = null }) { Text("Cancel") }
+            }
         )
     }
 

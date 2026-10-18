@@ -144,8 +144,9 @@ fun StaffFormDialog(
                         OutlinedTextField(
                             value = salary,
                             onValueChange = { salary = it },
-                            label = { Text("Starting monthly salary (${CurrencySettings.symbol})") },
+                            label = { Text("Starting monthly salary (${CurrencySettings.symbol}) *") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            isError = salary.isBlank() || (salary.toDoubleOrNull()?.let { it <= 0.0 } ?: false),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -176,8 +177,8 @@ fun StaffFormDialog(
                                 null
                             }
                             val salaryValue = salary.toDoubleOrNull()
-                            val validSalary = !showSalary || salary.isBlank() ||
-                                (salaryValue != null && salaryValue >= 0.0)
+                            val validSalary = !showSalary ||
+                                (salaryValue != null && salaryValue > 0.0)
 
                             if (parsed == null || !validSalary || name.isBlank()) {
                                 dateError = parsed == null

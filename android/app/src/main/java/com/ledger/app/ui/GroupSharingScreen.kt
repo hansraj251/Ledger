@@ -1210,11 +1210,15 @@ if (selectedGroupSection != "Members") {
                                         }
                                     ),
                                 shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    androidx.compose.ui.graphics.Color(0xFFE8B64A)
+                                ),
                                 colors = androidx.compose.material3.CardDefaults.cardColors(
                                     containerColor = androidx.compose.ui.graphics.Color.White
                                 ),
                                 elevation = androidx.compose.material3.CardDefaults.cardElevation(
-                                    defaultElevation = 2.dp
+                                    defaultElevation = 3.dp
                                 )
                             ) {
                                 Column(
@@ -1871,11 +1875,14 @@ val expenseSplits = splits[expense.id].orEmpty()
                         androidx.compose.material3.Card(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, Color(0xFFE8B64A)
+                            ),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = Color.White
+                                containerColor = Color(0xFFFFF7E5)
                             ),
                             elevation = androidx.compose.material3.CardDefaults.cardElevation(
-                                defaultElevation = 1.dp
+                                defaultElevation = 4.dp
                             )
                         ) {
                             Column(
@@ -1887,7 +1894,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     text = "Share",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFF667085)
+                                    color = Color(0xFF77500A)
                                 )
                                 Spacer(Modifier.height(8.dp))
                                 Text(
@@ -1906,11 +1913,14 @@ val expenseSplits = splits[expense.id].orEmpty()
                                     settlingMember = detailMember
                                 },
                                 shape = RoundedCornerShape(18.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp, Color(0xFFE8B64A)
+                            ),
                                 colors = androidx.compose.material3.CardDefaults.cardColors(
-                                    containerColor = Color.White
+                                    containerColor = Color(0xFFFFF7E5)
                                 ),
                                 elevation = androidx.compose.material3.CardDefaults.cardElevation(
-                                    defaultElevation = 1.dp
+                                    defaultElevation = 4.dp
                                 )
                             ) {
                                 Column(
@@ -1922,7 +1932,7 @@ val expenseSplits = splits[expense.id].orEmpty()
                                         text = "Paid",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFF667085)
+                                        color = Color(0xFF77500A)
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Text(
@@ -1958,8 +1968,15 @@ val expenseSplits = splits[expense.id].orEmpty()
                                 androidx.compose.material3.Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(18.dp),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Color(0xFFE8B64A)
+                                    ),
                                     colors = androidx.compose.material3.CardDefaults.cardColors(
                                         containerColor = Color.White
+                                    ),
+                                    elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                                        defaultElevation = 3.dp
                                     )
                                 ) {
                                     Column(Modifier.fillMaxWidth().padding(16.dp)) {

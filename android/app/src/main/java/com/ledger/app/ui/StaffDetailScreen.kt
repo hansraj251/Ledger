@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -406,7 +407,8 @@ fun StaffDetailScreen(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(18.dp))
-                        .clickable {
+                        .combinedClickable(
+                            onClick = {
                             paymentAmount = ""
                             selectedSalaryMonth = java.time.YearMonth.now().toString()
                             showSalaryMonthMenu = false
@@ -416,6 +418,16 @@ fun StaffDetailScreen(
                                 .format(Date())
                             showPaymentDialog = true
                         },
+                            onLongClick = {
+                            showSalaryBreakdown = true
+                            editingDeduction = null
+                            deductionAmount = ""
+                            deductionDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                            deductionNote = ""
+                            deductionError = ""
+                            showDeductionDialog = true
+                        }
+                        ),
                     shape = RoundedCornerShape(18.dp),
                     color = Color(0xFFFFC247),
                     contentColor = Color(0xFF302000),
@@ -1089,12 +1101,137 @@ fun StaffDetailScreen(
                     }
                  } else if (showAdvancePage) {
                     item {
-                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(15.dp))
+                                    .clickable { showPaymentYearMenu = true },
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFFF4D7),
+                                contentColor = Color(0xFF694710),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, Color(0xFFEAD39A)
+                                ),
+                                shadowElevation = 1.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(
+                                        horizontal = 15.dp, vertical = 11.dp
+                                    ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CalendarMonth,
+                                        contentDescription = "Filter by year"
+                                    )
+                                    Text(
+                                        selectedPaymentYear,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text("▾", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
-                    if (advances.isEmpty()) {
-                        item { Text("No advance transactions recorded yet.") }
+
+                    item {
+                        if (showPaymentYearMenu) {
+                            AlertDialog(
+                                onDismissRequest = { showPaymentYearMenu = false },
+                                containerColor = Color.White,
+                                shape = RoundedCornerShape(26.dp),
+                                title = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Text(
+                                            "Filter payments",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "Select a year to view its payment history",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF777777)
+                                        )
+                                    }
+                                },
+                                text = {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        paymentYears.chunked(3).forEach { yearRow ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                yearRow.forEach { year ->
+                                                    val selected = year == selectedPaymentYear
+                                                    Surface(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .clip(RoundedCornerShape(13.dp))
+                                                            .clickable {
+                                                                selectedPaymentYear = year
+                                                                showPaymentYearMenu = false
+                                                            },
+                                                        shape = RoundedCornerShape(13.dp),
+                                                        color = if (selected) Color(0xFFFFC247)
+                                                            else Color(0xFFF6F6F6),
+                                                        contentColor = if (selected) Color(0xFF302000)
+                                                            else Color(0xFF333333),
+                                                        border = androidx.compose.foundation.BorderStroke(
+                                                            1.dp,
+                                                            if (selected) Color(0xFFE0A92F)
+                                                            else Color(0xFFEAEAEA)
+                                                        )
+                                                    ) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .padding(vertical = 13.dp),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                year,
+                                                                fontWeight = if (selected)
+                                                                    FontWeight.Bold
+                                                                else FontWeight.Medium
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                repeat(3 - yearRow.size) {
+                                                    Spacer(Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = { showPaymentYearMenu = false }
+                                    ) {
+                                        Text("Done")
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    val yearAdvances = advances.filter {
+                        paymentRecordYear(it.transactionDate).toString() == selectedPaymentYear
+                    }.sortedByDescending { it.transactionDate }
+
+                    if (yearAdvances.isEmpty()) {
+                        item {
+                            Text("No advance transactions recorded for $selectedPaymentYear.")
+                        }
                     } else {
-                        items(advances, key = { "advance-${it.id}" }) { advance ->
+                        items(yearAdvances, key = { "advance-${it.id}" }) { advance ->
                             Card(
                                 modifier = Modifier.fillMaxWidth().clickable {
                                     editingAdvance = advance
@@ -1483,7 +1620,18 @@ fun StaffDetailScreen(
                                         }
                                     }
                                 },
-                                shape = RoundedCornerShape(15.dp)
+                                modifier = Modifier.height(46.dp).width(116.dp),
+                shape = RoundedCornerShape(15.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, Color(0xFFE0A92F)
+                ),
+                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color(0xFFFFC247),
+                    contentColor = Color(0xFF302000)
+                ),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    horizontal = 15.dp, vertical = 11.dp
+                )
                             ) {
                                 Text("Report", maxLines = 1)
                             }

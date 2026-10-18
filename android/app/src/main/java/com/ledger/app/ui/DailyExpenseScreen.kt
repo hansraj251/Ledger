@@ -896,9 +896,15 @@ var isReportLimitReached by remember { mutableStateOf(false) }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { showCategoryChart = true },
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = Color(0xFFFFF7E5)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, Color(0xFFE8B64A)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 5.dp
                     )
                 ) {
                     Column(Modifier.padding(20.dp)) {
@@ -910,18 +916,18 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                                 else -> "TODAY\'S EXPENSE"
                             },
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color(0xFF77500A)
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
                             expenseMoney(total),
                             style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF9A6700)
                         )
                         Text(
                             "${expenses.size} ${if (expenses.size == 1) "record" else "records"}",
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color(0xFF77500A)
                         )
                     }
                 }
@@ -935,6 +941,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                 ) {
                     if (!showMonthRecords && !showYearRecords) {
                         Button(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = { openExpenseDatePicker() },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp),
@@ -955,6 +962,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
 ) }
                     } else {
                         OutlinedButton(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = {
                                 selectedDayStart = startOfToday()
                                 showSelectedDayRecords = false
@@ -983,6 +991,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
 
                     if (showMonthRecords) {
                         Button(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = {
                                 pickerYear = Calendar.getInstance()
                                     .apply { timeInMillis = selectedMonthStart }
@@ -1004,6 +1013,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                         }
                     } else {
                         OutlinedButton(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = {
                                 selectedMonthStart =
                                     startOfExpenseMonth(System.currentTimeMillis())
@@ -1021,6 +1031,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
 
                     if (showYearRecords) {
                         Button(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = {
                                 yearPickerValue = selectedExpenseYear
                                 showYearPicker = true
@@ -1036,6 +1047,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                         }
                     } else {
                         OutlinedButton(
+                            shape = RoundedCornerShape(12.dp),
                             onClick = {
                                 selectedExpenseYear = Calendar.getInstance().get(Calendar.YEAR)
                                 showYearRecords = true
@@ -1105,6 +1117,9 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                                 showExpenseDialog = true
                             },
                         shape = RoundedCornerShape(18.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, Color(0xFFE8B64A)
+                        ),
                         colors = CardDefaults.cardColors(
                             containerColor = androidx.compose.ui.graphics.Color.White
                         )
@@ -1874,27 +1889,33 @@ private fun ExpenseCategoryChartScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(24.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = Color(0xFFFFF7E5)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp, Color(0xFFE8B64A)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 5.dp
                     )
                 ) {
                     Column(Modifier.padding(20.dp)) {
                         Text(
                             "TOTAL EXPENSE",
                             style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color(0xFF77500A)
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
                             expenseMoney(totalAmount),
                             style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF9A6700)
                         )
                         Text(
                             "${expenses.size} ${if (expenses.size == 1) "record" else "records"} · ${categoryTotals.size} categories",
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = Color(0xFF77500A)
                         )
                     }
                 }
@@ -1902,7 +1923,12 @@ private fun ExpenseCategoryChartScreen(
 
             if (categoryTotals.isEmpty()) {
                 item {
-                    Card(Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = androidx.compose.ui.graphics.Color.White
+                        )
+                    ) {
                         Text(
                             "No expenses recorded for this period.",
                             modifier = Modifier.padding(24.dp)

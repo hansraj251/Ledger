@@ -173,10 +173,13 @@ fun HomeScreen(
     var receivableInterestTotal by remember { mutableStateOf(0.0) }
     var payableInterestTotal by remember { mutableStateOf(0.0) }
     var groupReceivableTotal by remember { mutableStateOf(0.0) }
+    var totalStaffAdvanceOutstanding by remember { mutableStateOf(0.0) }
     var groupPayableTotal by remember { mutableStateOf(0.0) }
+    var totalRemainingStaffSalary by remember { mutableStateOf(0.0) }
     var isReceivableExpanded by rememberSaveable { mutableStateOf(false) }
     var isPayableExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddOptionsDialog by rememberSaveable { mutableStateOf(false) }
     var newGroupName by rememberSaveable { mutableStateOf("") }
     var isSavingGroup by remember { mutableStateOf(false) }
     var showGroupUpgradeDialog by remember { mutableStateOf(false) }
@@ -252,6 +255,109 @@ fun HomeScreen(
             sharingGroups.associate { group ->
                 group.id to expenseDao.getByGroup(group.id).sumOf { it.amount }
             }
+        }
+    }
+
+    LaunchedEffect(isReceivableExpanded, staffMembers) {
+        if (isReceivableExpanded) {
+            totalStaffAdvanceOutstanding =
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val dao = LedgerDatabaseProvider.get(context).staffDao()
+
+                    dao.getAllStaff().sumOf { staff ->
+                        val advances = dao.getStaffAdvanceTransactions(staff.id)
+                        val given = advances
+                            .filter { it.transactionType == "GIVE" }
+                            .sumOf { it.amount }
+                        val adjusted = advances
+                            .filter { it.transactionType == "ADJUST" }
+                            .sumOf { it.amount }
+
+                        (given - adjusted).coerceAtLeast(0.0)
+                    }
+                }
+        }
+    }
+
+    LaunchedEffect(isPayableExpanded, staffMembers) {
+        if (isPayableExpanded) {
+            totalRemainingStaffSalary =
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val dao = LedgerDatabaseProvider.get(context).staffDao()
+                    val month = java.time.YearMonth.now()
+                    val monthKey = month.toString()
+                    val zone = java.time.ZoneId.systemDefault()
+
+                    fun monthOf(timestamp: Long): java.time.YearMonth =
+                        java.time.Instant.ofEpochMilli(timestamp)
+                            .atZone(zone)
+                            .toLocalDate()
+                            .let { java.time.YearMonth.from(it) }
+
+                    fun dayOf(timestamp: Long): Int =
+                        java.time.Instant.ofEpochMilli(timestamp)
+                            .atZone(zone)
+                            .dayOfMonth
+                            .coerceAtMost(30)
+
+                    dao.getAllStaff()
+                        .filter { it.isActive }
+                        .sumOf { staff ->
+                            val revisions = dao.getSalaryRevisions(staff.id)
+                            val payments = dao.getSalaryPayments(staff.id)
+                            val advances = dao.getStaffAdvanceTransactions(staff.id)
+                            val deductions = dao.getStaffSalaryDeductions(staff.id)
+
+                            val joiningMonth = monthOf(staff.joiningDate)
+                            val firstEligibleDay =
+                                if (month == joiningMonth) dayOf(staff.joiningDate) else 1
+
+                            val salaryForMonth =
+                                if (month < joiningMonth || firstEligibleDay > 30) {
+                                    0.0
+                                } else {
+                                    (firstEligibleDay..30).sumOf { payrollDay ->
+                                        val revision = revisions
+                                            .filter {
+                                                val revisionMonth = monthOf(it.effectiveDate)
+                                                revisionMonth < month ||
+                                                    (revisionMonth == month &&
+                                                        dayOf(it.effectiveDate) <= payrollDay)
+                                            }
+                                            .maxWithOrNull(
+                                                compareBy<com.ledger.app.data.SalaryRevisionEntity> {
+                                                    monthOf(it.effectiveDate)
+                                                }.thenBy {
+                                                    dayOf(it.effectiveDate)
+                                                }.thenBy {
+                                                    it.id
+                                                }
+                                            )
+                                        (revision?.amount ?: 0.0) / 30.0
+                                    }
+                                }
+
+                            val alreadyPaid = payments
+                                .filter { it.salaryMonth == monthKey }
+                                .sumOf { it.amount }
+
+                            val adjustedAdvances = advances
+                                .filter {
+                                    it.transactionType == "ADJUST" &&
+                                        it.salaryMonth == monthKey
+                                }
+                                .sumOf { it.amount }
+
+                            val totalDeductions = deductions
+                                .filter { it.salaryMonth == monthKey }
+                                .sumOf { it.amount }
+
+                            val remaining = salaryForMonth - alreadyPaid -
+                                adjustedAdvances - totalDeductions
+
+                            if (kotlin.math.abs(remaining) < 0.005) 0.0 else remaining
+                        }
+                }
         }
     }
 
@@ -830,12 +936,7 @@ Surface(
                             requestAddParty()
                         },
                         onLongClick = {
-                            if (isPremium || sharingGroups.size < 4) {
-                                newGroupName = ""
-                                showCreateGroupDialog = true
-                            } else {
-                                showGroupUpgradeDialog = true
-                            }
+                            showAddOptionsDialog = true
                         }
                     ),
                 shape = RoundedCornerShape(18.dp),
@@ -885,7 +986,8 @@ item {
                         onClick = { isReceivableExpanded = !isReceivableExpanded },
                         details = listOf(
                             "Receivable Int." to receivableInterestTotal,
-                            "Group Receivable" to groupReceivableTotal
+                            "Group Receivable" to groupReceivableTotal,
+                            "Advanced Salary" to totalStaffAdvanceOutstanding
                         )
                     )
 
@@ -898,7 +1000,8 @@ item {
                         onClick = { isPayableExpanded = !isPayableExpanded },
                         details = listOf(
                             "Payable Int." to payableInterestTotal,
-                            "Group Payable" to groupPayableTotal
+                            "Group Payable" to groupPayableTotal,
+                            "Salaries" to totalRemainingStaffSalary
                         )
                     )
                 }
@@ -1117,6 +1220,96 @@ item {
                 }
             }
         }
+    }
+
+    if (showAddOptionsDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAddOptionsDialog = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(22.dp),
+            title = {
+                Text(
+                    "What would you like to add?",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF20243A)
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            requestAddParty()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PersonAdd,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add Party")
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            if (isPremium || sharingGroups.size < 4) {
+                                newGroupName = ""
+                                showCreateGroupDialog = true
+                            } else {
+                                showGroupUpgradeDialog = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Group,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create Group")
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            newStaffName = ""
+                            newStaffMobile = ""
+                            newStaffRole = ""
+                            newStaffSalary = ""
+                            newStaffJoiningDate =
+                                java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd",
+                                    java.util.Locale.US
+                                ).format(java.util.Date())
+                            showAddStaffDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PersonAdd,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Add Staff")
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showAddOptionsDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showAddStaffDialog) {
@@ -1805,11 +1998,20 @@ private fun BalanceSummaryCard(
         modifier = modifier.then(
             if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
         ),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (title == "Receivable") Color(0xFFE8A09A)
+            else Color(0xFF91C9A0)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = if (title == "Receivable") {
+                Color(0xFFFFF1F0)
+            } else {
+                Color(0xFFF0F9F1)
+            }
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier

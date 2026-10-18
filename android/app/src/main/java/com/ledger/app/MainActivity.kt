@@ -589,7 +589,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             selectedStaffId = null
                             openStaffEditorOnOpen = false
                         },
-                        onDataChanged = { googleDriveSyncCoordinator.requestAutoSync() }
+                        onDataChanged = { googleDriveSyncCoordinator.requestAutoSync() },
+                        isPremium = premiumBillingState.isPremium,
+                        onUpgradeClick = { launchPremiumPurchase() }
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(

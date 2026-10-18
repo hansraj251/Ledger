@@ -93,7 +93,8 @@ fun StaffDetailScreen(
     openStaffEditorOnOpen: Boolean = false,
     onBack: () -> Unit,
     onDataChanged: () -> Unit,
-    isPremium: Boolean = false
+    isPremium: Boolean = false,
+    onUpgradeClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -153,6 +154,8 @@ fun StaffDetailScreen(
     var showDeleteRevisionConfirm by remember { mutableStateOf(false) }
     var showRevisionHistory by remember { mutableStateOf(false) }
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var showSalaryPaymentPremiumDialog by remember { mutableStateOf(false) }
+    var showAdvancePremiumDialog by remember { mutableStateOf(false) }
     var salaryAmount by remember { mutableStateOf("") }
     var salaryEffectiveDate by remember {
         mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()))
@@ -510,13 +513,17 @@ fun StaffDetailScreen(
                     ) {
                         Button(
                             onClick = {
-                                editingAdvance = null
-                                advanceDialogType = "GIVE"
-                                advanceAmount = ""
-                                advanceDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-                                advanceNote = ""
-                                advanceError = ""
-                                showAdvanceDialog = true
+                                if (!isPremium) {
+                                    showAdvancePremiumDialog = true
+                                } else {
+                                    editingAdvance = null
+                                    advanceDialogType = "GIVE"
+                                    advanceAmount = ""
+                                    advanceDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                                    advanceNote = ""
+                                    advanceError = ""
+                                    showAdvanceDialog = true
+                                }
                             },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
@@ -3170,30 +3177,43 @@ AlertDialog(
                             }
                             val date = staffDateInput(paymentDate) ?: return@Button
                             scope.launch {
-                                withContext(Dispatchers.IO) {
+                                val paymentSaved = withContext(Dispatchers.IO) {
                                     val dao = LedgerDatabaseProvider.get(context).staffDao()
-                                    if (original == null) {
-                                        dao.insertSalaryPayment(
-                                            SalaryPaymentEntity(
-                                                staffId = staffId,
-                                                amount = amount,
-                                                paymentDate = date,
-                                                paymentMode = paymentMode.trim().ifBlank { "Cash" },
-                                                salaryMonth = selectedSalaryMonth,
-                                                note = paymentNote.trim()
-                                            )
-                                        )
+                                    if (original == null && !isPremium &&
+                                        dao.getSalaryPaymentCount() >= 3
+                                    ) {
+                                        false
                                     } else {
-                                        dao.updateSalaryPayment(
-                                            original.copy(
-                                                amount = amount,
-                                                paymentDate = date,
-                                                paymentMode = paymentMode.trim().ifBlank { "Cash" },
-                                                salaryMonth = selectedSalaryMonth,
-                                                note = paymentNote.trim()
+                                        if (original == null) {
+                                            dao.insertSalaryPayment(
+                                                SalaryPaymentEntity(
+                                                    staffId = staffId,
+                                                    amount = amount,
+                                                    paymentDate = date,
+                                                    paymentMode = paymentMode.trim().ifBlank { "Cash" },
+                                                    salaryMonth = selectedSalaryMonth,
+                                                    note = paymentNote.trim()
+                                                )
                                             )
-                                        )
+                                        } else {
+                                            dao.updateSalaryPayment(
+                                                original.copy(
+                                                    amount = amount,
+                                                    paymentDate = date,
+                                                    paymentMode = paymentMode.trim().ifBlank { "Cash" },
+                                                    salaryMonth = selectedSalaryMonth,
+                                                    note = paymentNote.trim()
+                                                )
+                                            )
+                                        }
+                                        true
                                     }
+                                }
+
+                                if (!paymentSaved) {
+                                    showPaymentDialog = false
+                                    showSalaryPaymentPremiumDialog = true
+                                    return@launch
                                 }
                                 paymentModePrefs.edit()
                                     .putString("last_payment_mode_$staffId", paymentMode.trim().ifBlank { "Cash" })
@@ -3258,6 +3278,125 @@ AlertDialog(
                     },
                     shape = RoundedCornerShape(10.dp)
                 ) { Text("Cancel") }
+            }
+        )
+    }
+
+
+    if (showAdvancePremiumDialog) {
+        AlertDialog(
+            onDismissRequest = { showAdvancePremiumDialog = false },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = Color.White,
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("👑", style = MaterialTheme.typography.headlineLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Premium Required",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
+            text = {
+                Text(
+                    "Recording paid advances is a Premium feature. " +
+                        "Unlock Premium to record advances for your staff."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showAdvancePremiumDialog = false
+                        onUpgradeClick()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Unlock Premium", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showAdvancePremiumDialog = false }
+                ) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
+
+    if (showSalaryPaymentPremiumDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSalaryPaymentPremiumDialog = false },
+            shape = RoundedCornerShape(28.dp),
+            containerColor = Color.White,
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    androidx.compose.material3.Text(
+                        text = "👑",
+                        style = MaterialTheme.typography.headlineLarge
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.Text(
+                        text = "Unlock Premium",
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color(0xFF171B3A)
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    androidx.compose.material3.Text(
+                        text = "The Free plan allows up to 3 salary payment records."
+                    )
+                    androidx.compose.material3.Text(
+                        text = "Unlock Premium to record unlimited salary payments."
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showSalaryPaymentPremiumDialog = false
+                        onUpgradeClick()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFFC247),
+                        contentColor = Color(0xFF302000)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    androidx.compose.material3.Text(
+                        text = "Unlock Premium",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showSalaryPaymentPremiumDialog = false }
+                ) {
+                    androidx.compose.material3.Text("Not now")
+                }
             }
         )
     }

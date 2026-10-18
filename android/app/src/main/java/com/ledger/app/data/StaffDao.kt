@@ -43,6 +43,9 @@ interface StaffDao {
     @Query("SELECT * FROM salary_payments WHERE staffId = :staffId ORDER BY paymentDate DESC, id DESC")
     fun getSalaryPayments(staffId: Long): List<SalaryPaymentEntity>
 
+    @Query("SELECT COUNT(*) FROM salary_payments")
+    fun getSalaryPaymentCount(): Int
+
     @Insert
     fun insertSalaryPayment(payment: SalaryPaymentEntity): Long
 

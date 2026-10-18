@@ -297,7 +297,7 @@ fun StaffDetailScreen(
             .year
     }
 
-    val paymentYears = remember(payments, advances, bonuses) {
+    val paymentYears = remember(payments, advances, bonuses, deductions) {
         val recordedYears = payments.flatMap { payment ->
             buildList {
                 add(paymentRecordYear(payment.paymentDate))
@@ -305,7 +305,8 @@ fun StaffDetailScreen(
                     ?.take(4)?.toIntOrNull()?.let { add(it) }
             }
         } + advances.map { paymentRecordYear(it.transactionDate) } +
-            bonuses.map { paymentRecordYear(it.bonusDate) }
+            bonuses.map { paymentRecordYear(it.bonusDate) } +
+            deductions.map { paymentRecordYear(it.deductionDate) }
 
         val currentYear = java.time.Year.now().value
         val firstYear = (recordedYears + currentYear).minOrNull() ?: currentYear
@@ -338,18 +339,26 @@ fun StaffDetailScreen(
         }.sortedByDescending { it.bonusDate }
     }
 
+    val filteredDeductions = remember(deductions, selectedPaymentYear) {
+        deductions.filter {
+            paymentRecordYear(it.deductionDate).toString() == selectedPaymentYear
+        }.sortedByDescending { it.deductionDate }
+    }
+
     val combinedPaymentHistory = remember(
-        filteredPayments, filteredAdvanceTransactions, filteredBonuses
+        filteredPayments, filteredAdvanceTransactions, filteredBonuses, filteredDeductions
     ) {
         (
             filteredPayments.map { it as Any } +
                 filteredAdvanceTransactions.map { it as Any } +
-                filteredBonuses.map { it as Any }
+                filteredBonuses.map { it as Any } +
+                filteredDeductions.map { it as Any }
         ).sortedByDescending { entry ->
             when (entry) {
                 is SalaryPaymentEntity -> entry.paymentDate
                 is StaffAdvanceTransactionEntity -> entry.transactionDate
                 is StaffBonusEntity -> entry.bonusDate
+                is StaffSalaryDeductionEntity -> entry.deductionDate
                 else -> 0L
             }
         }
@@ -943,17 +952,20 @@ fun StaffDetailScreen(
                                             showDeductionDialog = true
                                         },
                                         shape = RoundedCornerShape(12.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp, Color(0xFFDC2626)
+                                        ),
                                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF493719),
-                                            contentColor = Color.White
+                                            containerColor = Color(0xFFFFE4E6),
+                                            contentColor = Color(0xFFB91C1C)
                                         ),
                                         elevation = androidx.compose.material3.ButtonDefaults.buttonElevation(
-                                            defaultElevation = 3.dp,
-                                            pressedElevation = 1.dp
+                                            defaultElevation = 1.dp,
+                                            pressedElevation = 0.dp
                                         )
                                     ) {
                                         Text(
-                                            "＋ Deduct",
+                                            "Deduct",
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -965,7 +977,7 @@ fun StaffDetailScreen(
                                 ) {
                                     Text("Total Deduction", fontWeight = FontWeight.Medium)
                                     Text(
-                                        "− ${staffMoney(totalDeductionsForSelectedMonth)}",
+                                        "${staffMoney(totalDeductionsForSelectedMonth)}",
                                         color = Color(0xFFB91C1C),
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -1010,7 +1022,7 @@ fun StaffDetailScreen(
                                                 )
                                             }
                                             Text(
-                                                "− ${staffMoney(deduction.amount)}",
+                                                "${staffMoney(deduction.amount)}",
                                                 color = Color(0xFFB91C1C),
                                                 fontWeight = FontWeight.SemiBold
                                             )
@@ -1560,7 +1572,7 @@ fun StaffDetailScreen(
                     }
                     if (combinedPaymentHistory.isEmpty()) {
                         item {
-                            Text("No payment, advance, bonus or allowance records for $selectedPaymentYear.")
+                            Text("No payment, advance, bonus, allowance or salary deduction records for $selectedPaymentYear.")
                         }
                     } else {
                         items(
@@ -1571,6 +1583,7 @@ fun StaffDetailScreen(
                                     is StaffAdvanceTransactionEntity -> "advance-history-${entry.id}"
                                     is StaffBonusEntity -> "bonus-history-${entry.id}"
                                     is StaffBonusEntity -> "bonus-history-${entry.id}"
+                                    is StaffSalaryDeductionEntity -> "salary-deduction-${entry.id}"
                                     else -> entry.hashCode().toString()
                                 }
                             }
@@ -1651,6 +1664,92 @@ fun StaffDetailScreen(
                                             )
                                             Text(staffDate(entry.transactionDate))
                                             if (entry.note.isNotBlank()) Text(entry.note)
+                                        }
+                                    }
+                                }
+
+                                is StaffSalaryDeductionEntity -> {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(18.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.5.dp, Color(0xFF00D4B8)
+                                        ),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = Color(0xFF17212B)
+                                        ),
+                                        elevation = CardDefaults.cardElevation(
+                                            defaultElevation = 5.dp
+                                        )
+                                    ) {
+                                        Column(
+                                            Modifier.fillMaxWidth().padding(16.dp),
+                                            verticalArrangement = Arrangement.spacedBy(9.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    Column(
+                                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                                    ) {
+                                                        Text(
+                                                            "SALARY DEDUCTION",
+                                                            color = Color(0xFFB8C8CF),
+                                                            style = MaterialTheme.typography.labelMedium,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                        Text(
+                                                            staffDate(entry.deductionDate),
+                                                            color = Color(0xFFE0E8EC),
+                                                            style = MaterialTheme.typography.bodySmall
+                                                        )
+                                                    }
+                                                }
+                                                Text(
+                                                    "${staffMoney(entry.amount)}",
+                                                    color = Color(0xFF00D4B8),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .height(1.dp)
+                                                    .background(Color(0xFF34434D))
+                                            )
+
+                                            Text(
+                                                text = "Salary Month  •  " + run {
+                                                    val parsedMonth = runCatching {
+                                                        java.text.SimpleDateFormat(
+                                                            "yyyy-MM", Locale.US
+                                                        ).parse(entry.salaryMonth)
+                                                    }.getOrNull()
+                                                    parsedMonth?.let {
+                                                        java.text.SimpleDateFormat(
+                                                            "MMM yyyy", Locale.US
+                                                        ).format(it)
+                                                    } ?: entry.salaryMonth
+                                                },
+                                                color = Color(0xFFB8C8CF),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+
+                                            if (entry.note.isNotBlank()) {
+                                                Text(
+                                                    text = entry.note,
+                                                    color = Color.White,
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -3436,6 +3535,7 @@ private fun createStaffPaymentHistoryPdf(
             is SalaryPaymentEntity -> it.paymentDate
             is StaffAdvanceTransactionEntity -> it.transactionDate
             is StaffBonusEntity -> it.bonusDate
+            is StaffSalaryDeductionEntity -> it.deductionDate
             else -> 0L
         }
     }
@@ -3499,6 +3599,9 @@ private fun createStaffPaymentHistoryPdf(
     val totalBonus = sorted.sumOf {
         if (it is StaffBonusEntity && !it.bonusType.equals("ALLOWANCE", true)) it.amount else 0.0
     }
+    val totalDeduction = sorted.sumOf {
+        if (it is StaffSalaryDeductionEntity) it.amount else 0.0
+    }
 
     summaryCanvas.drawText("Summary", margin, summaryY, boldPaint)
     summaryY += 26f
@@ -3508,7 +3611,8 @@ private fun createStaffPaymentHistoryPdf(
         "Total Advance Paid" to totalAdvancePaid,
         "Total Advance Settled" to totalAdvanceSettled,
         "Total Allowance Paid" to totalAllowance,
-        "Total Bonus Paid" to totalBonus
+        "Total Bonus Paid" to totalBonus,
+        "Total Deduction" to totalDeduction
     )
 
     for ((label, amount) in summaryRows) {
@@ -3547,6 +3651,12 @@ private fun createStaffPaymentHistoryPdf(
             is StaffBonusEntity -> {
                 date = entry.bonusDate
                 label = if (entry.bonusType.equals("ALLOWANCE", true)) "Allowance Paid" else "Bonus Paid"
+                amount = entry.amount
+                detail = entry.note
+            }
+            is StaffSalaryDeductionEntity -> {
+                date = entry.deductionDate
+                label = "Salary Deduction"
                 amount = entry.amount
                 detail = entry.note
             }

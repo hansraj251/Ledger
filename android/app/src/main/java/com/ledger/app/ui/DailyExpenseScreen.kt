@@ -113,6 +113,15 @@ internal val expenseCategories = listOf(
     "Bills", "Clothing", "Other"
 )
 
+private val customExpenseCategoryIcons = listOf(
+    "🍔", "🍕", "🍽️", "☕", "🛒", "🛍️",
+    "🚗", "🏍️", "🚌", "🚕", "✈️", "🚆",
+    "🏠", "💡", "💧", "⛽", "📱", "📶",
+    "❤️", "💊", "🎬", "🎮", "📚", "🎓",
+    "👕", "🎁", "🐾", "👶", "💼", "🔧",
+    "💰", "💳", "🧾", "📦", "🏦", "📁"
+)
+
 private fun expenseMoney(amount: Double): String = CurrencySettings.format(amount)
 
 private fun expenseDateText(timestamp: Long): String =
@@ -227,7 +236,7 @@ fun DailyExpenseScreen(
 
     var expenses by remember { mutableStateOf<List<DailyExpenseEntity>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var showMonthRecords by remember { mutableStateOf(false) }
+    var showMonthRecords by remember { mutableStateOf(true) }
     var showYearRecords by remember { mutableStateOf(false) }
     var showSelectedDayRecords by remember { mutableStateOf(false) }
     var selectedDayStart by remember { mutableStateOf(startOfToday()) }
@@ -1432,6 +1441,32 @@ private fun ExpenseEditorDialog(
     onSave: (Double, String, String, Long) -> Unit
 ) {
     val context = LocalContext.current
+    val categoryPrefs = remember(context) {
+        context.getSharedPreferences("daily_expense_categories", android.content.Context.MODE_PRIVATE)
+    }
+    var customCategories by remember(categoryPrefs) {
+        mutableStateOf<List<String>>(
+            categoryPrefs.getStringSet("names", emptySet<String>())
+                ?.toList()
+                ?.sorted()
+                ?: emptyList<String>()
+        )
+    }
+    val customCategoryIcons: Map<String, String> =
+        remember(categoryPrefs, customCategories) {
+            customCategories.associateWith { name ->
+                categoryPrefs.getString("icon:$name", "📁") ?: "📁"
+            }
+        }
+    val allCategories: List<String> = remember(customCategories) {
+        (expenseCategories + customCategories).distinct()
+    }
+    var showAddCategoryDialog by remember { mutableStateOf(false) }
+    var editingCategoryTitle by remember { mutableStateOf<String?>(null) }
+    var newCategoryTitle by remember { mutableStateOf("") }
+    var newCategoryIcon by remember { mutableStateOf("📁") }
+    var categoryFormError by remember { mutableStateOf("") }
+
     var amount by remember(initial?.id) {
         mutableStateOf(
             initial?.amount?.let {
@@ -1439,8 +1474,40 @@ private fun ExpenseEditorDialog(
             } ?: ""
         )
     }
+    var showRateQuantity by remember(initial?.id) {
+        mutableStateOf(false)
+    }
+    var rate by remember(initial?.id) {
+        mutableStateOf(categoryPrefs.getString("calculator_last_rate", "") ?: "")
+    }
+    var quantity by remember(initial?.id) {
+        mutableStateOf(categoryPrefs.getString("calculator_last_quantity", "") ?: "")
+    }
+
+    fun updateCalculatedAmount(rateText: String, quantityText: String) {
+        val parsedRate = rateText.trim().replace(",", "").toDoubleOrNull()
+        val parsedQuantity = quantityText.trim().replace(",", "").toDoubleOrNull()
+
+        if (parsedRate != null && parsedQuantity != null &&
+            parsedRate.isFinite() && parsedQuantity.isFinite() &&
+            parsedRate >= 0.0 && parsedQuantity >= 0.0
+        ) {
+            val total = parsedRate * parsedQuantity
+            if (total.isFinite()) {
+                amount = java.math.BigDecimal.valueOf(total)
+                    .stripTrailingZeros()
+                    .toPlainString()
+            }
+        }
+    }
+
     var category by remember(initial?.id) {
-        mutableStateOf(initial?.category ?: expenseCategories.first())
+        mutableStateOf(
+            initial?.category
+                ?: categoryPrefs.getString("last_selected_category", null)
+                    ?.takeIf { it in allCategories }
+                ?: expenseCategories.first()
+        )
     }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
     var date by remember(initial?.id) {
@@ -1489,23 +1556,96 @@ private fun ExpenseEditorDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it; error = "" },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Amount (${CurrencySettings.symbol})") },
-                    leadingIcon = {
-                        Text(
-                            "${CurrencySettings.symbol}",
-                            modifier = Modifier.padding(start = 4.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = it; error = "" },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Amount (${CurrencySettings.symbol})") },
+                        leadingIcon = {
+                            Text(
+                                "${CurrencySettings.symbol}",
+                                modifier = Modifier.padding(start = 4.dp),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        ),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+
+                    androidx.compose.material3.IconButton(
+                        onClick = {
+                            if (!showRateQuantity) {
+                                showRateQuantity = true
+                                updateCalculatedAmount(rate, quantity)
+                            } else {
+                                showRateQuantity = false
+                                amount = ""
+                                error = ""
+                            }
+                        },
+                        modifier = Modifier.size(56.dp),
+                        shape = RoundedCornerShape(15.dp)
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = com.ledger.app.R.drawable.ic_calculator
+                            ),
+                            contentDescription = "Calculate amount",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
                         )
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    shape = RoundedCornerShape(15.dp)
-                )
+                    }
+                }
+
+                if (showRateQuantity) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = rate,
+                            onValueChange = {
+                                rate = it
+                                categoryPrefs.edit()
+                                    .putString("calculator_last_rate", it)
+                                    .apply()
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Rate") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal
+                            ),
+                            shape = RoundedCornerShape(15.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = quantity,
+                            onValueChange = {
+                                quantity = it
+                                categoryPrefs.edit()
+                                    .putString("calculator_last_quantity", it)
+                                    .apply()
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Quantity") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Decimal
+                            ),
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                    }
+                }
 
                 Surface(
                     modifier = Modifier
@@ -1720,7 +1860,7 @@ private fun ExpenseEditorDialog(
                     }
 
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentPadding = PaddingValues(
                             start = 16.dp,
                             end = 16.dp,
@@ -1729,7 +1869,8 @@ private fun ExpenseEditorDialog(
                         ),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(expenseCategories) { item ->
+
+                        items(allCategories) { item ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1738,10 +1879,24 @@ private fun ExpenseEditorDialog(
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                category = item
-                                                showCategoryPage = false
-                                            },
+                                            .combinedClickable(
+                                                onClick = {
+                                                    category = item
+                                                    categoryPrefs.edit()
+                                                        .putString("last_selected_category", item)
+                                                        .apply()
+                                                    showCategoryPage = false
+                                                },
+                                                onLongClick = {
+                                                    if (item in customCategories) {
+                                                        editingCategoryTitle = item
+                                                        newCategoryTitle = item
+                                                        newCategoryIcon = customCategoryIcons[item] ?: "📁"
+                                                        categoryFormError = ""
+                                                        showAddCategoryDialog = true
+                                                    }
+                                                }
+                                            ),
                                         shape = RoundedCornerShape(18.dp),
                                         color = androidx.compose.ui.graphics.Color.White,
                                         tonalElevation = if (selected) 2.dp else 0.dp
@@ -1760,6 +1915,13 @@ private fun ExpenseEditorDialog(
                                                 else
                                                     MaterialTheme.colorScheme.secondaryContainer
                                             ) {
+                                                if (customCategoryIcons[item] != null) {
+                                                Text(
+                                                    text = customCategoryIcons[item] ?: "📁",
+                                                    modifier = Modifier.padding(11.dp),
+                                                    fontSize = 25.sp
+                                                )
+                                            } else {
                                                 Icon(
                                                     imageVector = expenseCategoryIcon(item),
                                                     contentDescription = null,
@@ -1769,6 +1931,7 @@ private fun ExpenseEditorDialog(
                                                     else
                                                         MaterialTheme.colorScheme.onSecondaryContainer
                                                 )
+                                            }
                                             }
                                             Text(
                                                 item,
@@ -1787,10 +1950,210 @@ private fun ExpenseEditorDialog(
                             }
                         }
                     }
+
+                    Spacer(Modifier.size(12.dp))
+                    Button(
+                        onClick = {
+                            editingCategoryTitle = null
+                            newCategoryTitle = ""
+                            newCategoryIcon = "📁"
+                            categoryFormError = ""
+                            showAddCategoryDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Outlined.Add, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Add Category")
+                    }
                 }
             }
         }
     }
+
+    if (showAddCategoryDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddCategoryDialog = false
+                editingCategoryTitle = null
+            },
+            shape = RoundedCornerShape(24.dp),
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            title = {
+                Text(
+                    if (editingCategoryTitle == null) "Add Category" else "Edit Category",
+                    color = androidx.compose.ui.graphics.Color(0xFF172033),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newCategoryTitle,
+                        onValueChange = {
+                            newCategoryTitle = it
+                            categoryFormError = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Category Title") },
+                        placeholder = {
+                            Text(
+                                "e.g. Office Supplies",
+                                color = androidx.compose.ui.graphics.Color(0xFF8A94A6)
+                            )
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        isError = categoryFormError.isNotBlank(),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = androidx.compose.ui.graphics.Color(0xFFD9DEE8),
+                            focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                            unfocusedContainerColor = androidx.compose.ui.graphics.Color.White
+                        )
+                    )
+
+                    Text(
+                        "Choose Icon",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    customExpenseCategoryIcons.chunked(6).forEach { iconRow ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            iconRow.forEach { emoji ->
+                                Surface(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { newCategoryIcon = emoji },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (newCategoryIcon == emoji)
+                                        MaterialTheme.colorScheme.secondaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(
+                                        if (newCategoryIcon == emoji) 2.dp else 1.dp,
+                                        if (newCategoryIcon == emoji)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.outlineVariant
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(emoji, fontSize = 22.sp)
+                                    }
+                                }
+                            }
+                            repeat(6 - iconRow.size) {
+                                Spacer(Modifier.weight(1f))
+                            }
+                        }
+                    }
+
+                    if (categoryFormError.isNotBlank()) {
+                        Text(
+                            categoryFormError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showAddCategoryDialog = false
+                            editingCategoryTitle = null
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            androidx.compose.ui.graphics.Color(0xFFD9DEE8)
+                        )
+                    ) {
+                        Text(
+                            "Cancel",
+                            color = androidx.compose.ui.graphics.Color(0xFF475467)
+                        )
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            val title = newCategoryTitle.trim()
+                            val oldTitle = editingCategoryTitle
+
+                            when {
+                                title.isBlank() -> {
+                                    categoryFormError = "Enter a category title."
+                                }
+                                allCategories.any {
+                                    it.equals(title, ignoreCase = true) &&
+                                        !it.equals(oldTitle, ignoreCase = true)
+                                } -> {
+                                    categoryFormError = "This category already exists."
+                                }
+                                else -> {
+                                    val updated = if (oldTitle == null) {
+                                        (customCategories + title).distinct()
+                                    } else {
+                                        customCategories.map {
+                                            if (it == oldTitle) title else it
+                                        }.distinct()
+                                    }
+
+                                    val editor = categoryPrefs.edit()
+                                        .putStringSet("names", updated.toSet())
+                                        .putString("icon:$title", newCategoryIcon)
+
+                                    if (oldTitle != null && oldTitle != title) {
+                                        editor.remove("icon:$oldTitle")
+                                    }
+                                    editor.apply()
+
+                                    customCategories = updated
+                                    if (oldTitle == null || category == oldTitle) {
+                                        category = title
+                                    }
+                                    editingCategoryTitle = null
+                                    showAddCategoryDialog = false
+                                    showCategoryPage = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            "Save",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            },
+            dismissButton = {}
+        )
+    }
+
 }
 
 @Composable

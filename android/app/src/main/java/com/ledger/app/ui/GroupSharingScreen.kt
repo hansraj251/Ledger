@@ -3676,8 +3676,8 @@ private fun SettlementDialog(
     val settlementContext = androidx.compose.ui.platform.LocalContext.current
     val amount = amountText.toDoubleOrNull()
     val validAmount = amount != null &&
-        amount > 0.0 &&
-        amount <= remainingBalance + 0.009
+        amount.isFinite() &&
+        amount > 0.0
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -3747,8 +3747,7 @@ private fun SettlementDialog(
                         }
                     }
                 }
-                if (excessPaid <= 0.009) {
-                    OutlinedTextField(
+                OutlinedTextField(
                         value = amountText,
                         onValueChange = { input ->
                             if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
@@ -3804,7 +3803,6 @@ private fun SettlementDialog(
                         shape = RoundedCornerShape(15.dp)
                     )
 
-                }
                 Text("Payment History", fontWeight = FontWeight.SemiBold)
                 androidx.compose.material3.HorizontalDivider(
                     color = Color(0xFFE8E8EC)

@@ -804,7 +804,8 @@ var showDeletePartyDialog by remember {
                     onDismissRequest = {
                         showDeleteEntryDialog = false
                     },
-                    title = {
+                                containerColor = androidx.compose.ui.graphics.Color.White,
+title = {
                         Text("Delete Transaction?")
                     },
                     text = {
@@ -918,7 +919,8 @@ var showDeletePartyDialog by remember {
                 onDismissRequest = {
                     showDeletePartyDialog = false
                 },
-                title = {
+                            containerColor = androidx.compose.ui.graphics.Color.White,
+title = {
                     Text("Delete Party?")
                 },
                 text = {
@@ -1674,13 +1676,7 @@ private fun BalanceHero(
             Text(
                 text = "${CurrencySettings.symbol}${formatAmount(abs(balance))}",
                 style = MaterialTheme.typography.displaySmall,
-                color = if (isPremium && positive) {
-                    Color(0xFFFFC247)
-                } else if (isPremium && negative) {
-                    Color(0xFFC62828)
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+                color = accent,
                 fontWeight = FontWeight.Bold
             )
 
@@ -1695,7 +1691,7 @@ if (kotlin.math.abs(netInterest) > 0.000001) {
                     Text(
                         text = if (netInterest > 0.0) "Receivable Int." else "Payable Int.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (netInterest > 0.0) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        color = if (netInterest > 0.0) Color(0xFFC62828) else Color(0xFF2E7D32)
                     )
                     Text(
                         text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(netInterest))}",
@@ -1863,7 +1859,8 @@ private fun InterestAccountScreen(
     recordToDelete?.let { record ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { recordToDelete = null },
-            title = { Text("Delete interest record?") },
+                        containerColor = androidx.compose.ui.graphics.Color.White,
+title = { Text("Delete interest record?") },
             text = {
                 Text(
                     "Are you sure you want to delete this " +
@@ -2243,7 +2240,12 @@ private fun InterestAccountScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     if (record.type == "GAVE") "Int. You Gave" else "Int. You Got",
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (record.type == "GAVE") {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        Color(0xFF2E7D32)
+                                    }
                                 )
                                 Text(
                                     SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -2261,9 +2263,9 @@ private fun InterestAccountScreen(
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = if (record.type == "GAVE") {
-                                        MaterialTheme.colorScheme.tertiary
-                                    } else {
                                         MaterialTheme.colorScheme.error
+                                    } else {
+                                        Color(0xFF2E7D32)
                                     }
                                 )
                             }

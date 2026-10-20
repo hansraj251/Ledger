@@ -104,6 +104,45 @@ import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.Celebration
+import androidx.compose.material.icons.outlined.Hotel
+import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Inventory
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Work
+import androidx.compose.material.icons.outlined.ChildCare
+import androidx.compose.material.icons.outlined.Pets
+import androidx.compose.material.icons.outlined.CardGiftcard
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Medication
+import androidx.compose.material.icons.outlined.MedicalServices
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.LocalGasStation
+import androidx.compose.material.icons.outlined.WaterDrop
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.TwoWheeler
+import androidx.compose.material.icons.outlined.DirectionsBike
+import androidx.compose.material.icons.outlined.Train
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.LocalMall
+import androidx.compose.material.icons.outlined.Store
+import androidx.compose.material.icons.outlined.LocalCafe
+import androidx.compose.material.icons.outlined.Icecream
+import androidx.compose.material.icons.outlined.LocalPizza
+import androidx.compose.material.icons.outlined.Fastfood
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 
@@ -113,13 +152,78 @@ internal val expenseCategories = listOf(
     "Bills", "Clothing", "Other"
 )
 
+private data class ExpenseCategoryIconOption(
+    val key: String,
+    val label: String,
+    val group: String,
+    val icon: ImageVector
+)
+
 private val customExpenseCategoryIcons = listOf(
-    "🍔", "🍕", "🍽️", "☕", "🛒", "🛍️",
-    "🚗", "🏍️", "🚌", "🚕", "✈️", "🚆",
-    "🏠", "💡", "💧", "⛽", "📱", "📶",
-    "❤️", "💊", "🎬", "🎮", "📚", "🎓",
-    "👕", "🎁", "🐾", "👶", "💼", "🔧",
-    "💰", "💳", "🧾", "📦", "🏦", "📁"
+    // Food & shopping — includes the existing default category icons.
+    ExpenseCategoryIconOption("groceries", "Groceries", "Food & Shopping", Icons.Outlined.ShoppingCart),
+    ExpenseCategoryIconOption("restaurant", "Restaurant", "Food & Shopping", Icons.Outlined.Restaurant),
+    ExpenseCategoryIconOption("coffee", "Coffee", "Food & Shopping", Icons.Outlined.Coffee),
+    ExpenseCategoryIconOption("shopping", "Shopping", "Food & Shopping", Icons.Outlined.ShoppingBag),
+    ExpenseCategoryIconOption("fastfood", "Fast Food", "Food & Shopping", Icons.Outlined.Fastfood),
+    ExpenseCategoryIconOption("pizza", "Pizza", "Food & Shopping", Icons.Outlined.LocalPizza),
+    ExpenseCategoryIconOption("icecream", "Ice Cream", "Food & Shopping", Icons.Outlined.Icecream),
+    ExpenseCategoryIconOption("cafe", "Cafe", "Food & Shopping", Icons.Outlined.LocalCafe),
+    ExpenseCategoryIconOption("store", "Store", "Food & Shopping", Icons.Outlined.Store),
+    ExpenseCategoryIconOption("mall", "Mall", "Food & Shopping", Icons.Outlined.LocalMall),
+
+    // Transport
+    ExpenseCategoryIconOption("transit", "Public Transit", "Transport", Icons.Outlined.DirectionsBus),
+    ExpenseCategoryIconOption("car", "Car", "Transport", Icons.Outlined.DirectionsCar),
+    ExpenseCategoryIconOption("bike", "Bicycle", "Transport", Icons.Outlined.DirectionsBike),
+    ExpenseCategoryIconOption("motorcycle", "Motorcycle", "Transport", Icons.Outlined.TwoWheeler),
+    ExpenseCategoryIconOption("flight", "Flight", "Transport", Icons.Outlined.Flight),
+    ExpenseCategoryIconOption("train", "Train", "Transport", Icons.Outlined.Train),
+    ExpenseCategoryIconOption("fuel", "Fuel", "Transport", Icons.Outlined.LocalGasStation),
+
+    // Home & utilities
+    ExpenseCategoryIconOption("home", "Home", "Home & Utilities", Icons.Outlined.Home),
+    ExpenseCategoryIconOption("utilities", "Utilities", "Home & Utilities", Icons.Outlined.Bolt),
+    ExpenseCategoryIconOption("light", "Electricity", "Home & Utilities", Icons.Outlined.Lightbulb),
+    ExpenseCategoryIconOption("water", "Water", "Home & Utilities", Icons.Outlined.WaterDrop),
+    ExpenseCategoryIconOption("wifi", "Internet", "Home & Utilities", Icons.Outlined.Wifi),
+    ExpenseCategoryIconOption("phone", "Mobile", "Home & Utilities", Icons.Outlined.PhoneAndroid),
+    ExpenseCategoryIconOption("cleaning", "Cleaning", "Home & Utilities", Icons.Outlined.Category),
+    ExpenseCategoryIconOption("tools", "Repairs", "Home & Utilities", Icons.Outlined.Build),
+
+    // Health & fitness
+    ExpenseCategoryIconOption("health", "Health", "Health & Fitness", Icons.Outlined.FavoriteBorder),
+    ExpenseCategoryIconOption("hospital", "Hospital", "Health & Fitness", Icons.Outlined.LocalHospital),
+    ExpenseCategoryIconOption("medicine", "Medicine", "Health & Fitness", Icons.Outlined.Medication),
+    ExpenseCategoryIconOption("medical", "Medical", "Health & Fitness", Icons.Outlined.MedicalServices),
+    ExpenseCategoryIconOption("fitness", "Fitness", "Health & Fitness", Icons.Outlined.FitnessCenter),
+
+    // Lifestyle & entertainment
+    ExpenseCategoryIconOption("entertainment", "Entertainment", "Lifestyle", Icons.Outlined.Movie),
+    ExpenseCategoryIconOption("gaming", "Gaming", "Lifestyle", Icons.Outlined.SportsEsports),
+    ExpenseCategoryIconOption("clothing", "Clothing", "Lifestyle", Icons.Outlined.Checkroom),
+    ExpenseCategoryIconOption("gift", "Gifts", "Lifestyle", Icons.Outlined.CardGiftcard),
+    ExpenseCategoryIconOption("pets", "Pets", "Lifestyle", Icons.Outlined.Pets),
+    ExpenseCategoryIconOption("child", "Childcare", "Lifestyle", Icons.Outlined.ChildCare),
+    ExpenseCategoryIconOption("hotel", "Hotel", "Lifestyle", Icons.Outlined.Hotel),
+    ExpenseCategoryIconOption("celebration", "Celebration", "Lifestyle", Icons.Outlined.Celebration),
+    ExpenseCategoryIconOption("event", "Events", "Lifestyle", Icons.Outlined.Event),
+
+    // Work, bills & money
+    ExpenseCategoryIconOption("subscriptions", "Subscriptions", "Work & Money", Icons.Outlined.CreditCard),
+    ExpenseCategoryIconOption("bills", "Bills", "Work & Money", Icons.Outlined.ReceiptLong),
+    ExpenseCategoryIconOption("wallet", "Wallet", "Work & Money", Icons.Outlined.AccountBalanceWallet),
+    ExpenseCategoryIconOption("payments", "Payments", "Work & Money", Icons.Outlined.Payments),
+    ExpenseCategoryIconOption("bank", "Bank", "Work & Money", Icons.Outlined.AccountBalanceWallet),
+    ExpenseCategoryIconOption("savings", "Savings", "Work & Money", Icons.Outlined.Savings),
+    ExpenseCategoryIconOption("work", "Work", "Work & Money", Icons.Outlined.Work),
+    ExpenseCategoryIconOption("books", "Books", "Work & Money", Icons.Outlined.MenuBook),
+    ExpenseCategoryIconOption("education", "Education", "Work & Money", Icons.Outlined.School),
+
+    // General
+    ExpenseCategoryIconOption("inventory", "Inventory", "General", Icons.Outlined.Inventory),
+    ExpenseCategoryIconOption("folder", "Folder", "General", Icons.Outlined.FolderOpen),
+    ExpenseCategoryIconOption("other", "Other", "General", Icons.Outlined.Category)
 )
 
 private fun expenseMoney(amount: Double): String = CurrencySettings.format(amount)
@@ -309,6 +413,13 @@ var isReportLimitReached by remember { mutableStateOf(false) }
     }
     var dailyReportPreviewFile by remember { mutableStateOf<java.io.File?>(null) }
     var dailyReportPreviewYear by remember { mutableStateOf<Int?>(null) }
+    var dailyReportPreviewPeriod by remember { mutableStateOf<String?>(null) }
+    var showCategoryReportPicker by remember { mutableStateOf(false) }
+    var showCategoryReportMonthPicker by remember { mutableStateOf(false) }
+    var reportCategoryOptions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedReportCategories by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var reportMonthYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var reportMonthIndex by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
 
 
 
@@ -364,6 +475,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                         .apply()
                 }
 
+                dailyReportPreviewPeriod = null
                 dailyReportPreviewYear = reportYear
 
 
@@ -377,6 +489,88 @@ var isReportLimitReached by remember { mutableStateOf(false) }
             }
         }
     }
+
+    val generateCategoryWiseDailyExpenseReport: (Set<String>, Int, Int) -> Unit =
+        { categories, reportYear, reportMonth ->
+            scope.launch {
+                try {
+                    if (categories.isEmpty()) {
+                        android.widget.Toast.makeText(
+                            context, "Select at least one category.",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        return@launch
+                    }
+
+                    val reportLimitPrefs = context.getSharedPreferences(
+                        "daily_expense_report_limits", 0
+                    )
+                    if (!isPremium &&
+                        reportLimitPrefs.getInt("generated_count", 0) >= 3
+                    ) {
+                        showCategoryReportMonthPicker = false
+                        isReportLimitReached = true
+                        showUpgradeDialog = true
+                        return@launch
+                    }
+
+                    val monthStart = Calendar.getInstance().apply {
+                        clear()
+                        set(reportYear, reportMonth, 1, 0, 0, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val monthEnd = Calendar.getInstance().apply {
+                        timeInMillis = monthStart
+                        add(Calendar.MONTH, 1)
+                    }.timeInMillis
+
+                    val reportExpenses = withContext(Dispatchers.IO) {
+                        dao.getAll().filter { expense ->
+                            val category = expense.category.ifBlank { "Uncategorized" }
+                            category in categories &&
+                                expense.expenseDate >= monthStart &&
+                                expense.expenseDate < monthEnd
+                        }.sortedWith(
+                            compareByDescending<DailyExpenseEntity> { it.expenseDate }
+                                .thenByDescending { it.id }
+                        )
+                    }
+
+                    val monthLabel = listOf(
+                        "January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"
+                    )[reportMonth]
+                    val periodLabel =
+                        "Period: $monthLabel $reportYear | Categories: ${categories.sorted().joinToString(", ")}"
+
+                    val pdf = withContext(Dispatchers.IO) {
+                        createDailyExpenseReportPdf(
+                            context, reportExpenses, reportYear, periodLabel
+                        )
+                    }
+
+                    if (!isPremium) {
+                        val currentCount = reportLimitPrefs.getInt("generated_count", 0)
+                        reportLimitPrefs.edit()
+                            .putInt("generated_count", currentCount + 1)
+                            .apply()
+                    }
+
+                    dailyReportPreviewYear = reportYear
+                    dailyReportPreviewPeriod =
+                        "Category Wise • $monthLabel $reportYear • ${categories.size} categories"
+                    dailyReportPreviewFile = pdf
+                    showCategoryReportMonthPicker = false
+                } catch (e: Exception) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Report could not be created: ${e.message ?: "Unknown error"}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+
     var showCategoryChart by remember { mutableStateOf(false) }
 
     LaunchedEffect(showAllTimeRecords, showMonthRecords, showYearRecords, showSelectedDayRecords, selectedDayStart, selectedMonthStart, selectedExpenseYear, refreshKey) {
@@ -591,6 +785,72 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                             )
                         }
                     }
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showReportOptions = false
+                                scope.launch {
+                                    val categories = withContext(Dispatchers.IO) {
+                                        dao.getAll()
+                                            .map { it.category.ifBlank { "Uncategorized" } }
+                                            .distinct()
+                                            .sorted()
+                                    }
+                                    reportCategoryOptions = categories
+                                    selectedReportCategories = emptySet()
+                                    reportMonthYear = Calendar.getInstance().get(Calendar.YEAR)
+                                    reportMonthIndex = Calendar.getInstance().get(Calendar.MONTH)
+                                    showCategoryReportPicker = true
+                                }
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        color = Color(0xFFFFF8EB),
+                        border = BorderStroke(1.dp, Color(0xFFEEDCB6))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(13.dp)
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(46.dp),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color(0xFFFFEBC2)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Category,
+                                        contentDescription = null,
+                                        tint = Color(0xFF946200),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Category Wise",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF202124)
+                                )
+                                Text(
+                                    text = "Select multiple categories and a month",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF786747)
+                                )
+                            }
+                            Text(
+                                text = "›",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Color(0xFF946200)
+                            )
+                        }
+                    }
+
                 }
             },
             confirmButton = {
@@ -599,6 +859,150 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                         text = "Close",
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+            }
+        )
+    }
+
+
+    if (showCategoryReportPicker) {
+        AlertDialog(
+            onDismissRequest = { showCategoryReportPicker = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Select Categories", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Choose one or more categories for the report.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (reportCategoryOptions.isEmpty()) {
+                        Text("No expense categories found. Add expenses first.")
+                    } else {
+                        reportCategoryOptions.forEach { category ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedReportCategories =
+                                            if (category in selectedReportCategories) {
+                                                selectedReportCategories - category
+                                            } else {
+                                                selectedReportCategories + category
+                                            }
+                                    }
+                                    .padding(vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                androidx.compose.material3.Checkbox(
+                                    checked = category in selectedReportCategories,
+                                    onCheckedChange = { checked ->
+                                        selectedReportCategories =
+                                            if (checked) selectedReportCategories + category
+                                            else selectedReportCategories - category
+                                    }
+                                )
+                                Text(category)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedReportCategories.isNotEmpty(),
+                    onClick = {
+                        showCategoryReportPicker = false
+                        showCategoryReportMonthPicker = true
+                    }
+                ) { Text("Select Month") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCategoryReportPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showCategoryReportMonthPicker) {
+        val reportMonthNames = listOf(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        )
+        AlertDialog(
+            onDismissRequest = { showCategoryReportMonthPicker = false },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("Select Month", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { reportMonthYear-- }) { Text("‹ Previous") }
+                        Text(
+                            reportMonthYear.toString(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(onClick = { reportMonthYear++ }) { Text("Next ›") }
+                    }
+                    (0..9 step 3).forEach { rowStart ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            (rowStart until rowStart + 3).forEach { month ->
+                                val monthButtonModifier = Modifier.weight(1f)
+                                if (reportMonthIndex == month) {
+                                    Button(
+                                        onClick = { reportMonthIndex = month },
+                                        modifier = monthButtonModifier,
+                                        contentPadding = PaddingValues(horizontal = 0.dp)
+                                    ) { Text(reportMonthNames[month]) }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { reportMonthIndex = month },
+                                        modifier = monthButtonModifier,
+                                        contentPadding = PaddingValues(horizontal = 0.dp)
+                                    ) { Text(reportMonthNames[month]) }
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        "Categories: ${selectedReportCategories.size}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        generateCategoryWiseDailyExpenseReport(
+                            selectedReportCategories, reportMonthYear, reportMonthIndex
+                        )
+                    }
+                ) { Text("Generate Report") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCategoryReportMonthPicker = false }) {
+                    Text("Cancel")
                 }
             }
         )
@@ -1241,25 +1645,63 @@ var isReportLimitReached by remember { mutableStateOf(false) }
     deletingExpense?.let { expense ->
         AlertDialog(
             onDismissRequest = { deletingExpense = null },
-            title = { Text("Delete expense?") },
-            text = { Text("Delete ${expense.category} expense of ${expenseMoney(expense.amount)}?") },
-            confirmButton = {
-                Button(onClick = {
-                    deletingExpense = null
-                    scope.launch {
-                        withContext(Dispatchers.IO) { dao.delete(expense) }
-                        onExpenseDataChanged()
-                        refreshKey++
-                    }
-                }) { Text("Delete") }
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Delete expense?",
+                    color = Color(0xFF202124),
+                    fontWeight = FontWeight.Bold
+                )
             },
-            dismissButton = {
-                TextButton(onClick = { deletingExpense = null }) { Text("Cancel") }
+            text = {
+                Text(
+                    "Delete ${expense.category} expense of ${expenseMoney(expense.amount)}?",
+                    color = Color(0xFF444746)
+                )
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 0.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { deletingExpense = null },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFB8B8B8)),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFF424242)
+                        )
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            deletingExpense = null
+                            scope.launch {
+                                withContext(Dispatchers.IO) { dao.delete(expense) }
+                                onExpenseDataChanged()
+                                refreshKey++
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFD32F2F)),
+                        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFD32F2F)
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                }
             }
         )
     }
     }
-
 
     if (showUpgradeDialog) {
         androidx.compose.material3.AlertDialog(
@@ -1363,8 +1805,8 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Text(
-                                if (dailyReportPreviewYear == null) "All Time"
-                                else "Year: ${dailyReportPreviewYear}",
+                                dailyReportPreviewPeriod ?: (if (dailyReportPreviewYear == null) "All Time"
+                                else "Year: ${dailyReportPreviewYear}"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1442,20 +1884,78 @@ private fun ExpenseEditorDialog(
 ) {
     val context = LocalContext.current
     val categoryPrefs = remember(context) {
-        context.getSharedPreferences("daily_expense_categories", android.content.Context.MODE_PRIVATE)
-    }
-    var customCategories by remember(categoryPrefs) {
-        mutableStateOf<List<String>>(
-            categoryPrefs.getStringSet("names", emptySet<String>())
-                ?.toList()
-                ?.sorted()
-                ?: emptyList<String>()
+        context.getSharedPreferences(
+            "daily_expense_categories",
+            android.content.Context.MODE_PRIVATE
         )
     }
+    val categoryDao = remember(context) {
+        LedgerDatabaseProvider.get(context.applicationContext).customExpenseCategoryDao()
+    }
+    val categoryScope = rememberCoroutineScope()
+
+    var customCategories by remember(categoryPrefs) {
+        mutableStateOf<List<String>>(emptyList())
+    }
+
+    LaunchedEffect(categoryDao, categoryPrefs) {
+        try {
+            val existingRows = withContext(Dispatchers.IO) {
+                categoryDao.getAll()
+            }
+
+            // Import existing preferences only when Room has no categories yet.
+            if (existingRows.isEmpty()) {
+                val legacyNames = categoryPrefs
+                    .getStringSet("names", emptySet<String>())
+                    ?.toList()
+                    .orEmpty()
+                    .distinct()
+
+                if (legacyNames.isNotEmpty()) {
+                    val legacyRows = legacyNames.map { name ->
+                        com.ledger.app.data.CustomExpenseCategoryEntity(
+                            name = name,
+                            icon = categoryPrefs.getString("icon:$name", "folder")
+                                ?: "folder",
+                            quantityType = categoryPrefs.getString(
+                                "quantity_type:$name", "Unit"
+                            ) ?: "Unit"
+                        )
+                    }
+                    withContext(Dispatchers.IO) {
+                        categoryDao.insertAll(legacyRows)
+                    }
+                }
+            }
+
+            val rows = withContext(Dispatchers.IO) {
+                categoryDao.getAll()
+            }
+
+            customCategories = rows.map { it.name }
+
+            // Keep legacy preference keys synchronized for existing calculator/note code.
+            val editor = categoryPrefs.edit()
+                .putStringSet("names", rows.map { it.name }.toSet())
+            rows.forEach { row ->
+                editor.putString("icon:${row.name}", row.icon)
+                editor.putString("quantity_type:${row.name}", row.quantityType)
+            }
+            editor.apply()
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                context,
+                "Could not load saved categories: ${e.message ?: "Database error"}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     val customCategoryIcons: Map<String, String> =
         remember(categoryPrefs, customCategories) {
             customCategories.associateWith { name ->
-                categoryPrefs.getString("icon:$name", "📁") ?: "📁"
+                categoryPrefs.getString("icon:$name", "folder") ?: "folder"
             }
         }
     val allCategories: List<String> = remember(customCategories) {
@@ -1464,7 +1964,16 @@ private fun ExpenseEditorDialog(
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var editingCategoryTitle by remember { mutableStateOf<String?>(null) }
     var newCategoryTitle by remember { mutableStateOf("") }
-    var newCategoryIcon by remember { mutableStateOf("📁") }
+    var newCategoryIcon by remember { mutableStateOf("folder") }
+    var newCategoryQuantityType by remember { mutableStateOf("Unit") }
+    var showQuantityTypeMenu by remember { mutableStateOf(false) }
+    val quantityTypeOptions = listOf(
+        "Kilogram (kg)", "Gram (g)", "Milligram (mg)", "Tonne",
+        "Litre (L)", "Millilitre (ml)",
+        "Piece (pcs)", "Dozen", "Pair", "Pack", "Box",
+        "Metre (m)", "Centimetre (cm)", "Kilometre (km)",
+        "Unit", "Bag", "Bottle", "Carton"
+    )
     var categoryFormError by remember { mutableStateOf("") }
 
     var amount by remember(initial?.id) {
@@ -1510,6 +2019,23 @@ private fun ExpenseEditorDialog(
         )
     }
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
+
+    fun updateQuantityNote(quantityText: String, categoryName: String = category) {
+        val cleanQuantity = quantityText.trim()
+        if (cleanQuantity.isBlank()) {
+            note = ""
+            return
+        }
+
+        val savedType = categoryPrefs.getString(
+            "quantity_type:$categoryName",
+            "Unit"
+        ) ?: "Unit"
+
+        // Keep the readable unit name in Note, without the abbreviation in brackets.
+        val displayType = savedType.substringBefore(" (").trim()
+        note = "$cleanQuantity $displayType"
+    }
     var date by remember(initial?.id) {
         mutableStateOf(initial?.expenseDate ?: System.currentTimeMillis())
     }
@@ -1585,6 +2111,7 @@ private fun ExpenseEditorDialog(
                         onClick = {
                             if (!showRateQuantity) {
                                 showRateQuantity = true
+                                updateQuantityNote(quantity)
                                 updateCalculatedAmount(rate, quantity)
                             } else {
                                 showRateQuantity = false
@@ -1615,6 +2142,11 @@ private fun ExpenseEditorDialog(
                             value = rate,
                             onValueChange = {
                                 rate = it
+                                if (it.isBlank()) {
+                                    amount = ""
+                                } else {
+                                    updateCalculatedAmount(it, quantity)
+                                }
                                 categoryPrefs.edit()
                                     .putString("calculator_last_rate", it)
                                     .apply()
@@ -1632,6 +2164,12 @@ private fun ExpenseEditorDialog(
                             value = quantity,
                             onValueChange = {
                                 quantity = it
+                                updateQuantityNote(it)
+                                if (it.isBlank()) {
+                                    amount = ""
+                                } else {
+                                    updateCalculatedAmount(rate, it)
+                                }
                                 categoryPrefs.edit()
                                     .putString("calculator_last_quantity", it)
                                     .apply()
@@ -1882,6 +2420,9 @@ private fun ExpenseEditorDialog(
                                             .combinedClickable(
                                                 onClick = {
                                                     category = item
+                                                    if (quantity.isNotBlank()) {
+                                                        updateQuantityNote(quantity, item)
+                                                    }
                                                     categoryPrefs.edit()
                                                         .putString("last_selected_category", item)
                                                         .apply()
@@ -1891,7 +2432,12 @@ private fun ExpenseEditorDialog(
                                                     if (item in customCategories) {
                                                         editingCategoryTitle = item
                                                         newCategoryTitle = item
-                                                        newCategoryIcon = customCategoryIcons[item] ?: "📁"
+                                                        newCategoryQuantityType = categoryPrefs.getString("quantity_type:$item", "Unit") ?: "Unit"
+                                                        showQuantityTypeMenu = false
+                                                        newCategoryIcon = customCategoryIcons[item]
+                                                            ?.takeIf { key ->
+                                                                customExpenseCategoryIcons.any { it.key == key }
+                                                            } ?: "folder"
                                                         categoryFormError = ""
                                                         showAddCategoryDialog = true
                                                     }
@@ -1915,36 +2461,60 @@ private fun ExpenseEditorDialog(
                                                 else
                                                     MaterialTheme.colorScheme.secondaryContainer
                                             ) {
-                                                if (customCategoryIcons[item] != null) {
+                                                val savedIcon = customCategoryIcons[item]
+                                                val iconOption = customExpenseCategoryIcons
+                                                    .firstOrNull { it.key == savedIcon }
+
+                                                if (savedIcon != null && iconOption == null) {
+                                                    // Continue displaying icons saved by the older emoji picker.
+                                                    Text(
+                                                        text = savedIcon,
+                                                        modifier = Modifier.padding(11.dp),
+                                                        fontSize = 25.sp
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        imageVector = iconOption?.icon ?: expenseCategoryIcon(item),
+                                                        contentDescription = iconOption?.label ?: item,
+                                                        modifier = Modifier.padding(11.dp).size(25.dp),
+                                                        tint = if (selected)
+                                                            MaterialTheme.colorScheme.onPrimary
+                                                        else
+                                                            MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                }
+                                            }
+                                            Column(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
                                                 Text(
-                                                    text = customCategoryIcons[item] ?: "📁",
-                                                    modifier = Modifier.padding(11.dp),
-                                                    fontSize = 25.sp
-                                                )
-                                            } else {
-                                                Icon(
-                                                    imageVector = expenseCategoryIcon(item),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.padding(11.dp).size(25.dp),
-                                                    tint = if (selected)
-                                                        MaterialTheme.colorScheme.onPrimary
+                                                    item,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = if (selected)
+                                                        FontWeight.Bold
                                                     else
-                                                        MaterialTheme.colorScheme.onSecondaryContainer
+                                                        FontWeight.Medium,
+                                                    color = if (selected)
+                                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                                    else
+                                                        MaterialTheme.colorScheme.onSurface
                                                 )
+
+                                                if (item in customCategories) {
+                                                    Text(
+                                                        text = categoryPrefs.getString(
+                                                            "quantity_type:$item",
+                                                            "Unit"
+                                                        ) ?: "Unit",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = if (selected)
+                                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
                                             }
-                                            }
-                                            Text(
-                                                item,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = if (selected)
-                                                    FontWeight.Bold
-                                                else
-                                                    FontWeight.Medium,
-                                                color = if (selected)
-                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.onSurface
-                                            )
                                         }
                                     }
                             }
@@ -1956,7 +2526,9 @@ private fun ExpenseEditorDialog(
                         onClick = {
                             editingCategoryTitle = null
                             newCategoryTitle = ""
-                            newCategoryIcon = "📁"
+                            newCategoryIcon = "folder"
+                            newCategoryQuantityType = "Unit"
+                            showQuantityTypeMenu = false
                             categoryFormError = ""
                             showAddCategoryDialog = true
                         },
@@ -1992,72 +2564,137 @@ private fun ExpenseEditorDialog(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedTextField(
-                        value = newCategoryTitle,
-                        onValueChange = {
-                            newCategoryTitle = it
-                            categoryFormError = ""
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Category Title") },
-                        placeholder = {
-                            Text(
-                                "e.g. Office Supplies",
-                                color = androidx.compose.ui.graphics.Color(0xFF8A94A6)
+                    Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+    verticalAlignment = Alignment.Top
+) {
+    OutlinedTextField(
+                            value = newCategoryTitle,
+                            onValueChange = {
+                                newCategoryTitle = it
+                                categoryFormError = ""
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Title") },
+                            placeholder = {
+                                Text(
+                                    "e.g. Office Supplies",
+                                    color = androidx.compose.ui.graphics.Color(0xFF8A94A6)
+                                )
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            isError = categoryFormError.isNotBlank(),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = androidx.compose.ui.graphics.Color(0xFFD9DEE8),
+                                focusedContainerColor = androidx.compose.ui.graphics.Color.White,
+                                unfocusedContainerColor = androidx.compose.ui.graphics.Color.White
                             )
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        isError = categoryFormError.isNotBlank(),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = androidx.compose.ui.graphics.Color(0xFFD9DEE8),
-                            focusedContainerColor = androidx.compose.ui.graphics.Color.White,
-                            unfocusedContainerColor = androidx.compose.ui.graphics.Color.White
                         )
-                    )
-
-                    Text(
-                        "Choose Icon",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    customExpenseCategoryIcons.chunked(6).forEach { iconRow ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            iconRow.forEach { emoji ->
-                                Surface(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { newCategoryIcon = emoji },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (newCategoryIcon == emoji)
-                                        MaterialTheme.colorScheme.secondaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.surface,
-                                    border = BorderStroke(
-                                        if (newCategoryIcon == emoji) 2.dp else 1.dp,
-                                        if (newCategoryIcon == emoji)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.outlineVariant
+    Box(modifier = Modifier.weight(1f)) {
+                            OutlinedTextField(
+                                value = newCategoryQuantityType,
+                                onValueChange = {},
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    showQuantityTypeMenu = true
+                                },
+                                readOnly = true,
+                                label = { Text("Quantity Type") },
+                                trailingIcon = { Text("▾") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable { showQuantityTypeMenu = true }
+                            )
+                            DropdownMenu(
+                                expanded = showQuantityTypeMenu,
+                                onDismissRequest = { showQuantityTypeMenu = false },
+                                modifier = Modifier.heightIn(max = 280.dp),
+                                containerColor = androidx.compose.ui.graphics.Color.White
+                            ) {
+                                quantityTypeOptions.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = { Text(option) },
+                                        onClick = {
+                                            newCategoryQuantityType = option
+                                            showQuantityTypeMenu = false
+                                        }
                                     )
-                                ) {
-                                    Box(
-                                        modifier = Modifier.padding(vertical = 8.dp),
-                                        contentAlignment = Alignment.Center
+                                }
+                            }
+                        }
+}
+
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 340.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        customExpenseCategoryIcons
+                            .groupBy { it.group }
+                            .forEach { (groupName, options) ->
+                                Text(
+                                    groupName,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                options.chunked(5).forEach { iconRow ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Text(emoji, fontSize = 22.sp)
+                                        iconRow.forEach { option ->
+                                            val selectedIcon = newCategoryIcon == option.key
+                                            Surface(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable { newCategoryIcon = option.key },
+                                                shape = RoundedCornerShape(10.dp),
+                                                color = if (selectedIcon)
+                                                    MaterialTheme.colorScheme.secondaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.surface,
+                                                border = BorderStroke(
+                                                    if (selectedIcon) 2.dp else 1.dp,
+                                                    if (selectedIcon)
+                                                        MaterialTheme.colorScheme.primary
+                                                    else
+                                                        MaterialTheme.colorScheme.outlineVariant
+                                                )
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(vertical = 10.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = option.icon,
+                                                        contentDescription = option.label,
+                                                        modifier = Modifier.size(24.dp),
+                                                        tint = if (selectedIcon)
+                                                            MaterialTheme.colorScheme.primary
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        repeat(5 - iconRow.size) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
-                            repeat(6 - iconRow.size) {
-                                Spacer(Modifier.weight(1f))
-                            }
-                        }
                     }
 
                     if (categoryFormError.isNotBlank()) {
@@ -2070,7 +2707,56 @@ private fun ExpenseEditorDialog(
                 }
             },
             confirmButton = {
-                Row(
+                
+if (editingCategoryTitle != null) {
+    androidx.compose.material3.OutlinedButton(
+        onClick = {
+            val titleToDelete = editingCategoryTitle
+                ?: return@OutlinedButton
+            categoryScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        categoryDao.deleteByName(titleToDelete)
+                    }
+                    val updated = customCategories.filterNot {
+                        it == titleToDelete
+                    }
+                    categoryPrefs.edit()
+                        .putStringSet("names", updated.toSet())
+                        .remove("icon:$titleToDelete")
+                        .remove("quantity_type:$titleToDelete")
+                        .apply()
+                    customCategories = updated
+                    if (category == titleToDelete) {
+                        category = expenseCategories.firstOrNull() ?: ""
+                    }
+                    editingCategoryTitle = null
+                    showAddCategoryDialog = false
+                    showCategoryPage = false
+                } catch (e: Exception) {
+                    categoryFormError =
+                        "Could not delete category: ${e.message ?: "Database error"}"
+                }
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 2.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(
+            1.dp,
+            androidx.compose.ui.graphics.Color.Red
+        )
+    ) {
+        Text(
+            "Delete",
+            color = androidx.compose.ui.graphics.Color.Red,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -2108,30 +2794,55 @@ private fun ExpenseEditorDialog(
                                     categoryFormError = "This category already exists."
                                 }
                                 else -> {
-                                    val updated = if (oldTitle == null) {
-                                        (customCategories + title).distinct()
-                                    } else {
-                                        customCategories.map {
-                                            if (it == oldTitle) title else it
-                                        }.distinct()
-                                    }
+                                    categoryScope.launch {
+                                        try {
+                                            val updated = if (oldTitle == null) {
+                                                (customCategories + title).distinct()
+                                            } else {
+                                                customCategories.map {
+                                                    if (it == oldTitle) title else it
+                                                }.distinct()
+                                            }
 
-                                    val editor = categoryPrefs.edit()
-                                        .putStringSet("names", updated.toSet())
-                                        .putString("icon:$title", newCategoryIcon)
+                                            withContext(Dispatchers.IO) {
+                                                if (oldTitle != null && oldTitle != title) {
+                                                    categoryDao.deleteByName(oldTitle)
+                                                }
+                                                categoryDao.upsert(
+                                                    com.ledger.app.data.CustomExpenseCategoryEntity(
+                                                        name = title,
+                                                        icon = newCategoryIcon,
+                                                        quantityType = newCategoryQuantityType
+                                                    )
+                                                )
+                                            }
 
-                                    if (oldTitle != null && oldTitle != title) {
-                                        editor.remove("icon:$oldTitle")
-                                    }
-                                    editor.apply()
+                                            val editor = categoryPrefs.edit()
+                                                .putStringSet("names", updated.toSet())
+                                                .putString("icon:$title", newCategoryIcon)
+                                                .putString(
+                                                    "quantity_type:$title",
+                                                    newCategoryQuantityType
+                                                )
 
-                                    customCategories = updated
-                                    if (oldTitle == null || category == oldTitle) {
-                                        category = title
+                                            if (oldTitle != null && oldTitle != title) {
+                                                editor.remove("icon:$oldTitle")
+                                                editor.remove("quantity_type:$oldTitle")
+                                            }
+                                            editor.apply()
+
+                                            customCategories = updated
+                                            if (oldTitle == null || category == oldTitle) {
+                                                category = title
+                                            }
+                                            editingCategoryTitle = null
+                                            showAddCategoryDialog = false
+                                            showCategoryPage = false
+                                        } catch (e: Exception) {
+                                            categoryFormError =
+                                                "Could not save category: ${e.message ?: "Database error"}"
+                                        }
                                     }
-                                    editingCategoryTitle = null
-                                    showAddCategoryDialog = false
-                                    showCategoryPage = false
                                 }
                             }
                         },
@@ -2157,7 +2868,17 @@ private fun ExpenseEditorDialog(
 }
 
 @Composable
-internal fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics.vector.ImageVector {
+internal fun expenseCategoryIcon(category: String): ImageVector {
+    val context = LocalContext.current
+    val savedKey = context.getSharedPreferences(
+        "daily_expense_categories",
+        android.content.Context.MODE_PRIVATE
+    ).getString("icon:$category", null)
+
+    customExpenseCategoryIcons.firstOrNull { it.key == savedKey }?.let {
+        return it.icon
+    }
+
     return when (category) {
         "Groceries" -> Icons.Outlined.ShoppingCart
         "Restaurant" -> Icons.Outlined.Restaurant
@@ -2174,7 +2895,6 @@ internal fun expenseCategoryIcon(category: String): androidx.compose.ui.graphics
         else -> Icons.Outlined.Category
     }
 }
-
 
 @Composable
 private fun ExpenseCategoryChartScreen(
@@ -2367,7 +3087,8 @@ private fun ExpenseCategoryChartScreen(
 private fun createDailyExpenseReportPdf(
     context: android.content.Context,
     expenses: List<DailyExpenseEntity>,
-    year: Int?
+    year: Int?,
+    periodLabel: String? = null
 ): java.io.File {
     val pdf = android.graphics.pdf.PdfDocument()
     val ordered = expenses.sortedWith(
@@ -2458,7 +3179,7 @@ private fun createDailyExpenseReportPdf(
         )
         y += 24f
         canvas.drawText(
-            if (year == null) "Period: All Time" else "Period: 1 Jan $year - 31 Dec $year",
+            periodLabel ?: (if (year == null) "Period: All Time" else "Period: 1 Jan $year - 31 Dec $year"),
             left, y + 5f, paint(android.graphics.Color.DKGRAY, 10f)
         )
         y += 18f

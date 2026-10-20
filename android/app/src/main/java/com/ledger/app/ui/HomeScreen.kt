@@ -1405,7 +1405,8 @@ item {
     if (showDeleteEditedPartyDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteEditedPartyDialog = false },
-            title = { Text("Delete Party?") },
+                        containerColor = androidx.compose.ui.graphics.Color.White,
+title = { Text("Delete Party?") },
             text = {
                 Text(
                     "This will permanently delete ${deletingEditedParty?.name.orEmpty()} and all ledger entries for this party."
@@ -2077,6 +2078,13 @@ private fun PartyCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val cardBackground = Color.White
+    val cardBorder = when {
+        balance > 0.0 -> Color(0xFFEBCACA)
+        balance < 0.0 -> Color(0xFFC8E5CE)
+        else -> Color(0xFFE9D8A8)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -2086,8 +2094,9 @@ private fun PartyCard(
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = cardBackground
         ),
+        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 1.dp
         )
@@ -2164,16 +2173,18 @@ private fun PartyCard(
                 }
             }
 
-            Text(
-                text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balance))}",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (balance >= 0) {
-                    Color(0xFFC62828)
-                } else {
-                    Color(0xFF2E7D32)
-                }
-            )
+            if (balance != 0.0) {
+                Text(
+                    text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balance))}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (balance > 0.0) {
+                        Color(0xFFC62828)
+                    } else {
+                        Color(0xFF2E7D32)
+                    }
+                )
+            }
         }
     }
 }

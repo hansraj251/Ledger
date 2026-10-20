@@ -2385,7 +2385,8 @@ val expenseSplits = splits[expense.id].orEmpty()
     deletingGroup?.let { group ->
         AlertDialog(
             onDismissRequest = { deletingGroup = null },
-            title = { Text("Delete group?") },
+                        containerColor = androidx.compose.ui.graphics.Color.White,
+title = { Text("Delete group?") },
             text = { Text("This will delete the group's members and group expenses. ") },
             confirmButton = {
                 TextButton(onClick = {
@@ -2462,7 +2463,8 @@ val expenseSplits = splits[expense.id].orEmpty()
     deletingMember?.let { member ->
         AlertDialog(
             onDismissRequest = { deletingMember = null },
-            title = { Text("Remove member?") },
+                        containerColor = androidx.compose.ui.graphics.Color.White,
+title = { Text("Remove member?") },
             text = { Text("A member can be removed only after the full balance is settled. Historical expense splits retain their saved details.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -2488,7 +2490,8 @@ val expenseSplits = splits[expense.id].orEmpty()
     deletingExpense?.let { expense ->
         AlertDialog(
             onDismissRequest = { deletingExpense = null },
-            title = { Text("Delete group expense?") },
+                        containerColor = androidx.compose.ui.graphics.Color.White,
+title = { Text("Delete group expense?") },
             text = { Text("Delete ${expense.title} (${money(expense.amount)}) and its split details?") },
             confirmButton = {
                 TextButton(onClick = {

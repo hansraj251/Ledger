@@ -134,6 +134,16 @@ fun PartyLedgerScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val listState = rememberLazyListState()
+    val visibilityPrefs = remember(context) {
+        context.getSharedPreferences("ledger_party_ui_visibility", android.content.Context.MODE_PRIVATE)
+    }
+    var hideInterestButton by remember(party.id) {
+        mutableStateOf(visibilityPrefs.getBoolean("hide_int_${party.id}", false))
+    }
+    var hideSellButton by remember(party.id) {
+        mutableStateOf(visibilityPrefs.getBoolean("hide_sell_${party.id}", false))
+    }
+
 
     // Net interest for the party header SMS reminder.
     val headerGaveTransactionInterest = uiState.entries
@@ -474,7 +484,20 @@ var showDeletePartyDialog by remember {
                     onReport = {
                         showReport = true
                     },
-                        onSendReport = { requestPartyReport() }
+                        onSendReport = { requestPartyReport() },
+                    hideInterestButton = hideInterestButton,
+                    hideSellButton = hideSellButton,
+                    onHideInterestButtonChange = { enabled ->
+                        hideInterestButton = enabled
+                        visibilityPrefs.edit()
+                            .putBoolean("hide_int_${party.id}", enabled).apply()
+                        if (enabled) showInterestInput = false
+                    },
+                    onHideSellButtonChange = { enabled ->
+                        hideSellButton = enabled
+                        visibilityPrefs.edit()
+                            .putBoolean("hide_sell_${party.id}", enabled).apply()
+                    }
                 )
                 }
             }
@@ -551,6 +574,8 @@ var showDeletePartyDialog by remember {
                     interestRate = interestRate,
                     interestRateText = interestRateText,
                     showInterestInput = showInterestInput,
+                    hideInterestButton = hideInterestButton,
+                    hideSellButton = hideSellButton,
                     onInterestClick = {
                         showInterestInput = !showInterestInput
                     },
@@ -970,7 +995,11 @@ private fun PartyHeader(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onReport: () -> Unit,
-    onSendReport: () -> Unit) {
+    onSendReport: () -> Unit,
+    hideInterestButton: Boolean,
+    hideSellButton: Boolean,
+    onHideInterestButtonChange: (Boolean) -> Unit,
+    onHideSellButtonChange: (Boolean) -> Unit) {
     var showMenu by remember {
         mutableStateOf(false)
     }
@@ -1102,6 +1131,30 @@ private fun PartyHeader(
                 )
                 DropdownMenuItem(
                     text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = hideInterestButton,
+                                onCheckedChange = null
+                            )
+                            Text("Hide Int.")
+                        }
+                    },
+                    onClick = { onHideInterestButtonChange(!hideInterestButton) }
+                )
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(
+                                checked = hideSellButton,
+                                onCheckedChange = null
+                            )
+                            Text("Hide Sell")
+                        }
+                    },
+                    onClick = { onHideSellButtonChange(!hideSellButton) }
+                )
+                DropdownMenuItem(
+                    text = {
                         Text("Reports")
                     },
                     leadingIcon = {
@@ -1127,6 +1180,14 @@ private fun EditTransactionDialog(
     onDelete: () -> Unit,
     onSave: (Double, EntryType, String, Long, Double) -> Unit
 ) {
+    val editDialogContext = LocalContext.current
+    val hideInterestButton = remember(entry.partyId) {
+        editDialogContext.getSharedPreferences(
+            "ledger_party_ui_visibility",
+            android.content.Context.MODE_PRIVATE
+        ).getBoolean("hide_int_${entry.partyId}", false)
+    }
+
     var amount by remember(entry.id) {
         mutableStateOf(entry.amount.toString())
     }
@@ -1290,7 +1351,8 @@ private fun EditTransactionDialog(
                         ),
                         modifier = Modifier.weight(1f)
                     )
-                    FilterChip(
+                    if (!hideInterestButton) {
+FilterChip(
                         selected = interestRate > 0.0,
                         onClick = { showInterestInput = !showInterestInput },
                         label = {
@@ -1303,6 +1365,7 @@ private fun EditTransactionDialog(
                             )
                         }
                     )
+                    }
                 }
 
                 Row(
@@ -2296,6 +2359,8 @@ private fun TransactionComposer(
     interestRate: Double,
     interestRateText: String,
     showInterestInput: Boolean,
+    hideInterestButton: Boolean,
+    hideSellButton: Boolean,
     onInterestClick: () -> Unit,
     onInterestRateChange: (String) -> Unit,
     selectedType: EntryType,
@@ -2312,23 +2377,71 @@ private fun TransactionComposer(
         context.getSharedPreferences("ledger_party_sell_items", Context.MODE_PRIVATE)
     }
     val sellItemsKey = "party_sell_items_$partyId"
+    val sellMigrationKey = "party_sell_items_room_migrated_$partyId"
+    val sellItemsScope = rememberCoroutineScope()
+
     var sellItems by remember(partyId) {
-        mutableStateOf(
-            runCatching {
-                val json = org.json.JSONArray(
-                    sellPreferences.getString(sellItemsKey, "[]") ?: "[]"
-                )
-                List(json.length()) { index ->
-                    val item = json.getJSONObject(index)
-                    PartySellItem(
-                        title = item.getString("title"),
-                        rate = item.getDouble("rate"),
-                        quantityType = item.getString("quantityType")
-                    )
-                }
-            }.getOrDefault(emptyList())
-        )
+        mutableStateOf<List<PartySellItem>>(emptyList())
     }
+
+    LaunchedEffect(partyId) {
+        val dao = LedgerDatabaseProvider.get(context).partySellItemDao()
+
+        withContext(Dispatchers.IO) {
+            var stored = dao.getByPartyId(partyId)
+
+            // Import legacy SharedPreferences data once, without overwriting Room data.
+            if (!sellPreferences.getBoolean(sellMigrationKey, false)) {
+                if (stored.isEmpty()) {
+                    val legacyItems = runCatching {
+                        val json = org.json.JSONArray(
+                            sellPreferences.getString(sellItemsKey, "[]") ?: "[]"
+                        )
+                        List(json.length()) { index ->
+                            val item = json.getJSONObject(index)
+                            PartySellItem(
+                                title = item.getString("title"),
+                                rate = item.getDouble("rate"),
+                                quantityType = item.getString("quantityType")
+                            )
+                        }
+                    }.getOrDefault(emptyList())
+
+                    if (legacyItems.isNotEmpty()) {
+                        dao.replaceForParty(
+                            partyId,
+                            legacyItems.map {
+                                com.ledger.app.data.PartySellItemEntity(
+                                    partyId = partyId,
+                                    title = it.title,
+                                    rate = it.rate,
+                                    quantityType = it.quantityType
+                                )
+                            }
+                        )
+                    }
+                }
+
+                sellPreferences.edit()
+                    .putBoolean(sellMigrationKey, true)
+                    .remove(sellItemsKey)
+                    .commit()
+
+                stored = dao.getByPartyId(partyId)
+            }
+
+            stored.map {
+                PartySellItem(
+                    title = it.title,
+                    rate = it.rate,
+                    quantityType = it.quantityType
+                )
+            }
+        }.also { loadedItems ->
+            sellItems = loadedItems
+        }
+    }
+
     var selectedSellItem by remember(partyId) {
         mutableStateOf<PartySellItem?>(null)
     }
@@ -2340,17 +2453,38 @@ private fun TransactionComposer(
     var newSellQuantityType by remember { mutableStateOf("") }
 
     fun saveSellItems(items: List<PartySellItem>) {
-        val json = org.json.JSONArray()
-        items.forEach { item ->
-            json.put(
-                org.json.JSONObject()
-                    .put("title", item.title)
-                    .put("rate", item.rate)
-                    .put("quantityType", item.quantityType)
-            )
-        }
-        sellPreferences.edit().putString(sellItemsKey, json.toString()).apply()
+        // Update the UI immediately; persist the complete list in Room.
         sellItems = items
+        sellItemsScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    LedgerDatabaseProvider.get(context)
+                        .partySellItemDao()
+                        .replaceForParty(
+                            partyId,
+                            items.map {
+                                com.ledger.app.data.PartySellItemEntity(
+                                    partyId = partyId,
+                                    title = it.title,
+                                    rate = it.rate,
+                                    quantityType = it.quantityType
+                                )
+                            }
+                        )
+                }
+            }.onFailure {
+                android.util.Log.e(
+                    "PartySellItems",
+                    "Could not save Sell Items for party $partyId",
+                    it
+                )
+                Toast.makeText(
+                    context,
+                    "Sell Items database save failed",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     Card(
@@ -2444,7 +2578,8 @@ private fun TransactionComposer(
                     }
                 )
 
-                FilterChip(
+                if (!hideInterestButton) {
+FilterChip(
                     modifier = Modifier.weight(0.8f),
                     selected = interestRate > 0.0,
                     onClick = onInterestClick,
@@ -2459,8 +2594,10 @@ private fun TransactionComposer(
                         )
                     }
                 )
+                }
 
-                if (selectedType == EntryType.CREDIT) {
+
+                if (selectedType == EntryType.CREDIT && !hideSellButton) {
                     Box(
                         modifier = Modifier
                             .weight(0.8f)
@@ -2615,6 +2752,7 @@ private fun TransactionComposer(
             ) {
                 OutlinedTextField(
                     value = amount,
+                    enabled = selectedSellItem == null,
                     onValueChange = onAmountChange,
                     modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
                     singleLine = true,

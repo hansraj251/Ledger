@@ -115,20 +115,14 @@ internal fun createPartyReportPdf(
 
     writer.subtitle(party.name)
 
-    // Report details table
-    val reportDetailRows = mutableListOf<List<String>>()
+    // Simple report metadata without a table.
     if (party.mobile.isNotBlank()) {
-        reportDetailRows.add(listOf("Mobile", party.mobile))
+        writer.text("Mobile: ${party.mobile}", 10f, false)
     }
-    reportDetailRows.add(
-        listOf("Generated", dateTimeFormat.format(Date(today)))
-    )
-
-    writer.table(
-        headers = listOf("Report Detail", "Value"),
-        rows = reportDetailRows,
-        notes = List(reportDetailRows.size) { null },
-        widths = listOf(180f, 343f)
+    writer.text(
+        "Generated: ${dateTimeFormat.format(Date(today))}",
+        9f,
+        false
     )
 
     writer.space(14f)
@@ -196,10 +190,18 @@ internal fun createPartyReportPdf(
         listOf(balanceLabel, money(kotlin.math.abs(netBalance)))
     )
 
+    val visibleSummaryRows = summaryRows.filter { row ->
+        val amount = row.getOrNull(1)
+            ?.replace(",", "")
+            ?.replace("₹", "")
+            ?.trim()
+        amount != null && amount.toDoubleOrNull() != 0.0
+    }
+
     writer.table(
         headers = listOf("Account Summary", "Amount"),
-        rows = summaryRows,
-        notes = List(summaryRows.size) { null },
+        rows = visibleSummaryRows,
+        notes = List(visibleSummaryRows.size) { null },
         widths = listOf(360f, 163f)
     )
 
@@ -211,6 +213,7 @@ internal fun createPartyReportPdf(
     } else {
         val transactionRows = mutableListOf<List<String>>()
         val transactionNotes = mutableListOf<String?>()
+        var hasTransactionInterest = false
 
         orderedEntries.forEach { entry ->
             val transactionDate =
@@ -227,7 +230,8 @@ internal fun createPartyReportPdf(
                 transactionDate = entry.transactionDate,
                 createdAt = entry.createdAt
             )
-            val total = entry.amount + interest
+            if (interest > 0.0) hasTransactionInterest = true
+
             val type = if (entry.type == EntryType.CREDIT) {
                 gaveLabel.uppercase()
             } else {
@@ -243,18 +247,23 @@ internal fun createPartyReportPdf(
             transactionRows.add(
                 listOf(
                     dateFormat.format(Date(transactionDate)),
-                    type,
+                    if (entry.note.isNotBlank()) "$type\n${entry.note}" else type,
                     money(entry.amount),
                     interestDetails
                 )
             )
-            transactionNotes.add(
-                entry.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
-            )
+            transactionNotes.add(null)
+        }
+
+        val transactionHeaders = if (hasTransactionInterest) {
+            listOf("Date", "Type / Note", "Amount", "Interest")
+        } else {
+            transactionRows.replaceAll { row -> row.take(3) }
+            listOf("Date", "Type / Note", "Amount")
         }
 
         writer.table(
-            headers = listOf("Date", "Type", "Principal", "Interest"),
+            headers = transactionHeaders,
             rows = transactionRows,
             notes = transactionNotes
         )
@@ -288,18 +297,15 @@ internal fun createPartyReportPdf(
             interestRows.add(
                 listOf(
                     dateFormat.format(Date(recordDate)),
-                    recordType,
-                    "—",
+                    if (record.note.isNotBlank()) "$recordType\nNote: ${record.note}" else recordType,
                     money(record.amount)
                 )
             )
-            interestNotes.add(
-                record.note.takeIf { it.isNotBlank() }?.let { "Note: $it" }
-            )
+            interestNotes.add(null)
         }
 
         writer.table(
-            headers = listOf("Date", "Type", "Principal", "Interest"),
+            headers = listOf("Date", "Type / Note", "Amount"),
             rows = interestRows,
             notes = interestNotes
         )

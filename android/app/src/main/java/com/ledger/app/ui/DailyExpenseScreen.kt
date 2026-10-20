@@ -1966,6 +1966,7 @@ private fun ExpenseEditorDialog(
     var newCategoryTitle by remember { mutableStateOf("") }
     var newCategoryIcon by remember { mutableStateOf("folder") }
     var newCategoryQuantityType by remember { mutableStateOf("Unit") }
+    var newCategoryDefaultPrice by remember { mutableStateOf("") }
     var showQuantityTypeMenu by remember { mutableStateOf(false) }
     val quantityTypeOptions = listOf(
         "Kilogram (kg)", "Gram (g)", "Milligram (mg)", "Tonne",
@@ -2082,6 +2083,56 @@ private fun ExpenseEditorDialog(
                     }
                 }
 
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showCategoryPage = true },
+                    shape = RoundedCornerShape(14.dp),
+                    color = androidx.compose.ui.graphics.Color.White,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(11.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                imageVector = expenseCategoryIcon(category),
+                                contentDescription = null,
+                                modifier = Modifier.padding(9.dp).size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Category",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                category,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowForwardIos,
+                            contentDescription = "Choose category",
+                            modifier = Modifier.size(17.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2110,12 +2161,19 @@ private fun ExpenseEditorDialog(
                     androidx.compose.material3.IconButton(
                         onClick = {
                             if (!showRateQuantity) {
+                                val selectedDefaultPrice =
+                                    categoryPrefs.getString("default_price:$category", "") ?: ""
+                                rate = selectedDefaultPrice
+                                categoryPrefs.edit()
+                                    .putString("calculator_last_rate", selectedDefaultPrice)
+                                    .apply()
                                 showRateQuantity = true
                                 updateQuantityNote(quantity)
-                                updateCalculatedAmount(rate, quantity)
+                                updateCalculatedAmount(selectedDefaultPrice, quantity)
                             } else {
                                 showRateQuantity = false
                                 amount = ""
+                                note = ""
                                 error = ""
                             }
                         },
@@ -2181,56 +2239,6 @@ private fun ExpenseEditorDialog(
                                 keyboardType = KeyboardType.Decimal
                             ),
                             shape = RoundedCornerShape(15.dp)
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showCategoryPage = true },
-                    shape = RoundedCornerShape(14.dp),
-                    color = androidx.compose.ui.graphics.Color.White,
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(11.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Icon(
-                                imageVector = expenseCategoryIcon(category),
-                                contentDescription = null,
-                                modifier = Modifier.padding(9.dp).size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Category",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                category,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.Outlined.ArrowForwardIos,
-                            contentDescription = "Choose category",
-                            modifier = Modifier.size(17.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -2420,12 +2428,30 @@ private fun ExpenseEditorDialog(
                                             .combinedClickable(
                                                 onClick = {
                                                     category = item
-                                                    if (quantity.isNotBlank()) {
-                                                        updateQuantityNote(quantity, item)
-                                                    }
+
+                                                    // Load default rate for the newly selected category.
+                                                    val selectedDefaultPrice =
+                                                        categoryPrefs.getString("default_price:$item", "") ?: ""
+                                                    rate = selectedDefaultPrice
                                                     categoryPrefs.edit()
+                                                        .putString("calculator_last_rate", selectedDefaultPrice)
                                                         .putString("last_selected_category", item)
                                                         .apply()
+
+
+                                                    // Recalculate immediately when the calculator is already open.
+                                                    if (showRateQuantity) {
+                                                        // Refresh the generated Note using the newly selected
+                                                        // category's quantity type immediately.
+                                                        updateQuantityNote(quantity, item)
+
+                                                        if (selectedDefaultPrice.isBlank()) {
+                                                            amount = ""
+                                                        } else {
+                                                            updateCalculatedAmount(selectedDefaultPrice, quantity)
+                                                        }
+                                                    }
+
                                                     showCategoryPage = false
                                                 },
                                                 onLongClick = {
@@ -2433,6 +2459,7 @@ private fun ExpenseEditorDialog(
                                                         editingCategoryTitle = item
                                                         newCategoryTitle = item
                                                         newCategoryQuantityType = categoryPrefs.getString("quantity_type:$item", "Unit") ?: "Unit"
+                                                newCategoryDefaultPrice = categoryPrefs.getString("default_price:$item", "") ?: ""
                                                         showQuantityTypeMenu = false
                                                         newCategoryIcon = customCategoryIcons[item]
                                                             ?.takeIf { key ->
@@ -2488,6 +2515,18 @@ private fun ExpenseEditorDialog(
                                                 modifier = Modifier.weight(1f),
                                                 verticalArrangement = Arrangement.spacedBy(3.dp)
                                             ) {
+                                                if (item in customCategories) {
+                                                    Text(
+                                                        text = "Hold to Edit",
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                                                            alpha = 0.7f
+                                                        ),
+                                                        maxLines = 1
+                                                    )
+                                                }
                                                 Text(
                                                     item,
                                                     style = MaterialTheme.typography.titleSmall,
@@ -2528,6 +2567,7 @@ private fun ExpenseEditorDialog(
                             newCategoryTitle = ""
                             newCategoryIcon = "folder"
                             newCategoryQuantityType = "Unit"
+                            newCategoryDefaultPrice = ""
                             showQuantityTypeMenu = false
                             categoryFormError = ""
                             showAddCategoryDialog = true
@@ -2631,6 +2671,24 @@ private fun ExpenseEditorDialog(
 }
 
 
+                    OutlinedTextField(
+                        value = newCategoryDefaultPrice,
+                        onValueChange = { input ->
+                            newCategoryDefaultPrice = input.filter {
+                                it.isDigit() || it == '.' || it == ','
+                            }
+                            categoryFormError = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Default Price (${CurrencySettings.symbol})") },
+                        placeholder = { Text("e.g. 100") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    )
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -2725,6 +2783,7 @@ if (editingCategoryTitle != null) {
                         .putStringSet("names", updated.toSet())
                         .remove("icon:$titleToDelete")
                         .remove("quantity_type:$titleToDelete")
+                        .remove("default_price:$titleToDelete")
                         .apply()
                     customCategories = updated
                     if (category == titleToDelete) {
@@ -2824,10 +2883,15 @@ Row(
                                                     "quantity_type:$title",
                                                     newCategoryQuantityType
                                                 )
+                                                .putString(
+                                                    "default_price:$title",
+                                                    newCategoryDefaultPrice.trim()
+                                                )
 
                                             if (oldTitle != null && oldTitle != title) {
                                                 editor.remove("icon:$oldTitle")
                                                 editor.remove("quantity_type:$oldTitle")
+                                                editor.remove("default_price:$oldTitle")
                                             }
                                             editor.apply()
 

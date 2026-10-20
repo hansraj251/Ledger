@@ -1600,6 +1600,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                 deletingExpense = editingExpense
                 showExpenseDialog = false
             },
+            onExpenseDataChanged = onExpenseDataChanged,
             onSave = { amount, category, note, date ->
                 val old = editingExpense
                 scope.launch {
@@ -1880,6 +1881,7 @@ private fun ExpenseEditorDialog(
     initial: DailyExpenseEntity?,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
+    onExpenseDataChanged: () -> Unit,
     onSave: (Double, String, String, Long) -> Unit
 ) {
     val context = LocalContext.current
@@ -1920,7 +1922,10 @@ private fun ExpenseEditorDialog(
                                 ?: "folder",
                             quantityType = categoryPrefs.getString(
                                 "quantity_type:$name", "Unit"
-                            ) ?: "Unit"
+                            ) ?: "Unit",
+                            defaultPrice = categoryPrefs.getString(
+                                "default_price:$name", ""
+                            ) ?: ""
                         )
                     }
                     withContext(Dispatchers.IO) {
@@ -1929,10 +1934,25 @@ private fun ExpenseEditorDialog(
                 }
             }
 
-            val rows = withContext(Dispatchers.IO) {
+            var rows = withContext(Dispatchers.IO) {
                 categoryDao.getAll()
             }
 
+            rows.forEach { row ->
+                val savedPrice = categoryPrefs
+                    .getString("default_price:${row.name}", "")
+                    ?.trim().orEmpty()
+
+                if (row.defaultPrice.isBlank() && savedPrice.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        categoryDao.upsert(row.copy(defaultPrice = savedPrice))
+                    }
+                }
+            }
+
+            rows = withContext(Dispatchers.IO) {
+                categoryDao.getAll()
+            }
             customCategories = rows.map { it.name }
 
             // Keep legacy preference keys synchronized for existing calculator/note code.
@@ -1941,6 +1961,7 @@ private fun ExpenseEditorDialog(
             rows.forEach { row ->
                 editor.putString("icon:${row.name}", row.icon)
                 editor.putString("quantity_type:${row.name}", row.quantityType)
+                editor.putString("default_price:${row.name}", row.defaultPrice)
             }
             editor.apply()
         } catch (e: Exception) {
@@ -1991,7 +2012,20 @@ private fun ExpenseEditorDialog(
         mutableStateOf(categoryPrefs.getString("calculator_last_rate", "") ?: "")
     }
     var quantity by remember(initial?.id) {
-        mutableStateOf(categoryPrefs.getString("calculator_last_quantity", "") ?: "")
+        mutableStateOf(
+            if (initial != null) {
+                // Edit mode: restore quantity only from this expense's own saved note.
+                val savedNote = initial.note?.trim().orEmpty()
+                Regex("""^([0-9]+(?:[.,][0-9]+)?)\s+.+$""")
+                    .find(savedNote)
+                    ?.groupValues
+                    ?.get(1)
+                    ?: ""
+            } else {
+                // Add mode: keep the last-used quantity.
+                categoryPrefs.getString("calculator_last_quantity", "") ?: ""
+            }
+        )
     }
 
     fun updateCalculatedAmount(rateText: String, quantityText: String) {
@@ -2019,6 +2053,18 @@ private fun ExpenseEditorDialog(
                 ?: expenseCategories.first()
         )
     }
+
+    // Custom categories load asynchronously; restore the saved choice once they are available.
+    androidx.compose.runtime.LaunchedEffect(customCategories, initial?.id) {
+        if (initial == null && category == expenseCategories.firstOrNull()) {
+            val savedCategory =
+                categoryPrefs.getString("last_selected_category", null)
+            if (savedCategory != null && savedCategory in allCategories) {
+                category = savedCategory
+            }
+        }
+    }
+
     var note by remember(initial?.id) { mutableStateOf(initial?.note ?: "") }
 
     fun updateQuantityNote(quantityText: String, categoryName: String = category) {
@@ -2140,8 +2186,24 @@ private fun ExpenseEditorDialog(
                 ) {
                     OutlinedTextField(
                         value = amount,
-                        onValueChange = { amount = it; error = "" },
+                        onValueChange = {
+                            if (!showRateQuantity) {
+                                amount = it
+                                error = ""
+                            }
+                        },
+                        readOnly = showRateQuantity,
                         modifier = Modifier.weight(1f),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            unfocusedContainerColor = if (showRateQuantity)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                            else
+                                MaterialTheme.colorScheme.surface,
+                            focusedContainerColor = if (showRateQuantity)
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                            else
+                                MaterialTheme.colorScheme.surface
+                        ),
                         label = { Text("Amount (${CurrencySettings.symbol})") },
                         leadingIcon = {
                             Text(
@@ -2168,12 +2230,16 @@ private fun ExpenseEditorDialog(
                                     .putString("calculator_last_rate", selectedDefaultPrice)
                                     .apply()
                                 showRateQuantity = true
-                                updateQuantityNote(quantity)
+                                if (initial == null) {
+                                    updateQuantityNote(quantity)
+                                }
                                 updateCalculatedAmount(selectedDefaultPrice, quantity)
                             } else {
                                 showRateQuantity = false
-                                amount = ""
-                                note = ""
+                                if (initial == null) {
+                                    amount = ""
+                                    note = ""
+                                }
                                 error = ""
                             }
                         },
@@ -2513,45 +2579,67 @@ private fun ExpenseEditorDialog(
                                             }
                                             Column(
                                                 modifier = Modifier.weight(1f),
-                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                if (item in customCategories) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
                                                     Text(
-                                                        text = "Hold to Edit",
-                                                        modifier = Modifier.fillMaxWidth(),
-                                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(
-                                                            alpha = 0.7f
-                                                        ),
+                                                        text = item,
+                                                        modifier = Modifier.weight(1f, fill = false),
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (selected)
+                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurface,
                                                         maxLines = 1
                                                     )
+
+                                                    if (item in customCategories) {
+                                                        Text(
+                                                            text = "Hold to Edit",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                            maxLines = 1
+                                                        )
+                                                    }
                                                 }
-                                                Text(
-                                                    item,
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = if (selected)
-                                                        FontWeight.Bold
-                                                    else
-                                                        FontWeight.Medium,
-                                                    color = if (selected)
-                                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                                    else
-                                                        MaterialTheme.colorScheme.onSurface
-                                                )
 
                                                 if (item in customCategories) {
-                                                    Text(
-                                                        text = categoryPrefs.getString(
-                                                            "quantity_type:$item",
-                                                            "Unit"
-                                                        ) ?: "Unit",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = if (selected)
-                                                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                                                        else
-                                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.SpaceBetween
+                                                    ) {
+                                                        Text(
+                                                            text = categoryPrefs.getString("quantity_type:$item", "Unit") ?: "Unit",
+                                                            modifier = Modifier.weight(1f, fill = false),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (selected)
+                                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                                                            else
+                                                                MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1
+                                                        )
+
+                                                        val defaultPrice = categoryPrefs.getString("default_price:$item", "")?.trim().orEmpty()
+                                                        Text(
+                                                            text = if (defaultPrice.isNotBlank()) {
+                                                                "Default Price: ${CurrencySettings.symbol}$defaultPrice"
+                                                            } else {
+                                                                "Default Price: Not set"
+                                                            },
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = if (selected)
+                                                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                                            else
+                                                                MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -2792,6 +2880,7 @@ if (editingCategoryTitle != null) {
                     editingCategoryTitle = null
                     showAddCategoryDialog = false
                     showCategoryPage = false
+                                        onExpenseDataChanged()
                 } catch (e: Exception) {
                     categoryFormError =
                         "Could not delete category: ${e.message ?: "Database error"}"
@@ -2871,7 +2960,8 @@ Row(
                                                     com.ledger.app.data.CustomExpenseCategoryEntity(
                                                         name = title,
                                                         icon = newCategoryIcon,
-                                                        quantityType = newCategoryQuantityType
+                                                        quantityType = newCategoryQuantityType,
+                                                    defaultPrice = newCategoryDefaultPrice.trim()
                                                     )
                                                 )
                                             }
@@ -2902,6 +2992,7 @@ Row(
                                             editingCategoryTitle = null
                                             showAddCategoryDialog = false
                                             showCategoryPage = false
+                                        onExpenseDataChanged()
                                         } catch (e: Exception) {
                                             categoryFormError =
                                                 "Could not save category: ${e.message ?: "Database error"}"

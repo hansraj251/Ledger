@@ -34,6 +34,8 @@ import android.content.Context
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -542,6 +544,7 @@ var showDeletePartyDialog by remember {
             item {
                 TransactionComposer(
                     isPremium = isPremium,
+                    partyId = party.id.toLong(),
                     amount = amount,
                     note = note,
                     transactionDate = transactionDate,
@@ -2277,9 +2280,16 @@ title = { Text("Delete interest record?") },
     }
 }
 
+private data class PartySellItem(
+    val title: String,
+    val rate: Double,
+    val quantityType: String
+)
+
 @Composable
 private fun TransactionComposer(
     isPremium: Boolean,
+    partyId: Long,
     amount: String,
     note: String,
     transactionDate: Long,
@@ -2298,6 +2308,50 @@ private fun TransactionComposer(
     onAdd: () -> Unit
 ) {
     val context = LocalContext.current
+    val sellPreferences = remember(context) {
+        context.getSharedPreferences("ledger_party_sell_items", Context.MODE_PRIVATE)
+    }
+    val sellItemsKey = "party_sell_items_$partyId"
+    var sellItems by remember(partyId) {
+        mutableStateOf(
+            runCatching {
+                val json = org.json.JSONArray(
+                    sellPreferences.getString(sellItemsKey, "[]") ?: "[]"
+                )
+                List(json.length()) { index ->
+                    val item = json.getJSONObject(index)
+                    PartySellItem(
+                        title = item.getString("title"),
+                        rate = item.getDouble("rate"),
+                        quantityType = item.getString("quantityType")
+                    )
+                }
+            }.getOrDefault(emptyList())
+        )
+    }
+    var selectedSellItem by remember(partyId) {
+        mutableStateOf<PartySellItem?>(null)
+    }
+    var sellQuantity by remember(partyId) { mutableStateOf("") }
+    var showAddSellItemDialog by remember { mutableStateOf(false) }
+    var showSellItems by remember(partyId) { mutableStateOf(true) }
+    var newSellTitle by remember { mutableStateOf("") }
+    var newSellRate by remember { mutableStateOf("") }
+    var newSellQuantityType by remember { mutableStateOf("") }
+
+    fun saveSellItems(items: List<PartySellItem>) {
+        val json = org.json.JSONArray()
+        items.forEach { item ->
+            json.put(
+                org.json.JSONObject()
+                    .put("title", item.title)
+                    .put("rate", item.rate)
+                    .put("quantityType", item.quantityType)
+            )
+        }
+        sellPreferences.edit().putString(sellItemsKey, json.toString()).apply()
+        sellItems = items
+    }
 
     Card(
         modifier = Modifier
@@ -2310,7 +2364,7 @@ private fun TransactionComposer(
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2366,29 +2420,32 @@ private fun TransactionComposer(
             }
 
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 FilterChip(
+                    modifier = Modifier.weight(1.45f),
                     selected = selectedType == EntryType.CREDIT,
                     onClick = {
                         onTypeChange(EntryType.CREDIT)
                     },
                     label = {
-                        Text("You Gave")
+                        Text("You Gave", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     }
                 )
 
                 FilterChip(
+                    modifier = Modifier.weight(1.45f),
                     selected = selectedType == EntryType.DEBIT,
                     onClick = {
                         onTypeChange(EntryType.DEBIT)
                     },
                     label = {
-                        Text("You Got")
+                        Text("You Got", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     }
                 )
 
                 FilterChip(
+                    modifier = Modifier.weight(0.8f),
                     selected = interestRate > 0.0,
                     onClick = onInterestClick,
                     label = {
@@ -2397,10 +2454,151 @@ private fun TransactionComposer(
                                 "Int. ${formatInterestRate(interestRate)}%"
                             } else {
                                 "Int."
-                            }
+                            },
+                            style = MaterialTheme.typography.labelSmall
                         )
                     }
                 )
+
+                if (selectedType == EntryType.CREDIT) {
+                    Box(
+                        modifier = Modifier
+                            .weight(0.8f)
+                            .align(Alignment.CenterVertically)
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (showSellItems) MaterialTheme.colorScheme.secondaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .border(
+                                1.dp,
+                                if (showSellItems) MaterialTheme.colorScheme.primary
+                                else Color(0xFFCBD5E1),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .combinedClickable(
+                                onClick = {
+                                    if (sellItems.isEmpty()) {
+                                        Toast.makeText(
+                                            context,
+                                            "Hold to add Sell Items",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        showSellItems = !showSellItems
+                                    }
+                                },
+                                onLongClick = {
+                                    newSellTitle = ""
+                                    newSellRate = ""
+                                    newSellQuantityType = ""
+                                    showAddSellItemDialog = true
+                                }
+                            )
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Sell",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                }
+
+            }
+
+            }
+
+            if (selectedType == EntryType.CREDIT && sellItems.isNotEmpty() && showSellItems) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 0.dp, bottom = 0.dp)
+                        .horizontalScroll(
+                            androidx.compose.foundation.rememberScrollState()
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    sellItems.forEach { item ->
+                        FilterChip(
+                            selected = selectedSellItem == item,
+                            onClick = {
+                                selectedSellItem = item
+                                sellQuantity = ""
+                                onAmountChange("")
+                                onNoteChange("")
+                            },
+                            label = { Text(item.title, style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                        )
+                    }
+                }
+            }
+
+            if (selectedType == EntryType.CREDIT && selectedSellItem != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = sellQuantity,
+                        onValueChange = { value ->
+                            val normalized = value.replace(",", ".")
+                            if (
+                                normalized.isEmpty() ||
+                                (normalized.count { it == '.' } <= 1 &&
+                                    normalized.all { it.isDigit() || it == '.' })
+                            ) {
+                                sellQuantity = normalized
+                                val quantity = normalized.toDoubleOrNull()
+                                val item = selectedSellItem
+                                if (quantity != null && quantity > 0.0 && item != null) {
+                                    onAmountChange(
+                                        String.format(
+                                            Locale.US,
+                                            "%.2f",
+                                            item.rate * quantity
+                                        )
+                                    )
+                                    val quantityText = normalized.trimEnd('.')
+                                    onNoteChange(
+                                        "$quantityText ${item.quantityType} ${item.title}"
+                                    )
+                                } else {
+                                    onAmountChange("")
+                                    onNoteChange("")
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Quantity") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Rate: ${CurrencySettings.symbol} ${
+                                String.format(Locale.getDefault(), "%.2f", selectedSellItem!!.rate)
+                            }",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = "Per ${selectedSellItem!!.quantityType}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             Row(
@@ -2534,136 +2732,110 @@ private fun TransactionComposer(
             }
         }
     }
-}
 
-@Composable
-private fun TransactionCard(
-    entry: LedgerEntryEntity,
-    modifier: Modifier = Modifier
-) {
-    val isCredit = entry.type == EntryType.CREDIT
-
-    val accent = if (isCredit) {
-        MaterialTheme.colorScheme.error
-    } else {
-        MaterialTheme.colorScheme.tertiary
-    }
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(42.dp),
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = accent.copy(alpha = 0.11f)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isCredit) {
-                            Icons.Outlined.ReceiptLong
-                        } else {
-                            Icons.Outlined.Payments
+    if (showAddSellItemDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddSellItemDialog = false },
+            containerColor = Color.White,
+            title = { Text("Add Sell Item") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = newSellTitle,
+                        onValueChange = { newSellTitle = it },
+                        label = { Text("Title") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+                    )
+                    OutlinedTextField(
+                        value = newSellRate,
+                        onValueChange = { value ->
+                            val normalized = value.replace(",", ".")
+                            if (
+                                normalized.isEmpty() ||
+                                (normalized.count { it == '.' } <= 1 &&
+                                    normalized.all { it.isDigit() || it == '.' })
+                            ) newSellRate = normalized
                         },
-                        contentDescription = null,
-                        tint = accent
+                        label = { Text("Rate") },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
+                    )
+                    OutlinedTextField(
+                        value = newSellQuantityType,
+                        onValueChange = { newSellQuantityType = it },
+                        label = { Text("Quantity Type (e.g. Litre, Kg, Piece)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp)
                     )
                 }
-            }
-
-            Spacer(
-                modifier = Modifier.size(12.dp)
-            )
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = if (isCredit) "You Gave" else "You Got",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                if (entry.note.isNotBlank()) {
-                    Spacer(
-                        modifier = Modifier.height(3.dp)
-                    )
-
-                    Text(
-                        text = entry.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { showAddSellItemDialog = false },
+                        modifier = Modifier.weight(1f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Text("Cancel", maxLines = 1)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                        val title = newSellTitle.trim()
+                        val rate = newSellRate.toDoubleOrNull()
+                        val quantityType = newSellQuantityType.trim()
+                        if (title.isNotBlank() && rate != null && rate > 0.0 &&
+                            quantityType.isNotBlank()
+                        ) {
+                            val existing = sellItems.firstOrNull {
+                                it.title.equals(title, ignoreCase = true)
+                            }
+                            val item = PartySellItem(title, rate, quantityType)
+                            val updated = if (existing == null) {
+                                sellItems + item
+                            } else {
+                                sellItems.map {
+                                    if (it == existing) item else it
+                                }
+                            }
+                            saveSellItems(updated)
+                            selectedSellItem = item
+                            sellQuantity = ""
+                            onAmountChange("")
+                            onNoteChange("")
+                            showAddSellItemDialog = false
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Enter Title, valid Rate and Quantity Type",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                    ,
+                        modifier = Modifier.weight(1f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Add", maxLines = 1)
+                    }
                 }
-
-                Spacer(
-                    modifier = Modifier.height(5.dp)
-                )
-
-                Text(
-                    text = transactionDateTimeLabel(entry),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            val accruedInterest = calculateTransactionInterest(
-                amount = entry.amount,
-                annualRate = entry.interestRate,
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt
-            )
-
-            val interestDays = transactionInterestDays(
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt
-            )
-
-            val total = calculateEntryTotal(entry)
-
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(entry.amount))}",
-                    color = accent,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (entry.interestRate > 0.0) {
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    Text(
-                        text = "Int. ${formatInterestRate(entry.interestRate)}% p.a.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = "$interestDays days • ${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+            },
+            dismissButton = {}
+        )
     }
 }
+
 
 @Composable
 private fun EmptyTransactionState() {
@@ -2882,5 +3054,136 @@ private fun showTransactionDatePicker(
         calendar.get(Calendar.MONTH),
         calendar.get(Calendar.DAY_OF_MONTH)
     ).show()
+}
+
+@Composable
+private fun TransactionCard(
+    entry: LedgerEntryEntity,
+    modifier: Modifier = Modifier
+) {
+    val isCredit = entry.type == EntryType.CREDIT
+
+    val accent = if (isCredit) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.tertiary
+    }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(42.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = accent.copy(alpha = 0.11f)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isCredit) {
+                            Icons.Outlined.ReceiptLong
+                        } else {
+                            Icons.Outlined.Payments
+                        },
+                        contentDescription = null,
+                        tint = accent
+                    )
+                }
+            }
+
+            Spacer(
+                modifier = Modifier.size(12.dp)
+            )
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = if (isCredit) "You Gave" else "You Got",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                if (entry.note.isNotBlank()) {
+                    Spacer(
+                        modifier = Modifier.height(3.dp)
+                    )
+
+                    Text(
+                        text = entry.note,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Spacer(
+                    modifier = Modifier.height(5.dp)
+                )
+
+                Text(
+                    text = transactionDateTimeLabel(entry),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val accruedInterest = calculateTransactionInterest(
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt
+            )
+
+            val interestDays = transactionInterestDays(
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt
+            )
+
+            val total = calculateEntryTotal(entry)
+
+            Column(
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(entry.amount))}",
+                    color = accent,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (entry.interestRate > 0.0) {
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = "Int. ${formatInterestRate(entry.interestRate)}% p.a.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Text(
+                        text = "$interestDays days • ${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+
 }
 

@@ -137,11 +137,46 @@ fun PartyLedgerScreen(
     val visibilityPrefs = remember(context) {
         context.getSharedPreferences("ledger_party_ui_visibility", android.content.Context.MODE_PRIVATE)
     }
-    var hideInterestButton by remember(party.id) {
-        mutableStateOf(visibilityPrefs.getBoolean("hide_int_${party.id}", false))
-    }
-    var hideSellButton by remember(party.id) {
-        mutableStateOf(visibilityPrefs.getBoolean("hide_sell_${party.id}", false))
+    var hideInterestButton by remember(party.id) { mutableStateOf(false) }
+    var hideSellButton by remember(party.id) { mutableStateOf(false) }
+
+    LaunchedEffect(party.id) {
+        val storedParty = withContext(Dispatchers.IO) {
+            val database = LedgerDatabaseProvider.get(context)
+            val stored = database.partyDao().getById(party.id)
+                ?: return@withContext null
+
+            val intKey = "hide_int_${party.id}"
+            val sellKey = "hide_sell_${party.id}"
+            val hasLegacyInt = visibilityPrefs.contains(intKey)
+            val hasLegacySell = visibilityPrefs.contains(sellKey)
+
+            val migrated = stored.copy(
+                hideInterestButton = if (hasLegacyInt)
+                    visibilityPrefs.getBoolean(intKey, false)
+                else stored.hideInterestButton,
+                hideSellButton = if (hasLegacySell)
+                    visibilityPrefs.getBoolean(sellKey, false)
+                else stored.hideSellButton
+            )
+
+            if (migrated != stored) {
+                database.partyDao().update(migrated)
+            }
+
+            if (hasLegacyInt || hasLegacySell) {
+                visibilityPrefs.edit()
+                    .remove(intKey)
+                    .remove(sellKey)
+                    .apply()
+            }
+            migrated
+        }
+
+        storedParty?.let {
+            hideInterestButton = it.hideInterestButton
+            hideSellButton = it.hideSellButton
+        }
     }
 
 
@@ -489,14 +524,24 @@ var showDeletePartyDialog by remember {
                     hideSellButton = hideSellButton,
                     onHideInterestButtonChange = { enabled ->
                         hideInterestButton = enabled
-                        visibilityPrefs.edit()
-                            .putBoolean("hide_int_${party.id}", enabled).apply()
+                        scope.launch {
+                            viewModel.updatePartyVisibility(
+                                partyId = currentParty.id,
+                                hideInterestButton = enabled,
+                                hideSellButton = hideSellButton
+                            )
+                        }
                         if (enabled) showInterestInput = false
                     },
                     onHideSellButtonChange = { enabled ->
                         hideSellButton = enabled
-                        visibilityPrefs.edit()
-                            .putBoolean("hide_sell_${party.id}", enabled).apply()
+                        scope.launch {
+                            viewModel.updatePartyVisibility(
+                                partyId = currentParty.id,
+                                hideInterestButton = hideInterestButton,
+                                hideSellButton = enabled
+                            )
+                        }
                     }
                 )
                 }
@@ -1181,11 +1226,14 @@ private fun EditTransactionDialog(
     onSave: (Double, EntryType, String, Long, Double) -> Unit
 ) {
     val editDialogContext = LocalContext.current
-    val hideInterestButton = remember(entry.partyId) {
-        editDialogContext.getSharedPreferences(
-            "ledger_party_ui_visibility",
-            android.content.Context.MODE_PRIVATE
-        ).getBoolean("hide_int_${entry.partyId}", false)
+    var hideInterestButton by remember(entry.partyId) { mutableStateOf(false) }
+    LaunchedEffect(entry.partyId) {
+        hideInterestButton = withContext(Dispatchers.IO) {
+            LedgerDatabaseProvider.get(editDialogContext)
+                .partyDao()
+                .getById(entry.partyId)
+                ?.hideInterestButton ?: false
+        }
     }
 
     var amount by remember(entry.id) {

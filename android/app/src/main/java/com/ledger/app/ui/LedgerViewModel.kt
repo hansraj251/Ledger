@@ -151,6 +151,35 @@ class LedgerViewModel(
         }
     }
 
+    suspend fun updatePartyVisibility(
+        partyId: Long,
+        hideInterestButton: Boolean,
+        hideSellButton: Boolean
+    ): Boolean {
+        return try {
+            val updatedParty = withContext(Dispatchers.IO) {
+                val existing = dataSource.getParty(partyId)
+                    ?: return@withContext null
+                existing.copy(
+                    hideInterestButton = hideInterestButton,
+                    hideSellButton = hideSellButton
+                )
+            } ?: return false
+
+            withContext(Dispatchers.IO) {
+                dataSource.updateParty(updatedParty)
+            }
+            loadParties()
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to save party settings"
+            )
+            false
+        }
+    }
+
     fun setSearchQuery(
         query: String
     ) {

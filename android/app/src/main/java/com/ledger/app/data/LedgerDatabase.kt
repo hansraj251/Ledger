@@ -27,7 +27,7 @@ import androidx.room.RoomDatabase
    StaffSalaryDeductionEntity::class,
         PartySellItemEntity::class
     ],
-    version = 22,
+    version = 23,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

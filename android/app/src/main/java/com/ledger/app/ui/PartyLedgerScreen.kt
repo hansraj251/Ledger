@@ -2334,7 +2334,7 @@ private fun TransactionComposer(
     }
     var sellQuantity by remember(partyId) { mutableStateOf("") }
     var showAddSellItemDialog by remember { mutableStateOf(false) }
-    var showSellItems by remember(partyId) { mutableStateOf(true) }
+    var editingSellItemIndex by remember { mutableStateOf<Int?>(null) }
     var newSellTitle by remember { mutableStateOf("") }
     var newSellRate by remember { mutableStateOf("") }
     var newSellQuantityType by remember { mutableStateOf("") }
@@ -2467,35 +2467,19 @@ private fun TransactionComposer(
                             .align(Alignment.CenterVertically)
                             .height(32.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(
-                                if (showSellItems) MaterialTheme.colorScheme.secondaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
                             .border(
                                 1.dp,
-                                if (showSellItems) MaterialTheme.colorScheme.primary
-                                else Color(0xFFCBD5E1),
+                                MaterialTheme.colorScheme.primary,
                                 RoundedCornerShape(8.dp)
                             )
-                            .combinedClickable(
-                                onClick = {
-                                    if (sellItems.isEmpty()) {
-                                        Toast.makeText(
-                                            context,
-                                            "Hold to add Sell Items",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        showSellItems = !showSellItems
-                                    }
-                                },
-                                onLongClick = {
-                                    newSellTitle = ""
-                                    newSellRate = ""
-                                    newSellQuantityType = ""
-                                    showAddSellItemDialog = true
-                                }
-                            )
+                            .clickable {
+                                editingSellItemIndex = null
+                                newSellTitle = ""
+                                newSellRate = ""
+                                newSellQuantityType = ""
+                                showAddSellItemDialog = true
+                            }
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2513,7 +2497,7 @@ private fun TransactionComposer(
 
             }
 
-            if (selectedType == EntryType.CREDIT && sellItems.isNotEmpty() && showSellItems) {
+            if (selectedType == EntryType.CREDIT && sellItems.isNotEmpty()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2527,7 +2511,11 @@ private fun TransactionComposer(
                         FilterChip(
                             selected = selectedSellItem == item,
                             onClick = {
-                                selectedSellItem = item
+                                if (selectedSellItem == item) {
+                                    selectedSellItem = null
+                                } else {
+                                    selectedSellItem = item
+                                }
                                 sellQuantity = ""
                                 onAmountChange("")
                                 onNoteChange("")
@@ -2583,7 +2571,26 @@ private fun TransactionComposer(
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                     )
                     Column(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                            .border(
+                                1.dp,
+                                MaterialTheme.colorScheme.outline,
+                                androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                            )
+                            .clickable {
+                                val item = selectedSellItem
+                                val index = item?.let { sellItems.indexOf(it) } ?: -1
+                                if (item != null && index >= 0) {
+                                    editingSellItemIndex = index
+                                    newSellTitle = item.title
+                                    newSellRate = item.rate.toString()
+                                    newSellQuantityType = item.quantityType
+                                    showAddSellItemDialog = true
+                                }
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
@@ -2735,9 +2742,14 @@ private fun TransactionComposer(
 
     if (showAddSellItemDialog) {
         AlertDialog(
-            onDismissRequest = { showAddSellItemDialog = false },
+            onDismissRequest = {
+                showAddSellItemDialog = false
+                editingSellItemIndex = null
+            },
             containerColor = Color.White,
-            title = { Text("Add Sell Item") },
+            title = {
+                Text(if (editingSellItemIndex != null) "Edit Sell Item" else "Add Sell Item")
+            },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -2781,11 +2793,38 @@ private fun TransactionComposer(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (editingSellItemIndex != null) {
+                        OutlinedButton(
+                            onClick = {
+                                val index = editingSellItemIndex
+                                if (index != null && index in sellItems.indices) {
+                                    val removed = sellItems[index]
+                                    saveSellItems(sellItems.filterIndexed { i, _ -> i != index })
+                                    if (selectedSellItem == removed) {
+                                        selectedSellItem = null
+                                        sellQuantity = ""
+                                        onAmountChange("")
+                                        onNoteChange("")
+                                    }
+                                }
+                                editingSellItemIndex = null
+                                showAddSellItemDialog = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, Color.Red)
+                        ) {
+                            Text("Delete", maxLines = 1, color = Color.Red)
+                        }
+                    }
                     OutlinedButton(
-                        onClick = { showAddSellItemDialog = false },
+                        onClick = {
+                            showAddSellItemDialog = false
+                            editingSellItemIndex = null
+                        },
                         modifier = Modifier.weight(1f),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        border = BorderStroke(1.dp, Color.Red)
                     ) {
                         Text("Cancel", maxLines = 1)
                     }
@@ -2797,15 +2836,18 @@ private fun TransactionComposer(
                         if (title.isNotBlank() && rate != null && rate > 0.0 &&
                             quantityType.isNotBlank()
                         ) {
-                            val existing = sellItems.firstOrNull {
-                                it.title.equals(title, ignoreCase = true)
-                            }
                             val item = PartySellItem(title, rate, quantityType)
-                            val updated = if (existing == null) {
-                                sellItems + item
+                            val editIndex = editingSellItemIndex
+                            val updated = if (editIndex != null && editIndex in sellItems.indices) {
+                                sellItems.toMutableList().also { it[editIndex] = item }
                             } else {
-                                sellItems.map {
-                                    if (it == existing) item else it
+                                val existingIndex = sellItems.indexOfFirst {
+                                    it.title.equals(title, ignoreCase = true)
+                                }
+                                if (existingIndex >= 0) {
+                                    sellItems.toMutableList().also { it[existingIndex] = item }
+                                } else {
+                                    sellItems + item
                                 }
                             }
                             saveSellItems(updated)
@@ -2813,6 +2855,7 @@ private fun TransactionComposer(
                             sellQuantity = ""
                             onAmountChange("")
                             onNoteChange("")
+                            editingSellItemIndex = null
                             showAddSellItemDialog = false
                         } else {
                             Toast.makeText(
@@ -2825,9 +2868,9 @@ private fun TransactionComposer(
                     ,
                         modifier = Modifier.weight(1f),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                        border = BorderStroke(1.dp, Color.Red)
                     ) {
-                        Text("Add", maxLines = 1)
+                        Text(if (editingSellItemIndex != null) "Save" else "Add", maxLines = 1)
                     }
                 }
             },

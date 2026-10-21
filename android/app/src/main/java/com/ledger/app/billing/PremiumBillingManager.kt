@@ -181,7 +181,6 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
         val flow = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(listOf(productParams))
-            .setObfuscatedAccountId(driveAccountId)
             .build()
 
         val result = billingClient.launchBillingFlow(activity, flow)
@@ -220,25 +219,12 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         LIFETIME_PRODUCT_ID in purchase.products ||
             SUBSCRIPTION_PRODUCT_ID in purchase.products
 
-    private fun accountMatches(purchase: Purchase, accountId: String?): Boolean =
-        !accountId.isNullOrBlank() &&
-            purchase.accountIdentifiers?.obfuscatedAccountId == accountId
-
     private fun processPurchase(purchase: Purchase) {
         if (!isPremiumProduct(purchase)) return
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
 
-        val currentAccountId = DriveAccountBinding.currentAccountId(appContext)
-        val matches = accountMatches(purchase, currentAccountId)
-        val ownerPremium = DriveAccountBinding.isOwnerPremiumAccount(appContext)
-
-        if (matches || ownerPremium) {
-            _state.value = _state.value.copy(isPremium = true, message = "")
-        } else {
-            _state.value = _state.value.copy(
-                message = "Premium is linked to a different Google Drive account."
-            )
-        }
+        // Premium entitlement depends on Google Play ownership, not Drive Gmail.
+        _state.value = _state.value.copy(isPremium = true, message = "")
 
         if (!purchase.isAcknowledged) {
             val params = AcknowledgePurchaseParams.newBuilder()
@@ -259,7 +245,6 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
     private fun refreshOwnedPurchases() {
         if (!billingClient.isReady) return
 
-        val accountId = DriveAccountBinding.currentAccountId(appContext)
 
         val inAppParams = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.INAPP)
@@ -270,8 +255,7 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
             val lifetimeOwned = inAppPurchases.any { purchase ->
                 LIFETIME_PRODUCT_ID in purchase.products &&
-                    purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
-                    accountMatches(purchase, accountId)
+                    purchase.purchaseState == Purchase.PurchaseState.PURCHASED
             }
 
             inAppPurchases.forEach(::processPurchase)
@@ -285,8 +269,7 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
                 val subscriptionOwned = subscriptions.any { purchase ->
                     SUBSCRIPTION_PRODUCT_ID in purchase.products &&
-                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
-                        accountMatches(purchase, accountId)
+                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED
                 }
 
                 subscriptions.forEach(::processPurchase)

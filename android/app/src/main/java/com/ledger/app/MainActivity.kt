@@ -188,6 +188,11 @@ class MainActivity : ComponentActivity() {
         premiumBillingManager = PremiumBillingManager(applicationContext)
 
         setContent {
+            // Temporary UI state only: app restart defaults Auto Sync to ON.
+            val autoSyncOffState = androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(false)
+            }
+
             LedgerTheme {
                 val premiumBillingState by premiumBillingManager.state.collectAsState()
                 LaunchedEffect(premiumBillingState.message) {
@@ -630,6 +635,15 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         },
                         isPremium = premiumBillingState.isPremium,
                         premiumPrice = premiumBillingState.productPrice,
+                        autoSyncOff = autoSyncOffState.value,
+                        onAutoSyncOff = {
+                            googleDriveSyncCoordinator.pause()
+                            autoSyncOffState.value = true
+                        },
+                        onAutoSyncOn = {
+                            googleDriveSyncCoordinator.resume()
+                            autoSyncOffState.value = false
+                        },
                         onUpgradeClick = { launchPremiumPurchase() },
                             onStaffClick = { staffId ->
                                 openStaffEditorOnOpen = false

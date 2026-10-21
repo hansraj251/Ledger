@@ -97,6 +97,10 @@ fun HomeScreen(
     onGroupLongClick: (Long) -> Unit = { onGroupClick(it) },
     openSidebarOnLaunch: Boolean = false,
     onSidebarLaunchHandled: () -> Unit = {},
+    autoSyncOff: Boolean = false,
+    onAutoSyncOff: () -> Unit = {},
+    onAutoSyncOn: () -> Unit = {},
+
     onStaffClick: (Long) -> Unit = {},
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
 ) {
@@ -436,7 +440,92 @@ fun HomeScreen(
         }
     }
 
-    if (showTipsDialog) {
+    
+    var showAutoSyncOffDialog by remember { mutableStateOf(false) }
+
+    if (showAutoSyncOffDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showAutoSyncOffDialog = false },
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    Modifier.border(
+                        width = 1.dp,
+                        color = Color(0xFFE5E7EB),
+                        shape = RoundedCornerShape(28.dp)
+                    )
+                ),
+            shape = RoundedCornerShape(28.dp),
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            title = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("☁️", fontSize = 30.sp)
+                    Text(
+                        text = "Turn Auto Sync Off?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1F2937),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "You can turn Auto Sync off temporarily if you want to Add, Edit, and Delete many transactions without syncing again and again.",
+                    color = Color(0xFF4B5563),
+                    style = MaterialTheme.typography.bodyMedium,
+                    lineHeight = 22.sp
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showAutoSyncOffDialog = false
+                        onAutoSyncOff()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2563EB),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Text(
+                        "Turn Auto Sync Off",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        maxLines = 1
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { showAutoSyncOffDialog = false },
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        Color(0xFFD1D5DB)
+                    ),
+                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFF374151)
+                    ),
+                    modifier = Modifier.height(40.dp)
+                ) {
+                    Text("Cancel", fontWeight = FontWeight.Medium, fontSize = 12.sp)
+                }
+            },
+            titleContentColor = Color(0xFF1F2937),
+            textContentColor = Color(0xFF4B5563)
+        )
+    }
+
+if (showTipsDialog) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showTipsDialog = false },
             title = {
@@ -899,7 +988,53 @@ Surface(
                                                     }
                                                 }
 
-                                                Spacer(Modifier.weight(1f))
+                                                
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                showMenu = false
+                                                if (autoSyncOff) {
+                                                    onAutoSyncOn()
+                                                } else {
+                                                    showAutoSyncOffDialog = true
+                                                }
+                                            },
+                                        shape = RoundedCornerShape(13.dp),
+                                        color = if (autoSyncOff)
+                                            Color(0xFFE4F7E9)
+                                        else
+                                            Color(0xFFEAF2FF)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(
+                                                horizontal = 14.dp,
+                                                vertical = 13.dp
+                                            ),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (autoSyncOff) "🔄" else "☁️",
+                                                fontSize = 20.sp
+                                            )
+                                            Text(
+                                                text = if (autoSyncOff)
+                                                    "Auto sync on"
+                                                else
+                                                    "Auto sync off",
+                                                modifier = Modifier.padding(start = 12.dp),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (autoSyncOff)
+                                                    Color(0xFF176B35)
+                                                else
+                                                    Color(0xFF234E8A)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+Spacer(Modifier.weight(1f))
                                             }
                                         }
                                     }

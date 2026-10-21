@@ -1,12 +1,12 @@
 package com.ledger.app.billing
 
-import com.ledger.app.backup.DriveAccountBinding
-
+import android.util.Log
 import android.app.Activity
 import android.content.Context
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
+import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.ProductDetails
@@ -14,7 +14,7 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
-import com.android.billingclient.api.BillingFlowParams
+import com.ledger.app.backup.DriveAccountBinding
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,20 +27,25 @@ data class PremiumBillingState(
 )
 
 /**
- * Client-side Google Play purchase ownership manager for the non-consumable
- * lifetime_premium product. Product must also exist in Play Console.
+ * Supports yearly subscriptions for new customers and preserves access
+ * for existing lifetime_premium purchasers.
  */
 class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
     private val appContext = context.applicationContext
+
     companion object {
-        const val PRODUCT_ID = "lifetime_premium"
+        const val LIFETIME_PRODUCT_ID = "lifetime_premium"
+        const val SUBSCRIPTION_PRODUCT_ID = "ledger_premium_yearly"
+        const val SUBSCRIPTION_BASE_PLAN_ID = "yearly"
     }
 
     private val _state = MutableStateFlow(PremiumBillingState())
     val state: StateFlow<PremiumBillingState> = _state.asStateFlow()
 
-    private var productDetails: ProductDetails? = null
-    private val billingClient = BillingClient.newBuilder(context.applicationContext)
+    private var subscriptionDetails: ProductDetails? = null
+    private var isConnecting = false
+
+    private val billingClient = BillingClient.newBuilder(appContext)
         .setListener(this)
         .enablePendingPurchases(
             PendingPurchasesParams.newBuilder()
@@ -55,19 +60,34 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
     private fun connect() {
         if (billingClient.isReady) {
-            loadProduct()
+            loadSubscription()
             refreshOwnedPurchases()
             return
         }
 
+        if (isConnecting) {
+            Log.d("LedgerBilling", "Connection already in progress; skipping duplicate request")
+            return
+        }
+
+        isConnecting = true
+        Log.d("LedgerBilling", "Starting BillingClient connection")
+
         billingClient.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
+                isConnecting = false
+                Log.e(
+                    "LedgerBilling",
+                    "onBillingSetupFinished responseCode=${result.responseCode}, " +
+                        "debugMessage=${result.debugMessage}"
+                )
+
                 if (result.responseCode == BillingClient.BillingResponseCode.OK) {
                     _state.value = _state.value.copy(
                         isReady = true,
                         message = ""
                     )
-                    loadProduct()
+                    loadSubscription()
                     refreshOwnedPurchases()
                 } else {
                     _state.value = _state.value.copy(
@@ -78,15 +98,17 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
             }
 
             override fun onBillingServiceDisconnected() {
+                isConnecting = false
+                Log.w("LedgerBilling", "Billing service disconnected")
                 _state.value = _state.value.copy(isReady = false)
             }
         })
     }
 
-    private fun loadProduct() {
+    private fun loadSubscription() {
         val product = QueryProductDetailsParams.Product.newBuilder()
-            .setProductId(PRODUCT_ID)
-            .setProductType(BillingClient.ProductType.INAPP)
+            .setProductId(SUBSCRIPTION_PRODUCT_ID)
+            .setProductType(BillingClient.ProductType.SUBS)
             .build()
 
         val params = QueryProductDetailsParams.newBuilder()
@@ -95,19 +117,30 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
 
         billingClient.queryProductDetailsAsync(params) { result, queryResult ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
-                productDetails = queryResult.productDetailsList.firstOrNull()
-                val offer = productDetails?.oneTimePurchaseOfferDetailsList?.firstOrNull()
+                subscriptionDetails =
+                    queryResult.productDetailsList.firstOrNull()
+
+                val offer = subscriptionDetails
+                    ?.subscriptionOfferDetails
+                    ?.firstOrNull { it.basePlanId == SUBSCRIPTION_BASE_PLAN_ID }
+
+                val price = offer?.pricingPhases
+                    ?.pricingPhaseList
+                    ?.lastOrNull()
+                    ?.formattedPrice
+                    .orEmpty()
+
                 _state.value = _state.value.copy(
-                    productPrice = offer?.formattedPrice.orEmpty(),
-                    message = if (productDetails == null) {
-                        "Premium product unavailable. Check its Play Console setup."
+                    productPrice = price,
+                    message = if (subscriptionDetails == null || offer == null) {
+                        "Yearly subscription unavailable. Check ledger_premium_yearly and its active base plan in Play Console."
                     } else {
                         ""
                     }
                 )
             } else {
                 _state.value = _state.value.copy(
-                    message = "Unable to load the Premium product from Google Play."
+                    message = "Unable to load the yearly Premium subscription from Google Play."
                 )
             }
         }
@@ -116,10 +149,11 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
     fun launchPurchase(activity: Activity, driveAccountId: String) {
         if (driveAccountId.isBlank()) {
             _state.value = _state.value.copy(
-                message = "Connect Google Drive before purchasing Premium."
+                message = "Connect Google Drive before subscribing to Premium."
             )
             return
         }
+
         if (!billingClient.isReady) {
             _state.value = _state.value.copy(
                 message = "Connecting to Google Play. Please try again shortly."
@@ -128,19 +162,21 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
             return
         }
 
-        val details = productDetails
-        val offer = details?.oneTimePurchaseOfferDetailsList?.firstOrNull()
+        val details = subscriptionDetails
+        val offer = details?.subscriptionOfferDetails
+            ?.firstOrNull { it.basePlanId == SUBSCRIPTION_BASE_PLAN_ID }
+
         if (details == null || offer == null) {
             _state.value = _state.value.copy(
-                message = "Premium is unavailable. Verify lifetime_premium in Play Console."
+                message = "Yearly Premium is unavailable. Verify ledger_premium_yearly and its active base plan in Play Console."
             )
-            loadProduct()
+            loadSubscription()
             return
         }
 
         val productParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(details)
-            .setOfferToken(offer.offerToken.orEmpty())
+            .setOfferToken(offer.offerToken)
             .build()
 
         val flow = BillingFlowParams.newBuilder()
@@ -151,7 +187,7 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         val result = billingClient.launchBillingFlow(activity, flow)
         if (result.responseCode != BillingClient.BillingResponseCode.OK) {
             _state.value = _state.value.copy(
-                message = "Unable to start Google Play purchase (${result.responseCode})."
+                message = "Unable to start the Premium subscription (${result.responseCode})."
             )
         }
     }
@@ -165,10 +201,13 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
                 purchases.orEmpty().forEach(::processPurchase)
                 refreshOwnedPurchases()
             }
+
             BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED -> refreshOwnedPurchases()
+
             BillingClient.BillingResponseCode.USER_CANCELED -> {
                 _state.value = _state.value.copy(message = "Purchase cancelled.")
             }
+
             else -> {
                 _state.value = _state.value.copy(
                     message = "Purchase did not complete (${result.responseCode})."
@@ -177,32 +216,39 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
         }
     }
 
+    private fun isPremiumProduct(purchase: Purchase): Boolean =
+        LIFETIME_PRODUCT_ID in purchase.products ||
+            SUBSCRIPTION_PRODUCT_ID in purchase.products
+
+    private fun accountMatches(purchase: Purchase, accountId: String?): Boolean =
+        !accountId.isNullOrBlank() &&
+            purchase.accountIdentifiers?.obfuscatedAccountId == accountId
+
     private fun processPurchase(purchase: Purchase) {
-        if (PRODUCT_ID !in purchase.products) return
+        if (!isPremiumProduct(purchase)) return
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
 
         val currentAccountId = DriveAccountBinding.currentAccountId(appContext)
-        val purchaseAccountId =
-            purchase.accountIdentifiers?.obfuscatedAccountId
-        val accountMatches =
-            !currentAccountId.isNullOrBlank() &&
-            purchaseAccountId == currentAccountId
+        val matches = accountMatches(purchase, currentAccountId)
+        val ownerPremium = DriveAccountBinding.isOwnerPremiumAccount(appContext)
 
-        _state.value = _state.value.copy(
-            isPremium = accountMatches || DriveAccountBinding.isOwnerPremiumAccount(appContext),
-            message = if (accountMatches || DriveAccountBinding.isOwnerPremiumAccount(appContext)) "" else
-                "Premium is linked to a different Google Drive account."
-        )
+        if (matches || ownerPremium) {
+            _state.value = _state.value.copy(isPremium = true, message = "")
+        } else {
+            _state.value = _state.value.copy(
+                message = "Premium is linked to a different Google Drive account."
+            )
+        }
 
-        // Acknowledge a completed Play purchase even if this app account does not match.
         if (!purchase.isAcknowledged) {
             val params = AcknowledgePurchaseParams.newBuilder()
                 .setPurchaseToken(purchase.purchaseToken)
                 .build()
+
             billingClient.acknowledgePurchase(params) { result ->
                 if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                     _state.value = _state.value.copy(
-                        message = "Premium purchased; Google Play acknowledgement is pending."
+                        message = "Purchase completed; Google Play acknowledgement is pending."
                     )
                 }
                 refreshOwnedPurchases()
@@ -213,30 +259,58 @@ class PremiumBillingManager(context: Context) : PurchasesUpdatedListener {
     private fun refreshOwnedPurchases() {
         if (!billingClient.isReady) return
 
-        val params = QueryPurchasesParams.newBuilder()
+        val accountId = DriveAccountBinding.currentAccountId(appContext)
+
+        val inAppParams = QueryPurchasesParams.newBuilder()
             .setProductType(BillingClient.ProductType.INAPP)
             .build()
 
-        billingClient.queryPurchasesAsync(params) { result, purchases ->
-            if (result.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
+        billingClient.queryPurchasesAsync(inAppParams) { inAppResult, inAppPurchases ->
+            if (inAppResult.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
 
-            val currentAccountId = DriveAccountBinding.currentAccountId(appContext)
-            val owned = purchases.firstOrNull {
-                PRODUCT_ID in it.products &&
-                    it.purchaseState == Purchase.PurchaseState.PURCHASED &&
-                    !currentAccountId.isNullOrBlank() &&
-                    it.accountIdentifiers?.obfuscatedAccountId == currentAccountId
+            val lifetimeOwned = inAppPurchases.any { purchase ->
+                LIFETIME_PRODUCT_ID in purchase.products &&
+                    purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                    accountMatches(purchase, accountId)
             }
 
-            _state.value = _state.value.copy(
-                isPremium = owned != null || DriveAccountBinding.isOwnerPremiumAccount(appContext)
-            )
-            owned?.let(::processPurchase)
+            inAppPurchases.forEach(::processPurchase)
+
+            val subsParams = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+
+            billingClient.queryPurchasesAsync(subsParams) { subsResult, subscriptions ->
+                if (subsResult.responseCode != BillingClient.BillingResponseCode.OK) return@queryPurchasesAsync
+
+                val subscriptionOwned = subscriptions.any { purchase ->
+                    SUBSCRIPTION_PRODUCT_ID in purchase.products &&
+                        purchase.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                        accountMatches(purchase, accountId)
+                }
+
+                subscriptions.forEach(::processPurchase)
+
+                val ownerPremium = DriveAccountBinding.isOwnerPremiumAccount(appContext)
+                _state.value = _state.value.copy(
+                    isPremium = lifetimeOwned || subscriptionOwned || ownerPremium,
+                    isReady = true,
+                    message = if (ownerPremium || lifetimeOwned || subscriptionOwned) {
+                        ""
+                    } else {
+                        _state.value.message
+                    }
+                )
+            }
         }
     }
 
     fun refreshOwnership() {
-        if (billingClient.isReady) refreshOwnedPurchases()
+        if (billingClient.isReady) {
+            refreshOwnedPurchases()
+        } else {
+            connect()
+        }
     }
 
     fun close() {

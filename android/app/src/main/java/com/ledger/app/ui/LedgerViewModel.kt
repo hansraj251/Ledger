@@ -221,7 +221,7 @@ class LedgerViewModel(
 
         if (!isPremium() && _uiState.value.parties.size >= 10) {
             _uiState.value = _uiState.value.copy(
-                errorMessage = "Free plan allows up to 10 parties. Unlock Lifetime Premium to add more."
+                errorMessage = "Free plan allows up to 10 parties. Subscribe to Premium to add more."
             )
             return
         }

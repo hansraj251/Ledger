@@ -1720,7 +1720,7 @@ title = { Text("Delete Party?") },
                     Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Unlock Premium",
+                        "Subscribe to Premium",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color(0xFF171B3A)
@@ -1783,7 +1783,7 @@ title = { Text("Delete Party?") },
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
-                            "Unlock Premium",
+                            "Subscribe to Premium",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp,
                             maxLines = 1,
@@ -1919,7 +1919,7 @@ title = { Text("Delete Party?") },
                     androidx.compose.material3.Text("👑", style = MaterialTheme.typography.headlineLarge)
                     Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.Text(
-                        "Unlock Premium",
+                        "Subscribe to Premium",
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         style = MaterialTheme.typography.headlineSmall,
@@ -1968,8 +1968,8 @@ title = { Text("Delete Party?") },
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     androidx.compose.material3.Text(
-                        if (premiumPrice.isBlank()) "Unlock Premium"
-                        else "Unlock Premium · $premiumPrice"
+                        if (premiumPrice.isBlank()) "Subscribe to Premium"
+                        else "Subscribe yearly · $premiumPrice/year"
                     )
                 }
             },

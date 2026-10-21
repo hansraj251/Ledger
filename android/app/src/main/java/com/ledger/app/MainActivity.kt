@@ -2074,12 +2074,12 @@ private fun ProfileScreen(
                             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp)
                         ) {
                             androidx.compose.material3.Text(
-                                text = "Unlock Lifetime Premium",
+                                text = "Ledger Premium Yearly",
                                 style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                             )
                             androidx.compose.material3.Text(
-                                text = "Add unlimited parties, expenses, groups and members with a one-time purchase.",
+                                text = "Get unlimited parties, expenses, groups and members with a yearly Premium subscription.",
                                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                             )
                             androidx.compose.material3.Button(
@@ -2092,9 +2092,9 @@ private fun ProfileScreen(
                             ) {
                                 androidx.compose.material3.Text(
                                     text = if (premiumPrice.isBlank())
-                                        "Unlock Premium"
+                                        "Subscribe to Premium"
                                     else
-                                        "Unlock Premium · $premiumPrice"
+                                        "Subscribe yearly · $premiumPrice/year"
                                 )
                             }
                         }

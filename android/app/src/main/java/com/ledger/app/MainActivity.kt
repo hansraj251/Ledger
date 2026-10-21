@@ -651,7 +651,8 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         onBack = {
                             selectedParty = null
                         },
-                        isPremium = premiumBillingState.isPremium
+                        isPremium = premiumBillingState.isPremium,
+                        onUpgradeClick = { launchPremiumPurchase() }
                     )
                 }
 

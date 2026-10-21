@@ -2529,6 +2529,16 @@ title = { Text("Delete group expense?") },
             onSave = { title, amount, expenseDate, note, paymentType, mode, drafts, paymentDrafts ->
                 val groupId = activeGroupId ?: return@GroupExpenseEditorDialog
                 scope.launch {
+                    if (!isPremium && editingExpense == null) {
+                        val existingExpenseCount = withContext(Dispatchers.IO) {
+                            expenseDao.count()
+                        }
+                        if (existingExpenseCount >= 50) {
+                            freeLimitMessage = "The Free plan allows up to 50 group expenses across all groups. Upgrade to Premium for unlimited group expenses."
+                            showFreeLimitDialog = true
+                            return@launch
+                        }
+                    }
                     withContext(Dispatchers.IO) {
                         val old = editingExpense
                         val expenseId = if (old == null) {

@@ -56,6 +56,8 @@ interface GroupSettlementDao {
 
 @Dao
 interface GroupExpenseDao {
+    @Query("SELECT COUNT(*) FROM group_expenses")
+    fun count(): Int
     @Query("SELECT * FROM group_expenses WHERE groupId = :groupId ORDER BY expenseDate DESC, id DESC")
     fun getByGroup(groupId: Long): List<GroupExpenseEntity>
 

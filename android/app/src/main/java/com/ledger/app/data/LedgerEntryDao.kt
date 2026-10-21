@@ -46,6 +46,9 @@ interface LedgerEntryDao {
     )
     fun getBalance(partyId: Long): Double
 
+    @Query("SELECT COUNT(*) FROM ledger_entries WHERE partyId = :partyId")
+    fun countByPartyId(partyId: Long): Int
+
     @Query("SELECT COUNT(*) FROM ledger_entries")
     fun count(): Int
 }

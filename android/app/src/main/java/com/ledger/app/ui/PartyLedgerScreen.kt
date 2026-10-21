@@ -129,6 +129,8 @@ fun PartyLedgerScreen(
     viewModel: LedgerViewModel,
     onBack: () -> Unit,
     isPremium: Boolean = false
+,
+    onUpgradeClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
@@ -496,7 +498,41 @@ var showDeletePartyDialog by remember {
         return
     }
 
-    Scaffold(
+    
+    val transactionLimitContext = androidx.compose.ui.platform.LocalContext.current
+    var showTransactionLimitDialog by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    var transactionLimitMessage by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf("")
+    }
+
+    if (showTransactionLimitDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showTransactionLimitDialog = false },
+            title = { androidx.compose.material3.Text("Free Plan Limit Reached") },
+            text = { androidx.compose.material3.Text(transactionLimitMessage) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        showTransactionLimitDialog = false
+                        onUpgradeClick()
+                    }
+                ) {
+                    androidx.compose.material3.Text("Upgrade to Premium")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showTransactionLimitDialog = false }
+                ) {
+                    androidx.compose.material3.Text("Not now")
+                }
+            }
+        )
+    }
+
+Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Surface(
@@ -657,7 +693,28 @@ var showDeletePartyDialog by remember {
                             val transactionRate = interestRate
 
                             scope.launch {
-                                val succeeded = viewModel.addEntry(
+                                if (!isPremium) {
+                    val limitMessage = kotlinx.coroutines.withContext(
+                        kotlinx.coroutines.Dispatchers.IO
+                    ) {
+                        val dao = com.ledger.app.data.LedgerDatabaseProvider
+                            .get(transactionLimitContext).ledgerEntryDao()
+                        when {
+                            dao.count() >= 100 ->
+                                "The Free plan allows up to 100 transactions across all parties. Upgrade to Premium for unlimited transactions."
+                            dao.countByPartyId(party.id.toLong()) >= 25 ->
+                                "The Free plan allows up to 25 transactions per party. Upgrade to Premium for unlimited transactions."
+                            else -> null
+                        }
+                    }
+                    if (limitMessage != null) {
+                        transactionLimitMessage = limitMessage
+                        showTransactionLimitDialog = true
+                        return@launch
+                    }
+                }
+
+                val succeeded = viewModel.addEntry(
                                     partyId = party.id,
                                     amount = parsedAmount,
                                     type = transactionType,

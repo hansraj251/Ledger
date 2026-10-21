@@ -1956,7 +1956,10 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                     ),
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                        if (isPremium)
+                            androidx.compose.ui.graphics.Color(0xFFFFC247)
+                        else
+                            androidx.compose.ui.graphics.Color(0xFFE0E0E0)
                     ),
                     modifier =
                         androidx.compose.ui.Modifier.fillMaxWidth(),

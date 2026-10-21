@@ -387,7 +387,7 @@ fun GroupSharingScreen(
                         color = Color(0xFF55566A)
                     )
                     Surface(
-                        color = Color(0xFFFFFBF1),
+                        color = Color.White,
                         shape = RoundedCornerShape(18.dp),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
@@ -2449,6 +2449,7 @@ title = { Text("Delete group?") },
     if (groupDeleteBlocked) {
         AlertDialog(
             onDismissRequest = { groupDeleteBlocked = false },
+            containerColor = androidx.compose.ui.graphics.Color.White,
             title = { Text("Settlement pending") },
             text = {
                 Text(

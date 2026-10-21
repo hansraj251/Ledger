@@ -930,15 +930,17 @@ if (selectedGroupSection != "Members") {
                                             )
                                             val isYou = member.name.equals("You", ignoreCase = true)
                                             val isExcessPaid = memberBalance < -0.009
+                                            val isSettled = kotlin.math.abs(memberBalance) <= 0.009
                                             Text(
                                                 text = when {
                                                     isYou -> "Your Share"
                                                     isExcessPaid -> "Excess Paid"
+                                                    isSettled -> "Settled"
                                                     else -> "Remaining balance"
                                                 },
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = when {
-                                                    isYou -> Color(0xFFD4A017)
+                                                    isYou || isSettled -> Color(0xFFD4A017)
                                                     isExcessPaid -> Color(0xFF14532D)
                                                     else -> Color(0xFFDC2626)
                                                 }
@@ -948,13 +950,14 @@ if (selectedGroupSection != "Members") {
                                         Spacer(Modifier.width(12.dp))
 
                                         val isExcessPaid = memberBalance < -0.009
+                                        val isSettled = kotlin.math.abs(memberBalance) <= 0.009
                                         Text(
                                             text = if (isYou) money(memberExpenseTotal(member.id, splits))
-                                        else money(if (isExcessPaid) kotlin.math.abs(memberBalance) else memberBalance),
+                                            else money(if (isExcessPaid) kotlin.math.abs(memberBalance) else memberBalance),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = when {
-                                                isYou -> Color(0xFFD4A017)
+                                                isYou || isSettled -> Color(0xFFD4A017)
                                                 isExcessPaid -> Color(0xFF14532D)
                                                 else -> Color(0xFFDC2626)
                                             }

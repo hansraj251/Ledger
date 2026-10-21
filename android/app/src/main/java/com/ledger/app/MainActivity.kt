@@ -89,6 +89,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
     private var initialDriveSetupCompletion: (() -> Unit)? = null
+    private var pendingDriveEmailChange: ((String) -> Unit)? = null
+    private var pendingBackupDownloadFile: java.io.File? = null
 
 
     override fun onCreate(
@@ -512,6 +514,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     )
                 } else if (showProfileScreen) {
                     ProfileScreen(
+                        onChangeDriveEmail = { onUpdated -> connectGoogleDrive(onUpdated) },
+                        onDownloadBackup = { downloadGoogleDriveBackupToDevice() },
+                        onRestoreBackup = { launchLocalBackupRestorePicker() },
                         onBack = {
                             showProfileScreen = false
                         },
@@ -715,6 +720,29 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     premiumBillingManager.refreshOwnership()
                 }
                 val verified = DriveAccountBinding.currentAccountId(applicationContext) != null
+                val callback = pendingDriveEmailChange
+                pendingDriveEmailChange = null
+                if (verified) {
+                    val email = applicationContext
+                        .getSharedPreferences(
+                            "ledger_drive_account_binding",
+                            android.content.Context.MODE_PRIVATE
+                        )
+                        .getString("drive_account_email", null)
+                        ?.takeIf { it.isNotBlank() }
+                    if (email != null) {
+                        callback?.invoke(email)
+
+                        // Start automatic sync after a changed Drive account
+                        // has been successfully verified and its email updated.
+                        if (
+                            callback != null &&
+                            ::googleDriveSyncCoordinator.isInitialized
+                        ) {
+                            googleDriveSyncCoordinator.requestAutoSync()
+                        }
+                    }
+                }
                 Toast.makeText(
                     this,
                     if (verified) "Google Drive account verified."
@@ -725,9 +753,10 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
         }
     }
 
-    private fun connectGoogleDrive() {
+    private fun connectGoogleDrive(onEmailChanged: ((String) -> Unit)? = null) {
+        if (onEmailChanged != null) pendingDriveEmailChange = onEmailChanged
         googleDriveAuthorization
-            .authorize()
+            .authorize(forceSelectAccount = onEmailChanged != null)
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
                     try {
@@ -753,6 +782,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 }
             }
             .addOnFailureListener {
+                pendingDriveEmailChange = null
                 Toast.makeText(
                     this,
                     "Google Drive authorization failed.",
@@ -869,6 +899,117 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     ).show()
                 }
         }
+    }
+
+    private fun downloadGoogleDriveBackupToDevice() {
+        Toast.makeText(
+            this,
+            "Downloading Ledger backup from Google Drive...",
+            Toast.LENGTH_LONG
+        ).show()
+
+        googleDriveAuthorization.authorize()
+            .addOnSuccessListener { authResult ->
+                if (authResult.hasResolution()) {
+                    Toast.makeText(
+                        this,
+                        "Please reconnect Google Drive before downloading a backup.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@addOnSuccessListener
+                }
+
+                val token = authResult.accessToken
+                if (token.isNullOrBlank()) {
+                    Toast.makeText(
+                        this,
+                        "Google Drive access token is unavailable.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@addOnSuccessListener
+                }
+
+                googleDriveRestore.downloadBackupFile(token) { result ->
+                    result.onSuccess { backupFile ->
+                        pendingBackupDownloadFile = backupFile
+                        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "application/octet-stream"
+                            putExtra(Intent.EXTRA_TITLE, "Ledger_Backup.db")
+                        }
+
+                        try {
+                            startActivityForResult(
+                                intent,
+                                GOOGLE_DRIVE_BACKUP_SAVE_REQUEST_CODE
+                            )
+                        } catch (error: Exception) {
+                            pendingBackupDownloadFile = null
+                            backupFile.delete()
+                            Toast.makeText(
+                                this,
+                                "Unable to open the save-file picker.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }.onFailure { error ->
+                        Toast.makeText(
+                            this,
+                            "Backup download failed: ${error.message ?: "Unknown error"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+            .addOnFailureListener { error ->
+                Toast.makeText(
+                    this,
+                    "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+    }
+
+    private fun launchLocalBackupRestorePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        startActivityForResult(intent, GOOGLE_DRIVE_LOCAL_RESTORE_REQUEST_CODE)
+    }
+
+    private fun restoreLocalBackupFromUri(uri: android.net.Uri) {
+        googleDriveSyncCoordinator.pause()
+
+        Thread {
+            val selectedFile = java.io.File(cacheDir, "ledger_selected_local_backup.db")
+            try {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    selectedFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IllegalStateException("Unable to read the selected backup file.")
+
+                // Validate the selected SQLite database before replacing the live database.
+                googleDriveRestore.prepareLocalBackupFile(selectedFile)
+                selectedFile.delete()
+
+                runOnUiThread {
+                    replaceDatabaseAndRestart(onComplete = {})
+                }
+            } catch (error: Exception) {
+                selectedFile.delete()
+                runOnUiThread {
+                    googleDriveSyncCoordinator.resume()
+                    Toast.makeText(
+                        this,
+                        "Restore failed. The current Ledger data was not replaced: " +
+                            (error.message ?: "Invalid backup file"),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
     }
 
     private fun performGoogleDriveRestore() {
@@ -1267,9 +1408,13 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
             markInitialDriveSetupComplete()
 
+            // Resume sync and trigger a sync after the restored database is installed.
+            googleDriveSyncCoordinator.resume()
+            googleDriveSyncCoordinator.requestAutoSync()
+
             Toast.makeText(
                 this,
-                "Backup restored successfully.",
+                "Backup restored successfully. Sync requested.",
                 Toast.LENGTH_LONG
             ).show()
 
@@ -1321,31 +1466,97 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
             data
         )
 
-        if (requestCode == GOOGLE_DRIVE_AUTH_REQUEST_CODE) {
-            if (resultCode == RESULT_OK) {
-                googleDriveAuthorization.authorize()
-                    .addOnSuccessListener { authorizationResult ->
-                        if (authorizationResult.hasResolution()) {
-                            Toast.makeText(
-                                this,
-                                "Google Drive authorization is still required.",
-                                Toast.LENGTH_LONG
-                            ).show()
-                            return@addOnSuccessListener
-                        }
-                        captureDriveAccountIdentity(authorizationResult.accessToken)
+        if (requestCode == GOOGLE_DRIVE_BACKUP_SAVE_REQUEST_CODE) {
+            val source = pendingBackupDownloadFile
+            pendingBackupDownloadFile = null
+
+            if (resultCode == RESULT_OK && data?.data != null && source != null) {
+                try {
+                    val destination = data.data!!
+                    val output = contentResolver.openOutputStream(destination)
+                        ?: throw IllegalStateException("Unable to open the selected destination.")
+                    output.use { stream ->
+                        source.inputStream().use { input -> input.copyTo(stream) }
                     }
-                    .addOnFailureListener {
-                        Toast.makeText(
-                            this,
-                            "Google Drive account verification failed.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
+                    Toast.makeText(
+                        this,
+                        "Ledger backup saved successfully.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } catch (error: Exception) {
+                    Toast.makeText(
+                        this,
+                        "Could not save backup: ${error.message ?: "Unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    source.delete()
+                }
+            } else {
+                source?.delete()
+                Toast.makeText(
+                    this,
+                    "Backup download cancelled.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            return
+        }
+
+        if (requestCode == GOOGLE_DRIVE_LOCAL_RESTORE_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                restoreLocalBackupFromUri(data.data!!)
             } else {
                 Toast.makeText(
                     this,
-                    "Google Drive connection cancelled.",
+                    "Backup selection cancelled.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            return
+        }
+
+        if (requestCode == GOOGLE_DRIVE_AUTH_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                try {
+                    val authorizationResult =
+                        googleDriveAuthorization.authorizationResultFromIntent(data)
+
+                    if (authorizationResult.hasResolution()) {
+                        val pendingIntent = authorizationResult.pendingIntent
+                        if (pendingIntent != null) {
+                            startIntentSenderForResult(
+                                pendingIntent.intentSender,
+                                GOOGLE_DRIVE_AUTH_REQUEST_CODE,
+                                null,
+                                0,
+                                0,
+                                0
+                            )
+                        } else {
+                            pendingDriveEmailChange = null
+                            Toast.makeText(
+                                this,
+                                "Google Drive authorization could not continue.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        captureDriveAccountIdentity(authorizationResult.accessToken)
+                    }
+                } catch (error: Exception) {
+                    pendingDriveEmailChange = null
+                    Toast.makeText(
+                        this,
+                        "Google Drive account verification failed.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } else {
+                pendingDriveEmailChange = null
+                Toast.makeText(
+                    this,
+                    "Google Drive account change cancelled.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -1379,6 +1590,8 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
         private const val GOOGLE_DRIVE_AUTH_REQUEST_CODE = 9001
         private const val GOOGLE_DRIVE_SYNC_REQUEST_CODE = 9002
         private const val GOOGLE_DRIVE_INITIAL_SETUP_REQUEST_CODE = 9003
+        private const val GOOGLE_DRIVE_BACKUP_SAVE_REQUEST_CODE = 9004
+        private const val GOOGLE_DRIVE_LOCAL_RESTORE_REQUEST_CODE = 9005
     }
 }
 
@@ -1461,10 +1674,31 @@ private fun InitialGoogleDriveSetupScreen(
 private fun ProfileScreen(
     onBack: () -> Unit,
     onProfileSaved: () -> Unit,
+    onChangeDriveEmail: ((String) -> Unit) -> Unit,
+    onDownloadBackup: () -> Unit,
+    onRestoreBackup: () -> Unit,
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit
 ) {
+    val driveEmailContext = androidx.compose.ui.platform.LocalContext.current
+    var driveEmail by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            driveEmailContext.getSharedPreferences(
+                "ledger_drive_account_binding",
+                android.content.Context.MODE_PRIVATE
+            ).getString("drive_account_email", null)
+        )
+    }
+
+var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    var showDriveAccountChangeConfirmation by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
     var legalDocument by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
     if (legalDocument != null) {
         LegalDocumentDialog(
@@ -1475,6 +1709,94 @@ private fun ProfileScreen(
 
     var showCurrencyMenu by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    if (showDriveAccountChangeConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showDriveAccountChangeConfirmation = false
+            },
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            titleContentColor = androidx.compose.ui.graphics.Color(0xFF171717),
+            textContentColor = androidx.compose.ui.graphics.Color(0xFF424242),
+            icon = {
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Outlined.Person,
+                    contentDescription = null
+                )
+            },
+            title = {
+                androidx.compose.material3.Text("Change Google Drive account?")
+            },
+            text = {
+                androidx.compose.material3.Text(
+                    "If the Google account you select already contains a Ledger backup, " +
+                        "that backup may be overwritten and lost. Your current Ledger data " +
+                        "will sync automatically to the new account after the account change. " +
+                        "Continue only if you want to proceed."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showDriveAccountChangeConfirmation = false
+                        onChangeDriveEmail { updatedEmail ->
+                            driveEmail = updatedEmail
+                        }
+                    }
+                ) {
+                    androidx.compose.material3.Text("Continue")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        showDriveAccountChangeConfirmation = false
+                    }
+                ) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showLocalRestoreConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showLocalRestoreConfirmation = false
+            },
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            titleContentColor = androidx.compose.ui.graphics.Color(0xFF171717),
+            textContentColor = androidx.compose.ui.graphics.Color(0xFF424242),
+            title = {
+                androidx.compose.material3.Text("Restore Ledger Backup?")
+            },
+            text = {
+                androidx.compose.material3.Text(
+                    "Restoring this file will replace the Ledger data currently on this phone. " +
+                        "Make sure you have a recent backup before continuing."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showLocalRestoreConfirmation = false
+                        onRestoreBackup()
+                    }
+                ) {
+                    androidx.compose.material3.Text("Select Backup")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        showLocalRestoreConfirmation = false
+                    }
+                ) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
     }
 
     BackHandler {
@@ -1945,19 +2267,7 @@ private fun ProfileScreen(
 
                         } else {
 
-                            ProfileDetailRow(
-                                icon =
-                                    androidx.compose.material.icons.Icons
-                                        .Outlined
-                                        .Person,
-                                label = "Name",
-                                value =
-                                    name.ifBlank {
-                                        "Not added"
-                                    }
-                            )
-
-                            ProfileDetailRow(
+                                                        ProfileDetailRow(
                                 icon =
                                     androidx.compose.material.icons.Icons
                                         .Outlined
@@ -1973,6 +2283,132 @@ private fun ProfileScreen(
                 }
             }
 
+
+            item {
+                androidx.compose.material3.Card(
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement =
+                            androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment =
+                                androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement =
+                                androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                        ) {
+                            androidx.compose.material3.Surface(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                color = androidx.compose.ui.graphics.Color(0xFFE8EAF6)
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector =
+                                        androidx.compose.material.icons.Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = androidx.compose.ui.graphics.Color(0xFF3949AB),
+                                    modifier = androidx.compose.ui.Modifier.padding(12.dp)
+                                )
+                            }
+
+                            androidx.compose.foundation.layout.Column(
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                verticalArrangement =
+                                    androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp)
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = "Google Drive Backup",
+                                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                                androidx.compose.material3.Text(
+                                    text = "Account used for backup and sync",
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        androidx.compose.material3.HorizontalDivider(
+                            color = androidx.compose.ui.graphics.Color(0xFFEAEAEA)
+                        )
+
+                        androidx.compose.foundation.layout.Column(
+                            verticalArrangement =
+                                androidx.compose.foundation.layout.Arrangement.spacedBy(5.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Connected Google Account",
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            androidx.compose.material3.Text(
+                                text = driveEmail?.takeIf { it.isNotBlank() }
+                                    ?: "Not connected",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+
+                        androidx.compose.material3.Button(
+                            onClick = {
+                                showDriveAccountChangeConfirmation = true
+                            },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                        ) {
+                            androidx.compose.material.icons.Icons.Outlined.Person.let { icon ->
+                                androidx.compose.material3.Icon(
+                                    imageVector = icon,
+                                    contentDescription = null
+                                )
+                            }
+                            androidx.compose.foundation.layout.Spacer(
+                                modifier = androidx.compose.ui.Modifier.width(8.dp)
+                            )
+                            androidx.compose.material3.Text(
+                                text = "Change Google Account",
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = onDownloadBackup,
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Download Backup",
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                showLocalRestoreConfirmation = true
+                            },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Restore Backup",
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            }
 
             item {
                 androidx.compose.material3.Card(

@@ -1,6 +1,7 @@
 package com.ledger.app.backup
 
 import android.content.Context
+import android.content.Intent
 import com.google.android.gms.auth.api.identity.AuthorizationClient
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
@@ -21,8 +22,10 @@ class GoogleDriveAuthorization(
     private val authorizationClient: AuthorizationClient =
         Identity.getAuthorizationClient(context)
 
-    fun createAuthorizationRequest(): AuthorizationRequest {
-        return AuthorizationRequest.builder()
+    fun createAuthorizationRequest(
+        forceSelectAccount: Boolean = false
+    ): AuthorizationRequest {
+        val builder = AuthorizationRequest.builder()
             .setRequestedScopes(
                 listOf(
                     Scope(DRIVE_FILE_SCOPE),
@@ -30,9 +33,19 @@ class GoogleDriveAuthorization(
                     Scope(USERINFO_EMAIL_SCOPE)
                 )
             )
-            .build()
+
+        if (forceSelectAccount) {
+            builder.setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)
+        }
+
+        return builder.build()
     }
 
-    fun authorize() =
-        authorizationClient.authorize(createAuthorizationRequest())
+    fun authorize(forceSelectAccount: Boolean = false) =
+        authorizationClient.authorize(
+            createAuthorizationRequest(forceSelectAccount)
+        )
+
+    fun authorizationResultFromIntent(data: Intent) =
+        authorizationClient.getAuthorizationResultFromIntent(data)
 }

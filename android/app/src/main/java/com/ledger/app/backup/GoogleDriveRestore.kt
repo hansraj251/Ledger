@@ -118,6 +118,51 @@ class GoogleDriveRestore(
         }.start()
     }
 
+    fun downloadBackupFile(
+        accessToken: String,
+        callback: (Result<File>) -> Unit
+    ) {
+        Thread {
+            try {
+                val metadata = findBackupMetadataBlocking(accessToken)
+                val fileId = metadata?.fileId
+                    ?: throw NoBackupFoundException()
+
+                val destination = File(
+                    context.cacheDir,
+                    "ledger_download_backup.db"
+                )
+                destination.delete()
+
+                downloadBackup(fileId, accessToken, destination)
+                validateDatabase(destination)
+
+                mainHandler.post {
+                    callback(Result.success(destination))
+                }
+            } catch (error: Exception) {
+                mainHandler.post {
+                    callback(Result.failure(error))
+                }
+            }
+        }.start()
+    }
+
+    fun prepareLocalBackupFile(source: File): File {
+        if (!source.exists() || source.length() == 0L) {
+            throw IllegalArgumentException("The selected backup file is empty.")
+        }
+
+        validateDatabase(source)
+
+        val validated = File(
+            context.cacheDir,
+            "ledger_restore_validated.db"
+        )
+        source.copyTo(validated, overwrite = true)
+        return validated
+    }
+
     fun findBackupFile(
         accessToken: String,
         callback: (Result<String?>) -> Unit

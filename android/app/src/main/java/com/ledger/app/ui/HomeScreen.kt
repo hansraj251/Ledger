@@ -1123,7 +1123,7 @@ item {
                             "Receivable Int." to receivableInterestTotal,
                             "Group Receivable" to groupReceivableTotal,
                             "Advanced Salary" to totalStaffAdvanceOutstanding
-                        )
+                        ).filter { kotlin.math.abs(it.second) >= 0.01 }
                     )
 
                     BalanceSummaryCard(
@@ -1137,7 +1137,7 @@ item {
                             "Payable Int." to payableInterestTotal,
                             "Group Payable" to groupPayableTotal,
                             "Salaries" to totalRemainingStaffSalary
-                        )
+                        ).filter { kotlin.math.abs(it.second) >= 0.01 }
                     )
                 }
             }

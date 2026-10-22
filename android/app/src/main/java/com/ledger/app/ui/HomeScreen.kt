@@ -100,6 +100,7 @@ fun HomeScreen(
     autoSyncOff: Boolean = false,
     onAutoSyncOff: () -> Unit = {},
     onAutoSyncOn: () -> Unit = {},
+    onHelpClick: () -> Unit = {},
 
     onStaffClick: (Long) -> Unit = {},
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
@@ -1034,6 +1035,32 @@ Surface(
                                     }
 
                                     Spacer(Modifier.height(8.dp))
+Surface(
+    modifier = Modifier
+        .fillMaxWidth()
+        .clickable {
+            showMenu = false
+            onHelpClick()
+        },
+    shape = RoundedCornerShape(13.dp),
+    color = Color(0xFFF1F5F9)
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("❔", fontSize = 20.sp)
+        Text(
+            text = "Help",
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF303030)
+        )
+    }
+}
+
+Spacer(Modifier.height(8.dp))
 Spacer(Modifier.weight(1f))
                                             }
                                         }

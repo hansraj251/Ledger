@@ -66,6 +66,7 @@ import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
+import com.ledger.app.ui.HelpScreen
 import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.GroupSharingScreen
 import com.ledger.app.ui.GroupExpenseReportScreen
@@ -190,6 +191,7 @@ class MainActivity : ComponentActivity() {
         premiumBillingManager = PremiumBillingManager(applicationContext)
 
         setContent {
+            var showHelpScreen by remember { mutableStateOf(false) }
             // Temporary UI state only: app restart defaults Auto Sync to ON.
             val autoSyncOffState = androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(false)
@@ -512,6 +514,8 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             }
                         }
                     )
+                } else if (showHelpScreen) {
+                    HelpScreen(onBack = { showHelpScreen = false })
                 } else if (showProfileScreen) {
                     ProfileScreen(
                         onChangeDriveEmail = { onUpdated -> connectGoogleDrive(onUpdated) },
@@ -605,6 +609,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(
+                        onHelpClick = { showHelpScreen = true },
                         viewModel = viewModel,
                         onPartyClick = { party ->
                             selectedParty = party

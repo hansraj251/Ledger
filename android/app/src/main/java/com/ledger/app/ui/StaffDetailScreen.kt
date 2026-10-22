@@ -1333,33 +1333,68 @@ fun StaffDetailScreen(
                     }
 
                 } else if (selectedStaffTab == 1) {
-                    item {
-                        OutlinedButton(
-                            onClick = {
-                                val ym = runCatching {
-                                    java.time.YearMonth.parse(selectedSalaryMonth)
-                                }.getOrElse { java.time.YearMonth.now() }
-                                pickerYear = ym.year
-                                pickerMonth = ym.monthValue
-                                showYearDropdown = false
-                                monthPickerTarget = "PAYMENT"
-                                showSalaryMonthMenu = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Outlined.CalendarMonth, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                runCatching {
-                                    java.time.YearMonth.parse(selectedSalaryMonth)
-                                        .format(java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH))
-                                }.getOrDefault(selectedSalaryMonth),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(Modifier.width(6.dp))
+                                        item {
+                        val currentMonth = java.time.YearMonth.now()
+                        val displayedMonth = runCatching {
+                            java.time.YearMonth.parse(selectedSalaryMonth)
+                        }.getOrElse { currentMonth }
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.material3.IconButton(
+                                onClick = {
+                                    selectedSalaryMonth = displayedMonth.minusMonths(1).toString()
+                                },
+                                enabled = displayedMonth > java.time.YearMonth.of(2000, 1)
+                            ) {
+                                Text(
+                                    text = "‹",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    pickerYear = displayedMonth.year
+                                    pickerMonth = displayedMonth.monthValue
+                                    showYearDropdown = false
+                                    monthPickerTarget = "PAYMENT"
+                                    showSalaryMonthMenu = true
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Outlined.CalendarMonth, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    displayedMonth.format(
+                                        java.time.format.DateTimeFormatter.ofPattern(
+                                            "MMMM yyyy", Locale.ENGLISH
+                                        )
+                                    ),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
+
+                            androidx.compose.material3.IconButton(
+                                onClick = {
+                                    selectedSalaryMonth = displayedMonth.plusMonths(1).toString()
+                                },
+                                enabled = displayedMonth < currentMonth
+                            ) {
+                                Text(
+                                    text = "›",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    modifier = Modifier,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                     item {

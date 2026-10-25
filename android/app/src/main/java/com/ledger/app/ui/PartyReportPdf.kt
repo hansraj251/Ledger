@@ -17,6 +17,7 @@ import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateInterestPosition
 import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.PartyEntity
+import com.ledger.app.data.TransactionSettlementEntity
 import com.ledger.app.data.calculateTransactionInterest
 import com.ledger.app.data.transactionInterestDays
 import java.io.File
@@ -38,6 +39,7 @@ internal fun createPartyReportPdf(
     party: PartyEntity,
     entries: List<LedgerEntryEntity>,
     interestRecords: List<InterestAccountEntryEntity> = emptyList(),
+    settlements: List<TransactionSettlementEntity> = emptyList(),
     profileName: String = ""
 ): File {
     val pdf = PdfDocument()
@@ -63,39 +65,50 @@ internal fun createPartyReportPdf(
 
     val gaveInterest = orderedEntries
         .filter { it.type == EntryType.CREDIT }
-        .sumOf {
+        .sumOf { entry ->
             calculateTransactionInterest(
-                amount = it.amount,
-                annualRate = it.interestRate,
-                transactionDate = it.transactionDate,
-                createdAt = it.createdAt
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt,
+                asOf = today,
+                settlements = settlements.filter { it.transactionId == entry.id }
             )
         }
 
     val gotInterest = orderedEntries
         .filter { it.type == EntryType.DEBIT }
-        .sumOf {
+        .sumOf { entry ->
             calculateTransactionInterest(
-                amount = it.amount,
-                annualRate = it.interestRate,
-                transactionDate = it.transactionDate,
-                createdAt = it.createdAt
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt,
+                asOf = today,
+                settlements = settlements.filter { it.transactionId == entry.id }
             )
         }
 
     val principalBalance = orderedEntries.sumOf { entry ->
-        if (entry.type == EntryType.CREDIT) entry.amount else -entry.amount
+        val related = settlements.filter {
+            it.transactionId == entry.id && it.settlementDate <= today
+        }
+        val remaining = (entry.amount - related.sumOf { it.amount })
+            .coerceAtLeast(0.0)
+        if (entry.type == EntryType.CREDIT) remaining else -remaining
     }
 
     val accruedInterest = calculateInterestPosition(
         entries = orderedEntries,
-        asOf = today
+        asOf = today,
+        settlements = settlements
     )
 
     val remainingInterest = calculateInterestAccountPosition(
         transactions = orderedEntries,
         records = interestRecords,
-        asOf = today
+        asOf = today,
+        settlements = settlements
     )
 
     val recordedInterestGot = interestRecords
@@ -134,6 +147,43 @@ internal fun createPartyReportPdf(
     val summaryRows = mutableListOf<List<String>>()
     summaryRows.add(listOf("Total $gaveLabel", money(gave)))
     summaryRows.add(listOf("Total $gotLabel", money(got)))
+
+    val gaveTransactionIds = orderedEntries
+        .filter { it.type == EntryType.CREDIT }
+        .map { it.id }
+        .toSet()
+
+    val gotTransactionIds = orderedEntries
+        .filter { it.type == EntryType.DEBIT }
+        .map { it.id }
+        .toSet()
+
+    val totalSettledOnGave = settlements
+        .filter {
+            it.settlementDate <= today && it.transactionId in gaveTransactionIds
+        }
+        .sumOf { it.amount }
+
+    val totalSettledOnGot = settlements
+        .filter {
+            it.settlementDate <= today && it.transactionId in gotTransactionIds
+        }
+        .sumOf { it.amount }
+
+    if (totalSettledOnGave > 0.0) {
+        summaryRows.add(
+            listOf("Total Settled (${party.name.trim()} Paid)", money(totalSettledOnGave))
+        )
+    }
+
+    if (totalSettledOnGot > 0.0) {
+        summaryRows.add(
+            listOf(
+                "Total Settled (${profileName.trim().ifEmpty { "You" }} Paid)",
+                money(totalSettledOnGot)
+            )
+        )
+    }
 
     val hasInterest = accruedInterest.receivable > 0.0 ||
         accruedInterest.payable > 0.0 ||
@@ -228,7 +278,9 @@ internal fun createPartyReportPdf(
                 amount = entry.amount,
                 annualRate = entry.interestRate,
                 transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt
+                createdAt = entry.createdAt,
+                asOf = today,
+                settlements = settlements.filter { it.transactionId == entry.id }
             )
             if (interest > 0.0) hasTransactionInterest = true
 
@@ -239,7 +291,7 @@ internal fun createPartyReportPdf(
             }
 
             val interestDetails = if (entry.interestRate > 0.0) {
-                "${money(interest)}\n${formatRate(entry.interestRate)}% p.a.\n$days days"
+                "${money(interest)}\n${formatRate(entry.interestRate)}% p.a."
             } else {
                 "${money(interest)}\n0% rate"
             }
@@ -266,6 +318,52 @@ internal fun createPartyReportPdf(
             headers = transactionHeaders,
             rows = transactionRows,
             notes = transactionNotes
+        )
+    }
+
+
+    val entryById = orderedEntries.associateBy { it.id }
+    val visibleSettlements = settlements
+        .filter { it.settlementDate <= today && entryById.containsKey(it.transactionId) }
+        .sortedWith(compareBy<TransactionSettlementEntity> { it.settlementDate }.thenBy { it.id })
+
+    if (visibleSettlements.isNotEmpty()) {
+        writer.space(14f)
+        writer.section("Transaction Settlements (${visibleSettlements.size})")
+
+        val remainingById = orderedEntries.associate { it.id to it.amount }.toMutableMap()
+        val rows = mutableListOf<List<String>>()
+        val notes = mutableListOf<String?>()
+
+        visibleSettlements.forEach { settlement ->
+            val entry = entryById.getValue(settlement.transactionId)
+            val remaining = (
+                (remainingById[entry.id] ?: entry.amount) - settlement.amount
+            ).coerceAtLeast(0.0)
+            remainingById[entry.id] = remaining
+
+            val transactionDate = if (entry.transactionDate > 0L) {
+                entry.transactionDate
+            } else {
+                entry.createdAt
+            }
+            val type = if (entry.type == EntryType.CREDIT) gaveLabel else gotLabel
+
+            rows.add(
+                listOf(
+                    dateFormat.format(Date(settlement.settlementDate)),
+                    "${dateFormat.format(Date(transactionDate))} - $type ${money(entry.amount)}",
+                    money(settlement.amount),
+                    money(remaining)
+                )
+            )
+            notes.add(settlement.note.takeIf { it.isNotBlank() }?.let { "Note: $it" })
+        }
+
+        writer.table(
+            headers = listOf("Date", "Transaction", "Settled", "Remaining Principal"),
+            rows = rows,
+            notes = notes
         )
     }
 

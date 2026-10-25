@@ -50,6 +50,7 @@ fun PartyReportScreen(
     party: com.ledger.app.data.PartyEntity,
     entries: List<com.ledger.app.data.LedgerEntryEntity>,
     records: List<com.ledger.app.data.InterestAccountEntryEntity>,
+    settlements: List<com.ledger.app.data.TransactionSettlementEntity> = emptyList(),
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -68,7 +69,7 @@ fun PartyReportScreen(
         mutableStateOf<String?>(null)
     }
 
-    LaunchedEffect(party.id, entries, records) {
+    LaunchedEffect(party.id, entries, records, settlements) {
         isGenerating = true
         errorMessage = null
 
@@ -86,6 +87,7 @@ fun PartyReportScreen(
                     party = party,
                     entries = entries,
                     interestRecords = records,
+                    settlements = settlements,
                     profileName = profileName
                 )
             }

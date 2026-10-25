@@ -455,6 +455,7 @@ var showDeletePartyDialog by remember {
             party = currentParty,
             entries = uiState.entries,
             records = uiState.interestAccountEntries,
+            settlements = uiState.settlements,
             onBack = {
                 showReport = false
             }
@@ -539,7 +540,9 @@ var showDeletePartyDialog by remember {
         )
     }
 
-Scaffold(
+var requestOpenSellDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Surface(
@@ -563,6 +566,7 @@ Scaffold(
                         showReport = true
                     },
                         onSendReport = { requestPartyReport() },
+                        onSellClick = { requestOpenSellDialog = true },
                     hideInterestButton = hideInterestButton,
                     hideSellButton = hideSellButton,
                     onHideInterestButtonChange = { enabled ->
@@ -702,6 +706,8 @@ Scaffold(
                             .putBoolean("ask_sms_after_transaction_${party.id}", enabled)
                             .apply()
                     },
+                    requestOpenSellDialog = requestOpenSellDialog,
+                    onSellDialogRequestConsumed = { requestOpenSellDialog = false },
                     onAdd = {
                         val parsedAmount = amount.toDoubleOrNull()
 
@@ -1151,6 +1157,7 @@ private fun PartyHeader(
     onEdit: () -> Unit,
     onReport: () -> Unit,
     onSendReport: () -> Unit,
+    onSellClick: () -> Unit,
     hideInterestButton: Boolean,
     hideSellButton: Boolean,
     onHideInterestButtonChange: (Boolean) -> Unit,
@@ -1250,63 +1257,11 @@ private fun PartyHeader(
                     .clip(androidx.compose.ui.graphics.RectangleShape)
             ) {
                 DropdownMenuItem(
-                    text = { Text("Call") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Call,
-                            contentDescription = null
-                        )
-                    },
+                    text = { Text("Sell") },
                     onClick = {
                         showMenu = false
-                        val phone = party.mobile.trim()
-                        if (phone.isNotBlank()) {
-                            val intent = Intent(
-                                Intent.ACTION_DIAL,
-                                Uri.parse("tel:" + Uri.encode(phone))
-                            )
-                            context.startActivity(intent)
-                        }
-                    },
-                    enabled = party.mobile.isNotBlank()
-                )
-                DropdownMenuItem(
-                    text = { Text("Message") },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Message,
-                            contentDescription = null
-                        )
-                    },
-                    onClick = {
-                    showMenu = false
-                    onSendReport()
-                },
-                    enabled = party.mobile.isNotBlank() && balance > 0.0
-                )
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Checkbox(
-                                checked = hideInterestButton,
-                                onCheckedChange = null
-                            )
-                            Text("Hide Int.")
-                        }
-                    },
-                    onClick = { onHideInterestButtonChange(!hideInterestButton) }
-                )
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            androidx.compose.material3.Checkbox(
-                                checked = hideSellButton,
-                                onCheckedChange = null
-                            )
-                            Text("Hide Sell")
-                        }
-                    },
-                    onClick = { onHideSellButtonChange(!hideSellButton) }
+                        onSellClick()
+                    }
                 )
                 DropdownMenuItem(
                     text = {
@@ -2558,7 +2513,9 @@ private fun TransactionComposer(
     smsEnabled: Boolean,
     onSmsEnabledChange: (Boolean) -> Unit,
     onAdd: () -> Unit
-) {
+,
+    requestOpenSellDialog: Boolean,
+    onSellDialogRequestConsumed: () -> Unit) {
     val context = LocalContext.current
     val sellPreferences = remember(context) {
         context.getSharedPreferences("ledger_party_sell_items", Context.MODE_PRIVATE)
@@ -2634,10 +2591,23 @@ private fun TransactionComposer(
     }
     var sellQuantity by remember(partyId) { mutableStateOf("") }
     var showAddSellItemDialog by remember { mutableStateOf(false) }
+
+
     var editingSellItemIndex by remember { mutableStateOf<Int?>(null) }
     var newSellTitle by remember { mutableStateOf("") }
     var newSellRate by remember { mutableStateOf("") }
     var newSellQuantityType by remember { mutableStateOf("") }
+
+    LaunchedEffect(requestOpenSellDialog) {
+        if (requestOpenSellDialog) {
+            editingSellItemIndex = null
+            newSellTitle = ""
+            newSellRate = ""
+            newSellQuantityType = ""
+            showAddSellItemDialog = true
+            onSellDialogRequestConsumed()
+        }
+    }
 
     fun saveSellItems(items: List<PartySellItem>) {
         // Update the UI immediately; persist the complete list in Room.
@@ -2784,40 +2754,7 @@ FilterChip(
                 }
 
 
-                if (selectedType == EntryType.CREDIT && !hideSellButton) {
-                    Box(
-                        modifier = Modifier
-                            .weight(0.8f)
-                            .align(Alignment.CenterVertically)
-                            .height(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(8.dp)
-                            )
-                            .clickable {
-                                editingSellItemIndex = null
-                                newSellTitle = ""
-                                newSellRate = ""
-                                newSellQuantityType = ""
-                                showAddSellItemDialog = true
-                            }
-                            .padding(horizontal = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Sell",
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            softWrap = false,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                }
-
-            }
+                
 
             }
 
@@ -3848,7 +3785,7 @@ private fun TransactionCard(
                     )
 
                     Text(
-                        text = "$interestDays days • ${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
+                        text = "${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

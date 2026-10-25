@@ -102,6 +102,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.EmiScheduleEntity
 import com.ledger.app.data.TransactionSettlementEntity
 import com.ledger.app.data.remainingPrincipal
 import com.ledger.app.data.InterestAccountEntryEntity
@@ -138,6 +139,9 @@ fun PartyLedgerScreen(
     onUpgradeClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var emiSchedules by remember(party.id) {
+        mutableStateOf<List<EmiScheduleEntity>>(emptyList())
+    }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -271,6 +275,8 @@ var showDeletePartyDialog by remember {
     var editingEntry by remember {
         mutableStateOf<LedgerEntryEntity?>(null)
     }
+    var showEmiPage by remember { mutableStateOf(false) }
+    var emiPageEntry by remember { mutableStateOf<LedgerEntryEntity?>(null) }
     var settlingEntry by remember { mutableStateOf<LedgerEntryEntity?>(null) }
 
     var showDeleteEntryDialog by remember {
@@ -442,11 +448,39 @@ var showDeletePartyDialog by remember {
         viewModel.loadInterestAccountEntries(party.id)
     }
 
+    LaunchedEffect(party.id) {
+        emiSchedules = withContext(Dispatchers.IO) {
+            LedgerDatabaseProvider.get(context)
+                .emiScheduleDao()
+                .getByPartyId(party.id)
+        }
+    }
+
     BackHandler {
-        if (showInterestAccount) {
-            showInterestAccount = false
+        when {
+            showEmiPage -> {
+                showEmiPage = false
+                emiPageEntry = null
+            }
+            showInterestAccount -> showInterestAccount = false
+            else -> onBack()
+        }
+    }
+
+    if (showEmiPage) {
+        val selectedEntry = emiPageEntry
+        if (selectedEntry != null) {
+            EmiInstallmentsScreen(
+                entry = selectedEntry,
+                schedules = emiSchedules.filter { it.transactionId == selectedEntry.id },
+                onBack = {
+                    showEmiPage = false
+                    emiPageEntry = null
+                }
+            )
+            return
         } else {
-            onBack()
+            showEmiPage = false
         }
     }
 
@@ -708,7 +742,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                     },
                     requestOpenSellDialog = requestOpenSellDialog,
                     onSellDialogRequestConsumed = { requestOpenSellDialog = false },
-                    onAdd = {
+                    onAdd = { selectedEmiFrequency, selectedEmiCount, transactionEmiDueDate ->
                         val parsedAmount = amount.toDoubleOrNull()
 
                         if (parsedAmount != null && parsedAmount > 0.0) {
@@ -718,6 +752,16 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                             val transactionRate = interestRate
 
                             scope.launch {
+                                if (selectedEmiFrequency != null && selectedEmiCount !in 1..600) {
+                                    Toast.makeText(
+                                        transactionLimitContext,
+                                        "Enter a valid number of EMI (1–600).",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@launch
+                                }
+
+
                                 if (!isPremium) {
                     val limitMessage = kotlinx.coroutines.withContext(
                         kotlinx.coroutines.Dispatchers.IO
@@ -749,6 +793,116 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                 )
 
                                 if (succeeded) {
+                                    if (selectedEmiFrequency != null && selectedEmiCount > 0) {
+                                        runCatching {
+                                            kotlinx.coroutines.withContext(
+                                                kotlinx.coroutines.Dispatchers.IO
+                                            ) {
+                                                val database = com.ledger.app.data.LedgerDatabaseProvider
+                                                    .get(transactionLimitContext)
+                                                val original = database.ledgerEntryDao()
+                                                    .getByPartyId(party.id)
+                                                    .maxByOrNull { it.id }
+                                                    ?: error("Saved transaction not found")
+
+                                                val calendar = java.util.Calendar.getInstance().apply {
+                                                    timeInMillis = transactionEmiDueDate
+                                                }
+                                                val periodsPerYear = when (selectedEmiFrequency) {
+                                                    "Weekly" -> 52.0
+                                                    "Quarterly" -> 4.0
+                                                    "Half-Yearly" -> 2.0
+                                                    else -> 12.0
+                                                }
+
+                                                val periodicRate =
+                                                    transactionRate.coerceAtLeast(0.0) /
+                                                        100.0 / periodsPerYear
+
+                                                fun money(value: Double): Double =
+                                                    kotlin.math.round(value * 100.0) / 100.0
+
+                                                val fixedPayment = if (periodicRate > 0.0) {
+                                                    val factor = Math.pow(
+                                                        1.0 + periodicRate,
+                                                        selectedEmiCount.toDouble()
+                                                    )
+                                                    money(
+                                                        parsedAmount * periodicRate * factor /
+                                                            (factor - 1.0)
+                                                    )
+                                                } else {
+                                                    money(parsedAmount / selectedEmiCount)
+                                                }
+
+                                                var outstanding = money(parsedAmount)
+
+                                                val installments = (1..selectedEmiCount).map { number ->
+                                                    val due = (calendar.clone() as java.util.Calendar).apply {
+                                                        val periodsElapsed = number - 1
+                                                        when (selectedEmiFrequency) {
+                                                            "Weekly" -> add(
+                                                                java.util.Calendar.DAY_OF_YEAR,
+                                                                periodsElapsed * 7
+                                                            )
+                                                            "Quarterly" -> add(
+                                                                java.util.Calendar.MONTH,
+                                                                periodsElapsed * 3
+                                                            )
+                                                            "Half-Yearly" -> add(
+                                                                java.util.Calendar.MONTH,
+                                                                periodsElapsed * 6
+                                                            )
+                                                            else -> add(
+                                                                java.util.Calendar.MONTH,
+                                                                periodsElapsed
+                                                            )
+                                                        }
+                                                    }
+
+                                                    val interest = money(outstanding * periodicRate)
+                                                    val payment = if (number == selectedEmiCount) {
+                                                        money(outstanding + interest)
+                                                    } else {
+                                                        fixedPayment
+                                                    }
+
+                                                    outstanding = money(
+                                                        (outstanding - (payment - interest))
+                                                            .coerceAtLeast(0.0)
+                                                    )
+
+                                                    com.ledger.app.data.EmiScheduleEntity(
+                                                        transactionId = original.id,
+                                                        frequency = selectedEmiFrequency,
+                                                        installmentNumber = number,
+                                                        installmentCount = selectedEmiCount,
+                                                        dueDate = due.timeInMillis,
+                                                        amount = payment
+                                                    )
+                                                }
+                                                database.emiScheduleDao().insertAll(installments)
+                                            }
+                                        }.onFailure { error ->
+                                            android.util.Log.e(
+                                                "LedgerEMI",
+                                                "Failed to save EMI schedule",
+                                                error
+                                            )
+                                            Toast.makeText(
+                                                transactionLimitContext,
+                                                "Transaction saved, but EMI schedule could not be saved.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+
+                                    emiSchedules = withContext(Dispatchers.IO) {
+                                        LedgerDatabaseProvider.get(transactionLimitContext)
+                                            .emiScheduleDao()
+                                            .getByPartyId(party.id)
+                                    }
+
                                     amount = ""
                                     note = ""
                                     interestRateText = ""
@@ -835,13 +989,27 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                         settlements = uiState.settlements.filter {
                             it.transactionId == entry.id
                         },
+                        emiSchedules = emiSchedules.filter { it.transactionId == entry.id },
                         modifier = Modifier
                             .padding(horizontal = 20.dp)
                             .combinedClickable(
-                                onClick = { editingEntry = entry },
-                                onLongClick = { settlingEntry = entry }
+                                onClick = {
+                                    if (emiSchedules.any { it.transactionId == entry.id }) {
+                                        emiPageEntry = entry
+                                        showEmiPage = true
+                                    } else {
+                                        editingEntry = entry
+                                    }
+                                },
+                                onLongClick = {
+                                    if (emiSchedules.none { it.transactionId == entry.id }) {
+                                        settlingEntry = entry
+                                    }
+                                }
                             )
                     )
+
+
                 }
             }
 
@@ -930,6 +1098,18 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                 onDismiss = {
                     editingEntry = null
                 },
+                hasEmiSchedule = emiSchedules.any { it.transactionId == editingEntry!!.id },
+
+                onEmiClick = {
+
+                    emiPageEntry = editingEntry
+
+                    editingEntry = null
+
+                    showEmiPage = true
+
+                },
+
                 onSettle = {
                     editingEntry = null
                     settlingEntry = entry
@@ -1290,8 +1470,9 @@ private fun EditTransactionDialog(
     onDismiss: () -> Unit,
     onSettle: () -> Unit,
     onDelete: () -> Unit,
-    onSave: (Double, EntryType, String, Long, Double) -> Unit
-) {
+    onSave: (Double, EntryType, String, Long, Double) -> Unit,
+    hasEmiSchedule: Boolean = false,
+    onEmiClick: () -> Unit = {},) {
     val editDialogContext = LocalContext.current
     var hideInterestButton by remember(entry.partyId) { mutableStateOf(false) }
     LaunchedEffect(entry.partyId) {
@@ -1566,20 +1747,102 @@ FilterChip(
                     )
                 }
 
-                OutlinedButton(
-                    onClick = onSettle,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text(
-                        text = "Settle",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                if (hasEmiSchedule) {
+
+
+                    OutlinedButton(
+
+
+                        onClick = onEmiClick,
+
+
+                        modifier = Modifier.fillMaxWidth(),
+
+
+                        shape = RoundedCornerShape(14.dp),
+
+
+                        border = androidx.compose.foundation.BorderStroke(
+
+
+                            1.dp,
+
+
+                            MaterialTheme.colorScheme.primary
+
+
+                        )
+
+
+                    ) {
+
+
+                        Text(
+
+
+                            text = "EMI",
+
+
+                            color = MaterialTheme.colorScheme.primary,
+
+
+                            fontWeight = FontWeight.SemiBold
+
+
+                        )
+
+
+                    }
+
+
+                } else {
+
+
+                    OutlinedButton(
+
+
+                        onClick = onSettle,
+
+
+                        modifier = Modifier.fillMaxWidth(),
+
+
+                        shape = RoundedCornerShape(14.dp),
+
+
+                        border = androidx.compose.foundation.BorderStroke(
+
+
+                            1.dp,
+
+
+                            MaterialTheme.colorScheme.primary
+
+
+                        )
+
+
+                    ) {
+
+
+                        Text(
+
+
+                            text = "Settle",
+
+
+                            color = MaterialTheme.colorScheme.primary,
+
+
+                            fontWeight = FontWeight.SemiBold
+
+
+                        )
+
+
+                    }
+
+
                 }
 
                 Row(
@@ -2512,7 +2775,7 @@ private fun TransactionComposer(
     onTypeChange: (EntryType) -> Unit,
     smsEnabled: Boolean,
     onSmsEnabledChange: (Boolean) -> Unit,
-    onAdd: () -> Unit
+    onAdd: (String?, Int, Long) -> Unit
 ,
     requestOpenSellDialog: Boolean,
     onSellDialogRequestConsumed: () -> Unit) {
@@ -2597,6 +2860,20 @@ private fun TransactionComposer(
     var newSellTitle by remember { mutableStateOf("") }
     var newSellRate by remember { mutableStateOf("") }
     var newSellQuantityType by remember { mutableStateOf("") }
+
+    var emiEnabled by remember { mutableStateOf(false) }
+    var emiFrequency by remember { mutableStateOf("Monthly") }
+    var emiCountText by remember { mutableStateOf("12") }
+    var emiDueDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var emiFrequencyMenuExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(amount) {
+        if (amount.isBlank()) {
+            emiEnabled = false
+            emiCountText = "12"
+        }
+    }
+
 
     LaunchedEffect(requestOpenSellDialog) {
         if (requestOpenSellDialog) {
@@ -2735,6 +3012,15 @@ private fun TransactionComposer(
                     }
                 )
 
+                FilterChip(
+                    modifier = Modifier.weight(0.8f),
+                    selected = emiEnabled,
+                    onClick = { emiEnabled = !emiEnabled },
+                    label = {
+                        Text("EMI", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
+                )
+
                 if (!hideInterestButton) {
 FilterChip(
                     modifier = Modifier.weight(0.8f),
@@ -2756,6 +3042,103 @@ FilterChip(
 
                 
 
+            }
+
+            if (emiEnabled) {
+                val emiFrequencies = listOf("Monthly", "Quarterly", "Half-Yearly")
+
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "EMI Frequency",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        emiFrequencies.forEach { option ->
+                            val selected = emiFrequency == option
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(54.dp)
+                                    .clickable { emiFrequency = option },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                color = if (selected) Color(0xFFFFF1C9)
+                                    else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    if (selected) 1.5.dp else 1.dp,
+                                    if (selected) Color(0xFFB8862B)
+                                    else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                shadowElevation = if (selected) 2.dp else 0.dp
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        option,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selected) Color(0xFF805A13)
+                                            else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = emiCountText,
+                            onValueChange = { value ->
+                                if (value.isEmpty() || value.all { it.isDigit() }) {
+                                    emiCountText = value
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("No. of EMI") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedButton(
+                            onClick = {
+                                showTransactionDatePicker(
+                                    context = context,
+                                    initialDate = maxOf(emiDueDate, transactionDate),
+                                    minDate = transactionDate,
+                                    onDateSelected = { emiDueDate = it }
+                                )
+                            },
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("EMI Start Date", style = MaterialTheme.typography.labelSmall)
+                                Text(
+                                    formatTransactionDate(emiDueDate),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             if (selectedType == EntryType.CREDIT && sellItems.isNotEmpty()) {
@@ -2975,7 +3358,13 @@ FilterChip(
             }
 
             Button(
-                onClick = onAdd,
+                onClick = {
+                    onAdd(
+                        if (emiEnabled) emiFrequency else null,
+                        emiCountText.toIntOrNull() ?: 0,
+                        emiDueDate
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = amount.toDoubleOrNull()?.let {
                     it > 0.0
@@ -3335,6 +3724,7 @@ internal fun formatInterestRate(rate: Double): String {
 private fun showTransactionDatePicker(
     context: Context,
     initialDate: Long,
+    minDate: Long? = null,
     onDateSelected: (Long) -> Unit
 ) {
     val calendar = Calendar.getInstance().apply {
@@ -3358,7 +3748,18 @@ private fun showTransactionDatePicker(
         calendar.get(Calendar.YEAR),
         calendar.get(Calendar.MONTH),
         calendar.get(Calendar.DAY_OF_MONTH)
-    ).show()
+    ).apply {
+        minDate?.let { minimum ->
+            val minCalendar = Calendar.getInstance().apply {
+                timeInMillis = minimum
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            datePicker.minDate = minCalendar.timeInMillis
+        }
+    }.show()
 }
 
 @Composable
@@ -3664,6 +4065,7 @@ private fun SettlementDialog(
 private fun TransactionCard(
     entry: LedgerEntryEntity,
     settlements: List<TransactionSettlementEntity> = emptyList(),
+    emiSchedules: List<EmiScheduleEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isCredit = entry.type == EntryType.CREDIT
@@ -3750,13 +4152,40 @@ private fun TransactionCard(
                 )
             }
 
-            val accruedInterest = calculateTransactionInterest(
-                amount = entry.amount,
-                annualRate = entry.interestRate,
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt,
-                settlements = settlements
-            )
+            val accruedInterest = if (emiSchedules.isEmpty()) {
+                calculateTransactionInterest(
+                    amount = entry.amount,
+                    annualRate = entry.interestRate,
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt,
+                    settlements = settlements
+                )
+            } else {
+                val count = emiSchedules.first().installmentCount.coerceAtLeast(1)
+                val periodsPerYear = when (emiSchedules.first().frequency) {
+                    "Weekly" -> 52.0
+                    "Quarterly" -> 4.0
+                    "Half-Yearly" -> 2.0
+                    else -> 12.0
+                }
+                val rate = entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
+                var balance = kotlin.math.abs(entry.amount)
+                var totalInterest = 0.0
+                val principal = kotlin.math.abs(entry.amount)
+                val payment = if (rate > 0.0) {
+                    val factor = Math.pow(1.0 + rate, count.toDouble())
+                    kotlin.math.round((principal * rate * factor / (factor - 1.0)) * 100.0) / 100.0
+                } else {
+                    kotlin.math.round((principal / count) * 100.0) / 100.0
+                }
+                repeat(count) { index ->
+                    val interest = kotlin.math.round(balance * rate * 100.0) / 100.0
+                    totalInterest += interest
+                    val actualPayment = if (index == count - 1) balance + interest else payment
+                    balance = (balance - (actualPayment - interest)).coerceAtLeast(0.0)
+                }
+                kotlin.math.round(totalInterest * 100.0) / 100.0
+            }
 
             val interestDays = transactionInterestDays(
                 transactionDate = entry.transactionDate,
@@ -3785,7 +4214,11 @@ private fun TransactionCard(
                     )
 
                     Text(
-                        text = "${CurrencySettings.symbol}${formatAmount(accruedInterest)}",
+                        text = if (emiSchedules.isNotEmpty()) {
+                            "Total EMI Interest: ${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
+                        } else {
+                            "${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3797,3 +4230,144 @@ private fun TransactionCard(
 
 }
 
+@Composable
+private fun EmiInstallmentsScreen(
+    entry: LedgerEntryEntity,
+    schedules: List<EmiScheduleEntity>,
+    onBack: () -> Unit
+) {
+    BackHandler(onBack = onBack)
+
+    val isReceivable = entry.type == EntryType.CREDIT
+    val title = if (isReceivable) "Receivable EMI" else "Payable EMI"
+    val accent = if (isReceivable) Color(0xFF216B3A) else Color(0xFF9A4815)
+    val cardColor = if (isReceivable) Color(0xFFEAF6EE) else Color(0xFFFFF1E8)
+    val borderColor = if (isReceivable) Color(0xFFB7DEC2) else Color(0xFFFFD3B5)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 40.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Outlined.ArrowBack, contentDescription = "Back")
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    if (entry.note.isBlank()) "Transaction EMI schedule" else entry.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        val sorted = schedules.sortedBy { it.installmentNumber }
+        val paidCount = sorted.count { it.isPaid }
+
+        val periodsPerYear = when (sorted.firstOrNull()?.frequency) {
+            "Weekly" -> 52.0
+            "Quarterly" -> 4.0
+            "Half-Yearly" -> 2.0
+            else -> 12.0
+        }
+        val periodicRate = entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
+        var outstandingPrincipal = kotlin.math.abs(entry.amount)
+        val installmentBreakdown = sorted.map { emi ->
+            val interest = kotlin.math.round(outstandingPrincipal * periodicRate * 100.0) / 100.0
+            val principal = (emi.amount - interest).coerceAtLeast(0.0)
+            outstandingPrincipal = (outstandingPrincipal - principal).coerceAtLeast(0.0)
+            Triple(emi.id, principal, interest)
+        }.associate { it.first to (it.second to it.third) }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            border = BorderStroke(1.dp, borderColor)
+        ) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Total installments: ${sorted.size}", fontWeight = FontWeight.SemiBold)
+                Text("Paid: $paidCount   •   Pending: ${sorted.size - paidCount}")
+                Text(
+                    "Transaction amount: ${CurrencySettings.symbol}${formatAmount(entry.amount)}",
+                    color = accent,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        if (sorted.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No EMI installments found.")
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(sorted, key = { it.id }) { emi ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = cardColor),
+                        border = BorderStroke(1.dp, borderColor)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text("EMI ${emi.installmentNumber}/${emi.installmentCount}", fontWeight = FontWeight.Bold, color = accent)
+                                val breakdown = installmentBreakdown[emi.id]
+                                val principalAmount = breakdown?.first ?: emi.amount
+                                val interestAmount = breakdown?.second ?: 0.0
+
+                                Text(
+                                    "Principal: ${CurrencySettings.symbol}${formatAmount(principalAmount)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "Interest: ${CurrencySettings.symbol}${formatAmount(interestAmount)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    "Total EMI: ${CurrencySettings.symbol}${formatAmount(emi.amount)}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Due: ${formatTransactionDate(emi.dueDate)}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = if (emi.isPaid) Color(0xFFD5EEDB) else Color(0xFFFFE4C7)
+                            ) {
+                                Text(
+                                    if (emi.isPaid) "Paid" else "Pending",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    color = if (emi.isPaid) Color(0xFF216B3A) else Color(0xFF9A4815),
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

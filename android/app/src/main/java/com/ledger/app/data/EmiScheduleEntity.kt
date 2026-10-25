@@ -25,5 +25,7 @@ data class EmiScheduleEntity(
     val installmentCount: Int,
     val dueDate: Long,
     val amount: Double,
-    val isPaid: Boolean = false
+    val isPaid: Boolean = false,
+    val baseAmount: Double = 0.0,
+    val paidAmount: Double = 0.0
 )

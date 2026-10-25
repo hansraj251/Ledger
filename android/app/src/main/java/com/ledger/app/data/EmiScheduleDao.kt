@@ -3,6 +3,7 @@ package com.ledger.app.data
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 
 @Dao
 interface EmiScheduleDao {
@@ -17,4 +18,7 @@ interface EmiScheduleDao {
 
     @Query("UPDATE emi_schedules SET isPaid = :paid WHERE id = :id")
     fun setPaid(id: Long, paid: Boolean)
+
+    @Update
+    fun updateSchedule(item: EmiScheduleEntity)
 }

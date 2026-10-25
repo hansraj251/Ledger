@@ -473,6 +473,106 @@ var showDeletePartyDialog by remember {
             EmiInstallmentsScreen(
                 entry = selectedEntry,
                 schedules = emiSchedules.filter { it.transactionId == selectedEntry.id },
+                onPayment = { emi, paymentAmount ->
+                    scope.launch {
+                        try {
+                            val database = LedgerDatabaseProvider.get(context)
+                            var paymentError: String? = null
+
+                            withContext(Dispatchers.IO) {
+                                database.runInTransaction {
+                                    val dao = database.emiScheduleDao()
+                                    val all = dao.getByTransactionId(emi.transactionId)
+                                        .sortedBy { it.installmentNumber }
+                                    val current = all.firstOrNull { it.id == emi.id }
+                                        ?: run {
+                                            paymentError = "EMI record not found."
+                                            return@runInTransaction
+                                        }
+
+                                    val amount = current.amount.coerceAtLeast(0.0)
+                                    val paid = paymentAmount.coerceIn(0.0, amount)
+                                    val previousPaid = if (current.isPaid) current.paidAmount else 0.0
+                                    val delta = kotlin.math.round((previousPaid - paid) * 100.0) / 100.0
+
+                                    val future = all.filter {
+                                        it.installmentNumber > current.installmentNumber && !it.isPaid
+                                    }
+
+                                    if (paid <= 0.0) {
+                                        paymentError = "Enter a valid payment amount."
+                                        return@runInTransaction
+                                    }
+                                    if (!current.isPaid && paid < amount && future.isEmpty()) {
+                                        paymentError = "No upcoming unpaid EMI is available for adjustment."
+                                        return@runInTransaction
+                                    }
+                                    if (current.isPaid && kotlin.math.abs(delta) > 0.001 && future.isEmpty()) {
+                                        paymentError = "No upcoming unpaid EMI is available to adjust this edit."
+                                        return@runInTransaction
+                                    }
+
+                                    dao.updateSchedule(
+                                        current.copy(
+                                            isPaid = true,
+                                            paidAmount = paid,
+                                            baseAmount = if (current.baseAmount > 0.0) current.baseAmount else amount
+                                        )
+                                    )
+
+                                    if (future.isNotEmpty() && kotlin.math.abs(delta) > 0.001) {
+                                        var remainingDelta = delta
+                                        future.forEachIndexed { index, upcoming ->
+                                            val oldBase = if (upcoming.baseAmount > 0.0) {
+                                                upcoming.baseAmount
+                                            } else {
+                                                upcoming.amount
+                                            }
+                                            val currentCarry = (upcoming.amount - oldBase).coerceAtLeast(0.0)
+                                            val proposed = if (index == future.lastIndex) {
+                                                remainingDelta
+                                            } else {
+                                                kotlin.math.round(remainingDelta / (future.size - index) * 100.0) / 100.0
+                                            }
+                                            val applied = if (proposed < 0.0) {
+                                                -minOf(-proposed, currentCarry)
+                                            } else {
+                                                proposed
+                                            }
+                                            val newAmount = kotlin.math.round(
+                                                (upcoming.amount + applied).coerceAtLeast(oldBase) * 100.0
+                                            ) / 100.0
+                                            dao.updateSchedule(
+                                                upcoming.copy(
+                                                    amount = newAmount,
+                                                    baseAmount = oldBase
+                                                )
+                                            )
+                                            remainingDelta = kotlin.math.round(
+                                                (remainingDelta - applied) * 100.0
+                                            ) / 100.0
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (paymentError != null) {
+                                Toast.makeText(context, paymentError, Toast.LENGTH_LONG).show()
+                            } else {
+                                emiSchedules = withContext(Dispatchers.IO) {
+                                    database.emiScheduleDao().getByPartyId(party.id)
+                                }
+                                Toast.makeText(context, "EMI payment saved.", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (error: Exception) {
+                            Toast.makeText(
+                                context,
+                                "Could not save EMI payment: ${error.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                },
                 onBack = {
                     showEmiPage = false
                     emiPageEntry = null
@@ -878,7 +978,8 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                                         installmentNumber = number,
                                                         installmentCount = selectedEmiCount,
                                                         dueDate = due.timeInMillis,
-                                                        amount = payment
+                                                        amount = payment,
+                                                        baseAmount = payment
                                                     )
                                                 }
                                                 database.emiScheduleDao().insertAll(installments)
@@ -4234,9 +4335,13 @@ private fun TransactionCard(
 private fun EmiInstallmentsScreen(
     entry: LedgerEntryEntity,
     schedules: List<EmiScheduleEntity>,
+    onPayment: (EmiScheduleEntity, Double) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
+    var paymentTarget by remember { mutableStateOf<EmiScheduleEntity?>(null) }
+    var paymentInput by remember { mutableStateOf("") }
+    var paymentError by remember { mutableStateOf<String?>(null) }
 
     val isReceivable = entry.type == EntryType.CREDIT
     val title = if (isReceivable) "Receivable EMI" else "Payable EMI"
@@ -4315,7 +4420,23 @@ private fun EmiInstallmentsScreen(
             ) {
                 items(sorted, key = { it.id }) { emi ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val laterPaid = sorted.any {
+                                    it.installmentNumber > emi.installmentNumber && it.isPaid
+                                }
+                                val firstUnpaid = sorted.firstOrNull { !it.isPaid }
+                                if (!laterPaid && (emi.isPaid || firstUnpaid?.id == emi.id)) {
+                                    paymentTarget = emi
+                                    paymentInput = if (emi.isPaid) {
+                                        emi.paidAmount.toString()
+                                    } else {
+                                        ""
+                                    }
+                                    paymentError = null
+                                }
+                            },
                         shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = cardColor),
                         border = BorderStroke(1.dp, borderColor)
@@ -4351,6 +4472,13 @@ private fun EmiInstallmentsScreen(
                                     "Due: ${formatTransactionDate(emi.dueDate)}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                                if (emi.paidAmount > 0.0) {
+                                    Text(
+                                        "Paid amount: ${CurrencySettings.symbol}${formatAmount(emi.paidAmount)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = accent
+                                    )
+                                }
                             }
                             Surface(
                                 shape = RoundedCornerShape(50),
@@ -4369,5 +4497,134 @@ private fun EmiInstallmentsScreen(
                 }
             }
         }
+
+    paymentTarget?.let { target ->
+        var showPartialPaymentInput by remember(target.id) { mutableStateOf(false) }
+        val futureUnpaidExists = schedules.any {
+            it.installmentNumber > target.installmentNumber && !it.isPaid
+        }
+
+        AlertDialog(
+            onDismissRequest = {
+                paymentTarget = null
+                paymentError = null
+            },
+            containerColor = Color.White,
+            titleContentColor = Color(0xFF202124),
+            textContentColor = Color(0xFF202124),
+            title = {
+                Text(
+                    if (target.isPaid) "Edit EMI ${target.installmentNumber} Payment"
+                    else "EMI ${target.installmentNumber} Payment"
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "EMI amount: ${CurrencySettings.symbol}${formatAmount(target.amount)}",
+                        color = Color(0xFF202124)
+                    )
+
+                    if (showPartialPaymentInput) {
+                        OutlinedTextField(
+                            value = paymentInput,
+                            onValueChange = {
+                                paymentInput = it.filter { ch -> ch.isDigit() || ch == '.' }
+                                paymentError = null
+                            },
+                            label = { Text("Partial payment amount") },
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (paymentError != null) {
+                            Text(paymentError!!, color = Color(0xFFB3261E))
+                        }
+
+                        if (!futureUnpaidExists && !target.isPaid) {
+                            Text(
+                                "This is the last unpaid EMI; partial payment cannot be carried forward.",
+                                color = Color(0xFFB3261E),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!showPartialPaymentInput) {
+                        Button(
+                            onClick = {
+                                onPayment(target, target.amount)
+                                paymentTarget = null
+                                paymentError = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Full Paid")
+                        }
+
+                        Button(
+                            onClick = {
+                                paymentInput = if (target.isPaid) {
+                                    target.paidAmount.takeIf { it > 0.0 }?.toString() ?: ""
+                                } else ""
+                                paymentError = null
+                                showPartialPaymentInput = true
+                            },
+                            enabled = futureUnpaidExists || target.isPaid,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Partial Paid")
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    showPartialPaymentInput = false
+                                    paymentInput = ""
+                                    paymentError = null
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel", color = Color(0xFF444444))
+                            }
+
+                            Button(
+                                onClick = {
+                                    val amount = paymentInput.toDoubleOrNull()
+                                    when {
+                                        amount == null || amount <= 0.0 ->
+                                            paymentError = "Enter an amount greater than zero."
+                                        amount >= target.amount ->
+                                            paymentError = "For a full payment, use Full Paid."
+                                        !futureUnpaidExists && !target.isPaid ->
+                                            paymentError = "No upcoming unpaid EMI is available."
+                                        else -> {
+                                            onPayment(target, amount)
+                                            paymentTarget = null
+                                            paymentError = null
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Save")
+                            }
+                        }
+                    }
+                }
+            },
+        )
+    }
+
     }
 }

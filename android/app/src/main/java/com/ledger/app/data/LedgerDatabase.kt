@@ -29,7 +29,7 @@ import androidx.room.RoomDatabase
         EmiScheduleEntity::class,
         TransactionSettlementEntity::class
     ],
-    version = 25,
+    version = 26,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

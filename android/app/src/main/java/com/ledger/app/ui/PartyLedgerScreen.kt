@@ -282,6 +282,7 @@ var showDeletePartyDialog by remember {
     var showDeleteEntryDialog by remember {
         mutableStateOf(false)
     }
+    var deleteTargetEntry by remember { mutableStateOf<LedgerEntryEntity?>(null) }
 
     var pendingTransactionSms by remember {
         mutableStateOf<Pair<String, String>?>(null)
@@ -490,6 +491,16 @@ var showDeletePartyDialog by remember {
                                             return@runInTransaction
                                         }
 
+                                    if (paymentAmount == 0.0) {
+                                        dao.updateSchedule(
+                                            current.copy(
+                                                isPaid = false,
+                                                paidAmount = 0.0
+                                            )
+                                        )
+                                        return@runInTransaction
+                                    }
+
                                     val amount = current.amount.coerceAtLeast(0.0)
                                     val paid = paymentAmount.coerceIn(0.0, amount)
                                     val previousPaid = if (current.isPaid) current.paidAmount else 0.0
@@ -640,7 +651,7 @@ var showDeletePartyDialog by remember {
         return
     }
 
-    
+
     val transactionLimitContext = androidx.compose.ui.platform.LocalContext.current
     var showTransactionLimitDialog by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
@@ -1103,7 +1114,10 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                     }
                                 },
                                 onLongClick = {
-                                    if (emiSchedules.none { it.transactionId == entry.id }) {
+                                    if (emiSchedules.any { it.transactionId == entry.id }) {
+                                        deleteTargetEntry = entry
+                                        showDeleteEntryDialog = true
+                                    } else {
                                         settlingEntry = entry
                                     }
                                 }
@@ -1216,6 +1230,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                     settlingEntry = entry
                 },
                 onDelete = {
+                    deleteTargetEntry = entry
                     showDeleteEntryDialog = true
                 },
                 onSave = { newAmount, newType, newNote, newTransactionDate, newInterestRate ->
@@ -1267,12 +1282,13 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
         }
 
         if (showDeleteEntryDialog) {
-            val entry = editingEntry
+            val entry = deleteTargetEntry ?: editingEntry
 
             if (entry != null) {
                 AlertDialog(
                     onDismissRequest = {
                         showDeleteEntryDialog = false
+                        deleteTargetEntry = null
                     },
                                 containerColor = androidx.compose.ui.graphics.Color.White,
 title = {
@@ -1290,6 +1306,7 @@ title = {
                                     val succeeded = viewModel.deleteEntry(entry)
                                     showDeleteEntryDialog = false
                                     editingEntry = null
+                                    deleteTargetEntry = null
 
                                     if (succeeded) {
                                         val phone = currentParty.mobile.trim()
@@ -1325,6 +1342,7 @@ title = {
                         TextButton(
                             onClick = {
                                 showDeleteEntryDialog = false
+                                deleteTargetEntry = null
                             }
                         ) {
                             Text("Cancel")
@@ -3141,7 +3159,7 @@ FilterChip(
                 }
 
 
-                
+
 
             }
 
@@ -3217,12 +3235,36 @@ FilterChip(
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                         )
 
+                        LaunchedEffect(transactionDate) {
+                            val minimumEmiStartDate = Calendar.getInstance().apply {
+                                timeInMillis = transactionDate
+                                add(Calendar.MONTH, 1)
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+
+                            if (emiDueDate < minimumEmiStartDate) {
+                                emiDueDate = minimumEmiStartDate
+                            }
+                        }
+
                         OutlinedButton(
                             onClick = {
+                                val minimumEmiStartDate = Calendar.getInstance().apply {
+                                    timeInMillis = transactionDate
+                                    add(Calendar.MONTH, 1)
+                                    set(Calendar.HOUR_OF_DAY, 12)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                    set(Calendar.MILLISECOND, 0)
+                                }.timeInMillis
+
                                 showTransactionDatePicker(
                                     context = context,
-                                    initialDate = maxOf(emiDueDate, transactionDate),
-                                    minDate = transactionDate,
+                                    initialDate = maxOf(emiDueDate, minimumEmiStartDate),
+                                    minDate = minimumEmiStartDate,
                                     onDateSelected = { emiDueDate = it }
                                 )
                             },
@@ -4419,6 +4461,12 @@ private fun EmiInstallmentsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(sorted, key = { it.id }) { emi ->
+                    val laterPaid = sorted.any {
+                        it.installmentNumber > emi.installmentNumber && it.isPaid
+                    }
+                    val firstUnpaid = sorted.firstOrNull { !it.isPaid }
+                    val canOpenPayment = !laterPaid && (emi.isPaid || firstUnpaid?.id == emi.id)
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -4429,17 +4477,18 @@ private fun EmiInstallmentsScreen(
                                 val firstUnpaid = sorted.firstOrNull { !it.isPaid }
                                 if (!laterPaid && (emi.isPaid || firstUnpaid?.id == emi.id)) {
                                     paymentTarget = emi
-                                    paymentInput = if (emi.isPaid) {
-                                        emi.paidAmount.toString()
-                                    } else {
-                                        ""
-                                    }
+                                    paymentInput = if (emi.isPaid) emi.paidAmount.toString() else ""
                                     paymentError = null
                                 }
                             },
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardColor),
-                        border = BorderStroke(1.dp, borderColor)
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (canOpenPayment) cardColor else Color(0xFFE2E2E2)
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (canOpenPayment) borderColor else Color(0xFF9E9E9E)
+                        )
                     ) {
                         Row(
                             modifier = Modifier
@@ -4492,6 +4541,83 @@ private fun EmiInstallmentsScreen(
                                     style = MaterialTheme.typography.labelMedium
                                 )
                             }
+                        }
+                    }
+                }
+
+                item {
+                    val partialPaidEmis = sorted.filter {
+                        it.paidAmount > 0.0 && it.paidAmount < it.amount
+                    }
+                    val partialRemainingTotal = partialPaidEmis.sumOf {
+                        (it.amount - it.paidAmount).coerceAtLeast(0.0)
+                    }
+                    val todayStart = java.util.Calendar.getInstance().apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val overdueInterestTotal = partialPaidEmis.sumOf { emi ->
+                        val dueStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = emi.dueDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val overdueDays = if (todayStart > dueStart) {
+                            (todayStart - dueStart) / 86_400_000L
+                        } else 0L
+                        val remaining = (emi.amount - emi.paidAmount).coerceAtLeast(0.0)
+                        remaining * entry.interestRate.coerceAtLeast(0.0) *
+                            overdueDays / (365.0 * 100.0)
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = cardColor),
+                        border = BorderStroke(1.dp, borderColor),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                "Partial Paid EMI Remaining",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = accent
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Remaining Total", modifier = Modifier.weight(1f))
+                                Text(
+                                    "${CurrencySettings.symbol}${formatAmount(partialRemainingTotal)}",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Overdue Interest Total", modifier = Modifier.weight(1f))
+                                Text(
+                                    "${CurrencySettings.symbol}${formatAmount(overdueInterestTotal)}",
+                                    fontWeight = FontWeight.Bold,
+                                    color = accent
+                                )
+                            }
+                            Text(
+                                "Interest calculated from each due date to today at " +
+                                    "${formatInterestRate(entry.interestRate)}% p.a.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -4557,6 +4683,19 @@ private fun EmiInstallmentsScreen(
             },
             confirmButton = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (target.isPaid) {
+                        OutlinedButton(
+                            onClick = {
+                                onPayment(target, 0.0)
+                                paymentTarget = null
+                                paymentError = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Unpaid")
+                        }
+                    }
+
                     if (!showPartialPaymentInput) {
                         Button(
                             onClick = {

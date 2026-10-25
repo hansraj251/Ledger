@@ -285,10 +285,10 @@ onPartiesClick: () -> Unit,
                 selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
                 indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
             ),
-            icon = { Icon(Icons.Outlined.Group, contentDescription = null) },
+            icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
             label = {
                 Text(
-                    "Parties",
+                    "Home",
                     fontWeight = if (selectedTab == "parties") FontWeight.SemiBold else FontWeight.Normal
                 )
             }

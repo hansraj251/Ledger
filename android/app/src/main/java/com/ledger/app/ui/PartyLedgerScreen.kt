@@ -46,6 +46,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -99,6 +102,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.LedgerEntryEntity
+import com.ledger.app.data.TransactionSettlementEntity
+import com.ledger.app.data.remainingPrincipal
 import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateInterestPosition
 import com.ledger.app.data.calculateInterestAccountPosition
@@ -266,6 +271,7 @@ var showDeletePartyDialog by remember {
     var editingEntry by remember {
         mutableStateOf<LedgerEntryEntity?>(null)
     }
+    var settlingEntry by remember { mutableStateOf<LedgerEntryEntity?>(null) }
 
     var showDeleteEntryDialog by remember {
         mutableStateOf(false)
@@ -461,6 +467,7 @@ var showDeletePartyDialog by remember {
             party = currentParty,
             transactions = uiState.entries,
             records = uiState.interestAccountEntries,
+            settlements = uiState.settlements,
             errorMessage = uiState.errorMessage,
             onBack = { showInterestAccount = false },
             onAdd = { value, type, recordNote, date ->
@@ -602,29 +609,41 @@ Scaffold(
             }
 
             item {
-                val interestPosition = calculateInterestAccountPosition(uiState.entries, uiState.interestAccountEntries)
+                val interestPosition = calculateInterestAccountPosition(
+                    uiState.entries,
+                    uiState.interestAccountEntries,
+                    settlements = uiState.settlements
+                )
 
             val gaveTransactionInterest = uiState.entries
-                .filter { it.type == EntryType.CREDIT }
-                .sumOf {
-                    calculateTransactionInterest(
-                        amount = it.amount,
-                        annualRate = it.interestRate,
-                        transactionDate = it.transactionDate,
-                        createdAt = it.createdAt
-                    )
-                }
-            val gotTransactionInterest = uiState.entries
-                .filter { it.type == EntryType.DEBIT }
-                .sumOf {
-                    calculateTransactionInterest(
-                        amount = it.amount,
-                        annualRate = it.interestRate,
-                        transactionDate = it.transactionDate,
-                        createdAt = it.createdAt
-                    )
-                }
-            val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
+                    .filter { it.type == EntryType.CREDIT }
+                    .sumOf { entry ->
+                        calculateTransactionInterest(
+                            amount = entry.amount,
+                            annualRate = entry.interestRate,
+                            transactionDate = entry.transactionDate,
+                            createdAt = entry.createdAt,
+                            settlements = uiState.settlements.filter {
+                                it.transactionId == entry.id
+                            }
+                        )
+                    }
+
+                val gotTransactionInterest = uiState.entries
+                    .filter { it.type == EntryType.DEBIT }
+                    .sumOf { entry ->
+                        calculateTransactionInterest(
+                            amount = entry.amount,
+                            annualRate = entry.interestRate,
+                            transactionDate = entry.transactionDate,
+                            createdAt = entry.createdAt,
+                            settlements = uiState.settlements.filter {
+                                it.transactionId == entry.id
+                            }
+                        )
+                    }
+
+                val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
                 if (it.type == "GAVE") it.amount else -it.amount
             }
             val netInterest =
@@ -803,17 +822,19 @@ Scaffold(
             } else {
                 items(
                     items = uiState.entries.asReversed(),
-                    key = {
-                        it.id
-                    }
+                    key = { it.id }
                 ) { entry ->
                     TransactionCard(
                         entry = entry,
+                        settlements = uiState.settlements.filter {
+                            it.transactionId == entry.id
+                        },
                         modifier = Modifier
                             .padding(horizontal = 20.dp)
-                            .clickable {
-                                editingEntry = entry
-                            }
+                            .combinedClickable(
+                                onClick = { editingEntry = entry },
+                                onLongClick = { settlingEntry = entry }
+                            )
                     )
                 }
             }
@@ -869,11 +890,43 @@ Scaffold(
         }
 
 
+        settlingEntry?.let { entry ->
+            SettlementDialog(
+                entry = entry,
+                settlements = uiState.settlements.filter { it.transactionId == entry.id },
+                onDismiss = { settlingEntry = null },
+                onSave = { settlementId, value, date, note ->
+                    scope.launch {
+                        val succeeded = if (settlementId == null) {
+                            viewModel.addSettlement(entry, value, date, note)
+                        } else {
+                            viewModel.updateSettlement(entry, settlementId, value, date, note)
+                        }
+                        if (succeeded) settlingEntry = null
+                    }
+                },
+                onDelete = { settlement ->
+                    scope.launch {
+                        if (viewModel.deleteSettlement(entry, settlement.id)) {
+                            // The history is refreshed; keep the modal open.
+                        }
+                    }
+                }
+            )
+        }
+
         editingEntry?.let { entry ->
             EditTransactionDialog(
                 entry = entry,
+                hasSettlementHistory = uiState.settlements.any {
+                    it.transactionId == entry.id
+                },
                 onDismiss = {
                     editingEntry = null
+                },
+                onSettle = {
+                    editingEntry = null
+                    settlingEntry = entry
                 },
                 onDelete = {
                     showDeleteEntryDialog = true
@@ -1278,7 +1331,9 @@ private fun PartyHeader(
 @Composable
 private fun EditTransactionDialog(
     entry: LedgerEntryEntity,
+    hasSettlementHistory: Boolean,
     onDismiss: () -> Unit,
+    onSettle: () -> Unit,
     onDelete: () -> Unit,
     onSave: (Double, EntryType, String, Long, Double) -> Unit
 ) {
@@ -1364,6 +1419,7 @@ private fun EditTransactionDialog(
                 ) {
                     OutlinedTextField(
                         value = amount,
+            enabled = !hasSettlementHistory,
                         onValueChange = { amount = it },
                         modifier = Modifier.weight(if (showInterestInput) 1.15f else 1f),
                         singleLine = true,
@@ -1498,6 +1554,7 @@ FilterChip(
                         modifier = Modifier
                             .matchParentSize()
                             .clickable(
+                                enabled = !hasSettlementHistory,
                                 indication = null,
                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                             ) {
@@ -1550,6 +1607,22 @@ FilterChip(
                     Text(
                         text = "Delete Transaction",
                         color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onSettle,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text(
+                        text = "Settle",
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -1937,6 +2010,7 @@ private fun InterestAccountScreen(
     party: PartyEntity,
     transactions: List<LedgerEntryEntity>,
     records: List<InterestAccountEntryEntity>,
+    settlements: List<TransactionSettlementEntity>,
     errorMessage: String,
     onBack: () -> Unit,
     onAdd: (Double, String, String, Long) -> Unit,
@@ -1946,7 +2020,7 @@ private fun InterestAccountScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    val position = calculateInterestAccountPosition(transactions, records)
+    val position = calculateInterestAccountPosition(transactions, records, settlements = settlements)
     val totalPaidInterest = records.sumOf {
         if (it.type == "GAVE") it.amount else -it.amount
     }
@@ -1964,7 +2038,10 @@ private fun InterestAccountScreen(
                 amount = it.amount,
                 annualRate = it.interestRate,
                 transactionDate = it.transactionDate,
-                createdAt = it.createdAt
+                createdAt = it.createdAt,
+                settlements = settlements.filter { settlement ->
+                    settlement.transactionId == it.id
+                }
             )
         }
 
@@ -1975,7 +2052,10 @@ private fun InterestAccountScreen(
                 amount = it.amount,
                 annualRate = it.interestRate,
                 transactionDate = it.transactionDate,
-                createdAt = it.createdAt
+                createdAt = it.createdAt,
+                settlements = settlements.filter { settlement ->
+                    settlement.transactionId == it.id
+                }
             )
         }
 
@@ -1987,18 +2067,19 @@ private fun InterestAccountScreen(
     }
     val totalInterestDisplay = kotlin.math.abs(totalInterest)
 
-    val totalReceivableInterest = totalInterest + totalPaidInterest
+    // Outstanding interest after applying settlements and recorded interest.
+    val totalReceivableInterest = position.receivable - position.payable
     val receivableInterestLabel = if (totalReceivableInterest >= 0.0) {
         "Receivable Int."
     } else {
         "Payable Int."
     }
     val receivableInterestDisplay = kotlin.math.abs(totalReceivableInterest)
-    val totalPayableInterest = position.payable + gotTransactionInterest
+    val totalPayableInterest = position.payable
     var editingRecordId by remember { mutableStateOf<Long?>(null) }
     var recordToDelete by remember { mutableStateOf<InterestAccountEntryEntity?>(null) }
     val validationRecords = records.filterNot { it.id == editingRecordId }
-    val validationPosition = calculateInterestAccountPosition(transactions, validationRecords)
+    val validationPosition = calculateInterestAccountPosition(transactions, validationRecords, settlements = settlements)
     var selectedType by remember { mutableStateOf("GAVE") }
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
@@ -2009,8 +2090,9 @@ private fun InterestAccountScreen(
         if (it.type == "GAVE") it.amount else -it.amount
     }
 
-    // Match the third card: Receivable Int. / Payable Int.
-    val validationNetInterest = totalInterest + validationPaidInterest
+    // Keep validation aligned with settlement-adjusted outstanding interest.
+    val validationNetInterest =
+        validationPosition.receivable - validationPosition.payable
 
     val pendingLimit = if (selectedType == "GAVE") {
         maxOf(0.0, -validationNetInterest)
@@ -3343,8 +3425,308 @@ private fun showTransactionDatePicker(
 }
 
 @Composable
+private fun SettlementDialog(
+    entry: LedgerEntryEntity,
+    settlements: List<TransactionSettlementEntity>,
+    onDismiss: () -> Unit,
+    onSave: (Long?, Double, Long, String) -> Unit,
+    onDelete: (TransactionSettlementEntity) -> Unit
+) {
+    var amountText by remember(entry.id) { mutableStateOf("") }
+    var noteText by remember(entry.id) { mutableStateOf("") }
+    var settlementDate by remember(entry.id) { mutableStateOf(System.currentTimeMillis()) }
+    var validation by remember(entry.id) { mutableStateOf("") }
+    var editingSettlementId by remember(entry.id) { mutableStateOf<Long?>(null) }
+    var confirmDelete by remember(entry.id) { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val settled = settlements.sumOf { it.amount }
+    val remaining = (entry.amount - settled).coerceAtLeast(0.0)
+    val editingSettlement = settlements.firstOrNull { it.id == editingSettlementId }
+    val dateLabel = remember(settlementDate) {
+        SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(settlementDate))
+    }
+
+    AlertDialog(
+        containerColor = androidx.compose.ui.graphics.Color.White,
+        onDismissRequest = onDismiss,
+        title = { Text("Settlement") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("Original principal: ${CurrencySettings.symbol}${formatAmount(entry.amount)}")
+                Text("Already settled: ${CurrencySettings.symbol}${formatAmount(settled)}")
+                Text(
+                    "Remaining principal: ${CurrencySettings.symbol}${formatAmount(remaining)}",
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it; validation = "" },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = {
+                        Text(
+                            if (entry.type == EntryType.CREDIT) "Received amount" else "Paid amount"
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = dateLabel,
+                            onValueChange = {},
+                            modifier = Modifier.fillMaxWidth().height(56.dp),
+                            readOnly = true,
+                            enabled = true,
+                            label = { Text("Date") },
+                            singleLine = true,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable {
+                                    val c = Calendar.getInstance().apply {
+                                        timeInMillis = settlementDate
+                                    }
+                                    DatePickerDialog(
+                                        context,
+                                        { _, y, m, d ->
+                                            settlementDate = Calendar.getInstance().apply {
+                                                set(Calendar.YEAR, y)
+                                                set(Calendar.MONTH, m)
+                                                set(Calendar.DAY_OF_MONTH, d)
+                                                set(Calendar.HOUR_OF_DAY, 12)
+                                                set(Calendar.MINUTE, 0)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                        },
+                                        c.get(Calendar.YEAR),
+                                        c.get(Calendar.MONTH),
+                                        c.get(Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }
+                        )
+                    }
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        label = { Text("Note") },
+                        singleLine = true,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                    )
+                }
+
+                if (editingSettlementId != null) {
+                    Text(
+                        "Editing selected settlement",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                editingSettlementId = null
+                                amountText = ""
+                                noteText = ""
+                                settlementDate = System.currentTimeMillis()
+                                validation = ""
+                            }
+                        ) { Text("Cancel edit") }
+
+                        TextButton(
+                            onClick = { confirmDelete = true },
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) { Text("Delete") }
+                    }
+                }
+
+                if (validation.isNotBlank()) {
+                    Text(validation, color = MaterialTheme.colorScheme.error)
+                }
+
+                if (settlements.isNotEmpty()) {
+                    Text("Settlement history", fontWeight = FontWeight.SemiBold)
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        settlements.sortedWith(
+                            compareByDescending<TransactionSettlementEntity> { it.settlementDate }
+                                .thenByDescending { it.id }
+                        ).forEach { item ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        editingSettlementId = item.id
+                                        amountText = item.amount.toString()
+                                        noteText = item.note
+                                        settlementDate = item.settlementDate
+                                        validation = ""
+                                    },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (editingSettlementId == item.id) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    }
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            SimpleDateFormat(
+                                                "dd MMM yyyy",
+                                                Locale.getDefault()
+                                            ).format(Date(item.settlementDate)),
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                        Text(
+                                            "${CurrencySettings.symbol}${formatAmount(item.amount)}",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (item.note.isNotBlank()) {
+                                        Text(
+                                            item.note,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    Text(
+                                        if (entry.type == EntryType.CREDIT) {
+                                            "Received • Tap to edit"
+                                        } else {
+                                            "Paid • Tap to edit"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val value = amountText.trim().toDoubleOrNull()
+                    val earliestSettlementDate =
+                        if (entry.transactionDate > 0L) entry.transactionDate else entry.createdAt
+                    val otherSettlements = settlements.filter { it.id != editingSettlementId }
+                    val amountAvailableAtDate = (
+                        entry.amount - otherSettlements
+                            .filter { it.settlementDate <= settlementDate }
+                            .sumOf { it.amount }
+                        ).coerceAtLeast(0.0)
+
+                    when {
+                        value == null || value <= 0.0 ->
+                            validation = "Enter a valid amount"
+                        settlementDate < earliestSettlementDate ->
+                            validation = "Settlement date cannot be before transaction date"
+                        value > amountAvailableAtDate + 0.000001 ->
+                            validation = "Settlement exceeds remaining principal for this date"
+                        else -> onSave(editingSettlementId, value, settlementDate, noteText.trim())
+                    }
+                },
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline
+                )
+            ) {
+                Text(if (editingSettlementId == null) "Save" else "Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline
+                )
+            ) { Text("Cancel") }
+        }
+    )
+
+    if (confirmDelete && editingSettlement != null) {
+        AlertDialog(
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete settlement?") },
+            text = {
+                Text(
+                    "This settlement of ${CurrencySettings.symbol}" +
+                        "${formatAmount(editingSettlement.amount)} will be permanently deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        onDelete(editingSettlement)
+                        editingSettlementId = null
+                        amountText = ""
+                        noteText = ""
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
 private fun TransactionCard(
     entry: LedgerEntryEntity,
+    settlements: List<TransactionSettlementEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isCredit = entry.type == EntryType.CREDIT
@@ -3404,6 +3786,10 @@ private fun TransactionCard(
                     fontWeight = FontWeight.SemiBold
                 )
 
+                if (settlements.isNotEmpty()) {
+                    Text("Settled ${CurrencySettings.symbol}${formatAmount(settlements.sumOf { it.amount })} • Remaining ${CurrencySettings.symbol}${formatAmount((entry.amount - settlements.sumOf { it.amount }).coerceAtLeast(0.0))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
                 if (entry.note.isNotBlank()) {
                     Spacer(
                         modifier = Modifier.height(3.dp)
@@ -3431,7 +3817,8 @@ private fun TransactionCard(
                 amount = entry.amount,
                 annualRate = entry.interestRate,
                 transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt
+                createdAt = entry.createdAt,
+                settlements = settlements
             )
 
             val interestDays = transactionInterestDays(
@@ -3439,7 +3826,7 @@ private fun TransactionCard(
                 createdAt = entry.createdAt
             )
 
-            val total = calculateEntryTotal(entry)
+            val total = calculateEntryTotal(entry, settlements = settlements)
 
             Column(
                 horizontalAlignment = Alignment.End

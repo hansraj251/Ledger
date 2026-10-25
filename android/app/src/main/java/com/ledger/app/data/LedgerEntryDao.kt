@@ -51,4 +51,8 @@ interface LedgerEntryDao {
 
     @Query("SELECT COUNT(*) FROM ledger_entries")
     fun count(): Int
+
+    @Query("SELECT * FROM ledger_entries WHERE id = :entryId LIMIT 1")
+    fun getById(entryId: Long): LedgerEntryEntity?
+
 }

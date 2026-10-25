@@ -25,9 +25,10 @@ import androidx.room.RoomDatabase
         StaffAdvanceTransactionEntity::class,
         StaffBonusEntity::class,
    StaffSalaryDeductionEntity::class,
-        PartySellItemEntity::class
+        PartySellItemEntity::class,
+        TransactionSettlementEntity::class
     ],
-    version = 23,
+    version = 24,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -61,4 +62,6 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun appSettingsDao(): AppSettingsDao
 
     abstract fun staffDao(): StaffDao
+
+    abstract fun transactionSettlementDao(): TransactionSettlementDao
 }

@@ -68,4 +68,21 @@ interface LedgerDataSource {
     fun getBalance(
         partyId: Long
     ): Double
+
+    fun getSettlementsForTransaction(transactionId: Long): List<TransactionSettlementEntity> = emptyList()
+
+    fun getSettlementsForParty(partyId: Long): List<TransactionSettlementEntity> = emptyList()
+
+    fun addSettlement(settlement: TransactionSettlementEntity): TransactionSettlementEntity {
+        throw UnsupportedOperationException("Settlement is not supported by this data source")
+    }
+
+    fun updateSettlement(settlement: TransactionSettlementEntity): TransactionSettlementEntity {
+        throw UnsupportedOperationException("Settlement editing is not supported by this data source")
+    }
+
+    fun deleteSettlement(settlementId: Long) {
+        throw UnsupportedOperationException("Settlement deletion is not supported by this data source")
+    }
+
 }

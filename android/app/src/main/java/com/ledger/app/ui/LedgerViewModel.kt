@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import com.ledger.app.data.LedgerDataSource
 import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
+import com.ledger.app.data.TransactionSettlementEntity
+import com.ledger.app.data.remainingPrincipal
 import com.ledger.app.data.calculateLedgerBalance
 import com.ledger.app.data.calculateInterestAccountPosition
 import com.ledger.app.data.calculateInterestPosition
@@ -21,6 +23,7 @@ data class LedgerUiState(
     val partyBalances: Map<Long, Double> = emptyMap(),
     val entries: List<LedgerEntryEntity> = emptyList(),
     val interestAccountEntries: List<InterestAccountEntryEntity> = emptyList(),
+    val settlements: List<TransactionSettlementEntity> = emptyList(),
     val selectedPartyId: Long? = null,
     val balance: Double = 0.0,
     val searchQuery: String = "",
@@ -62,11 +65,12 @@ class LedgerViewModel(
     private fun calculateAdjustedBalance(
         entries: List<LedgerEntryEntity>,
         records: List<InterestAccountEntryEntity>,
-        asOf: Long = System.currentTimeMillis()
+        asOf: Long = System.currentTimeMillis(),
+        settlements: List<TransactionSettlementEntity> = emptyList()
     ): Double {
-        val originalBalance = calculateLedgerBalance(entries, asOf)
-        val accrued = calculateInterestPosition(entries, asOf)
-        val remaining = calculateInterestAccountPosition(entries, records, asOf)
+        val originalBalance = calculateLedgerBalance(entries, asOf, settlements)
+        val accrued = calculateInterestPosition(entries, asOf, settlements)
+        val remaining = calculateInterestAccountPosition(entries, records, asOf, settlements)
 
         val accruedNet = accrued.receivable - accrued.payable
 
@@ -88,8 +92,9 @@ class LedgerViewModel(
                 parties.associate { party ->
                     val entries = dataSource.getEntries(party.id)
                     val records = dataSource.getInterestAccountEntries(party.id)
+                    val settlements = dataSource.getSettlementsForParty(party.id)
 
-                    party.id to calculateAdjustedBalance(entries, records)
+                    party.id to calculateAdjustedBalance(entries, records, settlements = settlements)
                 }
             }
 
@@ -255,17 +260,17 @@ class LedgerViewModel(
         )
 
         try {
-            val (entries, records) = withContext(Dispatchers.IO) {
-                dataSource.getEntries(partyId) to
-                    dataSource.getInterestAccountEntries(partyId)
+            val (entries, records, settlements) = withContext(Dispatchers.IO) {
+                Triple(dataSource.getEntries(partyId), dataSource.getInterestAccountEntries(partyId), dataSource.getSettlementsForParty(partyId))
             }
 
             val asOf = System.currentTimeMillis()
-            val balance = calculateAdjustedBalance(entries, records, asOf)
+            val balance = calculateAdjustedBalance(entries, records, asOf, settlements)
 
             _uiState.value = _uiState.value.copy(
                 entries = entries,
                 interestAccountEntries = records,
+                settlements = settlements,
                 selectedPartyId = partyId,
                 balance = balance,
                 isLoading = false,
@@ -277,6 +282,82 @@ class LedgerViewModel(
                 errorMessage = exception.message
                     ?: "Unable to load transactions"
             )
+        }
+    }
+
+    suspend fun addSettlement(entry: LedgerEntryEntity, amount: Double, settlementDate: Long, note: String = ""): Boolean {
+        if (!amount.isFinite() || amount <= 0.0) {
+            _uiState.value = _uiState.value.copy(errorMessage = "Settlement amount must be greater than zero")
+            return false
+        }
+        return try {
+            withContext(Dispatchers.IO) {
+                val existing = dataSource.getSettlementsForTransaction(entry.id)
+                val remaining = (entry.amount - existing.filter { it.settlementDate <= settlementDate }.sumOf { it.amount }).coerceAtLeast(0.0)
+                require(amount <= remaining + 0.000001) { "Settlement exceeds remaining principal" }
+                dataSource.addSettlement(TransactionSettlementEntity(transactionId = entry.id, amount = amount, settlementDate = settlementDate, note = note.trim()))
+            }
+            loadEntries(entry.partyId)
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(errorMessage = exception.message ?: "Unable to save settlement")
+            false
+        }
+    }
+
+    suspend fun updateSettlement(
+        entry: LedgerEntryEntity,
+        settlementId: Long,
+        amount: Double,
+        settlementDate: Long,
+        note: String
+    ): Boolean {
+        if (!amount.isFinite() || amount <= 0.0) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = "Settlement amount must be greater than zero"
+            )
+            return false
+        }
+        return try {
+            withContext(Dispatchers.IO) {
+                dataSource.updateSettlement(
+                    TransactionSettlementEntity(
+                        id = settlementId,
+                        transactionId = entry.id,
+                        amount = amount,
+                        settlementDate = settlementDate,
+                        note = note.trim()
+                    )
+                )
+            }
+            loadEntries(entry.partyId)
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to update settlement"
+            )
+            false
+        }
+    }
+
+    suspend fun deleteSettlement(
+        entry: LedgerEntryEntity,
+        settlementId: Long
+    ): Boolean {
+        return try {
+            withContext(Dispatchers.IO) {
+                dataSource.deleteSettlement(settlementId)
+            }
+            loadEntries(entry.partyId)
+            onDataChanged()
+            true
+        } catch (exception: Exception) {
+            _uiState.value = _uiState.value.copy(
+                errorMessage = exception.message ?: "Unable to delete settlement"
+            )
+            false
         }
     }
 
@@ -385,7 +466,7 @@ class LedgerViewModel(
             }
             val current = _uiState.value
             val updatedBalance = if (current.selectedPartyId == partyId) {
-                calculateAdjustedBalance(current.entries, records)
+                calculateAdjustedBalance(current.entries, records, settlements = current.settlements)
             } else {
                 current.balance
             }
@@ -421,13 +502,12 @@ class LedgerViewModel(
         }
 
         return try {
-            val (transactions, records) = withContext(Dispatchers.IO) {
-                dataSource.getEntries(partyId) to
-                    dataSource.getInterestAccountEntries(partyId)
+            val (transactions, records, settlements) = withContext(Dispatchers.IO) {
+                Triple(dataSource.getEntries(partyId), dataSource.getInterestAccountEntries(partyId), dataSource.getSettlementsForParty(partyId))
             }
 
             // Match the Interest Account page's Receivable/Payable Int. card.
-            val accruedPosition = calculateInterestPosition(transactions)
+            val accruedPosition = calculateInterestPosition(transactions, settlements = settlements)
             val recordedInterestNet = records.sumOf {
                 if (it.type == "GAVE") it.amount else -it.amount
             }
@@ -493,9 +573,8 @@ class LedgerViewModel(
         }
 
         return try {
-            val (transactions, records) = withContext(Dispatchers.IO) {
-                dataSource.getEntries(partyId) to
-                    dataSource.getInterestAccountEntries(partyId)
+            val (transactions, records, settlements) = withContext(Dispatchers.IO) {
+                Triple(dataSource.getEntries(partyId), dataSource.getInterestAccountEntries(partyId), dataSource.getSettlementsForParty(partyId))
             }
             val original = records.firstOrNull {
                 it.id == entryId && it.partyId == partyId
@@ -504,7 +583,7 @@ class LedgerViewModel(
             // Exclude the old version of this record before checking its replacement.
             val otherRecords = records.filterNot { it.id == entryId }
             // Exclude the original record, then use the same net-card calculation as the UI.
-            val accruedPosition = calculateInterestPosition(transactions)
+            val accruedPosition = calculateInterestPosition(transactions, settlements = settlements)
             val recordedInterestNet = otherRecords.sumOf {
                 if (it.type == "GAVE") it.amount else -it.amount
             }

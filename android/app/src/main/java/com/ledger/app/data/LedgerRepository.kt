@@ -12,6 +12,8 @@ class LedgerRepository(
 
     private val interestAccountEntryDao = database.interestAccountEntryDao()
 
+    private val transactionSettlementDao = database.transactionSettlementDao()
+
     override fun getProfile(): ProfileEntity? {
         return profileDao.getProfile()
     }
@@ -159,4 +161,66 @@ class LedgerRepository(
     ): Double {
         return ledgerEntryDao.getBalance(partyId)
     }
+
+    override fun getSettlementsForTransaction(transactionId: Long): List<TransactionSettlementEntity> =
+        transactionSettlementDao.getByTransactionId(transactionId)
+
+    override fun getSettlementsForParty(partyId: Long): List<TransactionSettlementEntity> =
+        transactionSettlementDao.getByPartyId(partyId)
+
+    override fun addSettlement(settlement: TransactionSettlementEntity): TransactionSettlementEntity {
+        require(settlement.amount > 0.0 && settlement.amount.isFinite()) { "Settlement amount must be greater than zero" }
+        val entry = ledgerEntryDao.getById(settlement.transactionId)
+            ?: throw IllegalArgumentException("Transaction does not exist")
+        require(settlement.settlementDate >= (if (entry.transactionDate > 0L) entry.transactionDate else entry.createdAt)) {
+            "Settlement date cannot be before transaction date"
+        }
+        val existing = transactionSettlementDao.getByTransactionId(entry.id)
+        val settled = existing.filter { it.settlementDate <= settlement.settlementDate }.sumOf { it.amount }
+        require(settled + settlement.amount <= entry.amount + 0.000001) { "Settlement exceeds remaining principal" }
+        val id = transactionSettlementDao.insert(settlement.copy(note = settlement.note.trim()))
+        return settlement.copy(id = id, note = settlement.note.trim())
+    }
+
+    override fun updateSettlement(settlement: TransactionSettlementEntity): TransactionSettlementEntity {
+        require(settlement.id > 0L) { "Invalid settlement" }
+        require(settlement.amount > 0.0 && settlement.amount.isFinite()) {
+            "Settlement amount must be greater than zero"
+        }
+
+        val entry = ledgerEntryDao.getById(settlement.transactionId)
+            ?: throw IllegalArgumentException("Transaction does not exist")
+        require(
+            settlement.settlementDate >=
+                (if (entry.transactionDate > 0L) entry.transactionDate else entry.createdAt)
+        ) { "Settlement date cannot be before transaction date" }
+
+        val existing = transactionSettlementDao.getByTransactionId(entry.id)
+        require(existing.any { it.id == settlement.id }) { "Settlement no longer exists" }
+
+        val revised = existing.map {
+            if (it.id == settlement.id) settlement.copy(note = settlement.note.trim()) else it
+        }.sortedWith(compareBy<TransactionSettlementEntity> { it.settlementDate }.thenBy { it.id })
+
+        var cumulative = 0.0
+        revised.forEach {
+            cumulative += it.amount
+            require(cumulative <= entry.amount + 0.000001) {
+                "Settlement exceeds remaining principal"
+            }
+        }
+
+        require(transactionSettlementDao.update(settlement.copy(note = settlement.note.trim())) == 1) {
+            "Settlement no longer exists"
+        }
+        return settlement.copy(note = settlement.note.trim())
+    }
+
+    override fun deleteSettlement(settlementId: Long) {
+        require(settlementId > 0L) { "Invalid settlement" }
+        require(transactionSettlementDao.deleteById(settlementId) == 1) {
+            "Settlement no longer exists"
+        }
+    }
+
 }

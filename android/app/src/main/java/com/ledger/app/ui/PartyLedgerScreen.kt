@@ -3134,7 +3134,13 @@ private fun TransactionComposer(
                 FilterChip(
                     modifier = Modifier.weight(0.8f),
                     selected = emiEnabled,
-                    onClick = { emiEnabled = !emiEnabled },
+                    onClick = {
+                        val enablingEmi = !emiEnabled
+                        emiEnabled = enablingEmi
+                        if (enablingEmi && !showInterestInput) {
+                            onInterestClick()
+                        }
+                    },
                     label = {
                         Text("EMI", style = MaterialTheme.typography.labelSmall, maxLines = 1)
                     }
@@ -3144,7 +3150,13 @@ private fun TransactionComposer(
 FilterChip(
                     modifier = Modifier.weight(0.8f),
                     selected = interestRate > 0.0,
-                    onClick = onInterestClick,
+                    onClick = {
+                            if (emiEnabled) {
+                                if (!showInterestInput) onInterestClick()
+                            } else {
+                                onInterestClick()
+                            }
+                        },
                     label = {
                         Text(
                             if (interestRate > 0.0) {
@@ -3161,127 +3173,6 @@ FilterChip(
 
 
 
-            }
-
-            if (emiEnabled) {
-                val emiFrequencies = listOf("Monthly", "Quarterly", "Half-Yearly")
-
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "EMI Frequency",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        emiFrequencies.forEach { option ->
-                            val selected = emiFrequency == option
-                            Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(54.dp)
-                                    .clickable { emiFrequency = option },
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                                color = if (selected) Color(0xFFFFF1C9)
-                                    else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(
-                                    if (selected) 1.5.dp else 1.dp,
-                                    if (selected) Color(0xFFB8862B)
-                                    else MaterialTheme.colorScheme.outlineVariant
-                                ),
-                                shadowElevation = if (selected) 2.dp else 0.dp
-                            ) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        option,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (selected) Color(0xFF805A13)
-                                            else MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = emiCountText,
-                            onValueChange = { value ->
-                                if (value.isEmpty() || value.all { it.isDigit() }) {
-                                    emiCountText = value
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("No. of EMI") },
-                            singleLine = true,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                            ),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                        )
-
-                        LaunchedEffect(transactionDate) {
-                            val minimumEmiStartDate = Calendar.getInstance().apply {
-                                timeInMillis = transactionDate
-                                add(Calendar.MONTH, 1)
-                                set(Calendar.HOUR_OF_DAY, 12)
-                                set(Calendar.MINUTE, 0)
-                                set(Calendar.SECOND, 0)
-                                set(Calendar.MILLISECOND, 0)
-                            }.timeInMillis
-
-                            if (emiDueDate < minimumEmiStartDate) {
-                                emiDueDate = minimumEmiStartDate
-                            }
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                val minimumEmiStartDate = Calendar.getInstance().apply {
-                                    timeInMillis = transactionDate
-                                    add(Calendar.MONTH, 1)
-                                    set(Calendar.HOUR_OF_DAY, 12)
-                                    set(Calendar.MINUTE, 0)
-                                    set(Calendar.SECOND, 0)
-                                    set(Calendar.MILLISECOND, 0)
-                                }.timeInMillis
-
-                                showTransactionDatePicker(
-                                    context = context,
-                                    initialDate = maxOf(emiDueDate, minimumEmiStartDate),
-                                    minDate = minimumEmiStartDate,
-                                    onDateSelected = { emiDueDate = it }
-                                )
-                            },
-                            modifier = Modifier.weight(1f).height(56.dp),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("EMI Start Date", style = MaterialTheme.typography.labelSmall)
-                                Text(
-                                    formatTransactionDate(emiDueDate),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 1
-                                )
-                            }
-                        }
-                    }
-                }
             }
 
             if (selectedType == EntryType.CREDIT && sellItems.isNotEmpty()) {
@@ -3500,13 +3391,152 @@ FilterChip(
             )
             }
 
+            if (emiEnabled) {
+                val emiFrequencies = listOf("Monthly", "Quarterly", "Half-Yearly")
+
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "EMI Frequency",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        emiFrequencies.forEach { option ->
+                            val selected = emiFrequency == option
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp)
+                                    .clickable { emiFrequency = option },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                color = if (selected) Color(0xFFFFF1C9)
+                                    else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    if (selected) 1.5.dp else 1.dp,
+                                    if (selected) Color(0xFFB8862B)
+                                    else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                shadowElevation = if (selected) 2.dp else 0.dp
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        option,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selected) Color(0xFF805A13)
+                                            else MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = emiCountText,
+                            onValueChange = { value ->
+                                if (value.isEmpty() || value.all { it.isDigit() }) {
+                                    emiCountText = value
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("No. of EMI") },
+                            singleLine = true,
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            ),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        )
+
+                        LaunchedEffect(transactionDate) {
+                            val minimumEmiStartDate = Calendar.getInstance().apply {
+                                timeInMillis = transactionDate
+                                add(Calendar.MONTH, 1)
+                                set(Calendar.HOUR_OF_DAY, 12)
+                                set(Calendar.MINUTE, 0)
+                                set(Calendar.SECOND, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+
+                            if (emiDueDate < minimumEmiStartDate) {
+                                emiDueDate = minimumEmiStartDate
+                            }
+                        }
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedTextField(
+                                value = formatTransactionDate(emiDueDate),
+                                onValueChange = {},
+                                modifier = Modifier.fillMaxWidth(),
+                                readOnly = true,
+                                singleLine = true,
+                                label = { Text("EMI Start Date") },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clickable(
+                                        indication = null,
+                                        interactionSource = remember {
+                                            androidx.compose.foundation.interaction.MutableInteractionSource()
+                                        }
+                                    ) {
+                                        val minimumEmiStartDate = Calendar.getInstance().apply {
+                                            timeInMillis = transactionDate
+                                            add(Calendar.MONTH, 1)
+                                            set(Calendar.HOUR_OF_DAY, 12)
+                                            set(Calendar.MINUTE, 0)
+                                            set(Calendar.SECOND, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+
+                                        showTransactionDatePicker(
+                                            context = context,
+                                            initialDate = maxOf(emiDueDate, minimumEmiStartDate),
+                                            minDate = minimumEmiStartDate,
+                                            onDateSelected = { emiDueDate = it }
+                                        )
+                                    }
+                            )
+                        }
+                    }
+                }
+            }
+
+
             Button(
                 onClick = {
-                    onAdd(
-                        if (emiEnabled) emiFrequency else null,
-                        emiCountText.toIntOrNull() ?: 0,
-                        emiDueDate
-                    )
+                    if (emiEnabled &&
+                        (interestRateText.isBlank() || interestRate <= 0.0)
+                    ) {
+                        Toast.makeText(
+                            context,
+                            "Enter an interest rate greater than 0% for EMI.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        onAdd(
+                            if (emiEnabled) emiFrequency else null,
+                            emiCountText.toIntOrNull() ?: 0,
+                            emiDueDate
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = amount.toDoubleOrNull()?.let {
@@ -4432,6 +4462,64 @@ private fun EmiInstallmentsScreen(
             outstandingPrincipal = (outstandingPrincipal - principal).coerceAtLeast(0.0)
             Triple(emi.id, principal, interest)
         }.associate { it.first to (it.second to it.third) }
+
+        val baseEmiDate = java.util.Calendar.getInstance().apply {
+            timeInMillis = entry.transactionDate
+            add(java.util.Calendar.MONTH, 1)
+        }
+        val actualEmiStartDate = sorted.firstOrNull()?.dueDate
+            ?: baseEmiDate.timeInMillis
+
+        fun localDateFor(millis: Long): java.time.LocalDate {
+            val calendar = java.util.Calendar.getInstance().apply {
+                timeInMillis = millis
+            }
+            return java.time.LocalDate.of(
+                calendar.get(java.util.Calendar.YEAR),
+                calendar.get(java.util.Calendar.MONTH) + 1,
+                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            )
+        }
+
+        val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+            localDateFor(baseEmiDate.timeInMillis),
+            localDateFor(actualEmiStartDate)
+        ).coerceAtLeast(0L)
+
+        val emiDelayInterest = kotlin.math.round(
+            kotlin.math.abs(entry.amount) *
+                entry.interestRate.coerceAtLeast(0.0) *
+                delayDays / 36500.0 * 100.0
+        ) / 100.0
+
+
+                val partialPaidEmis = sorted.filter {
+                        it.paidAmount > 0.0 && it.paidAmount < it.amount
+                    }
+                    val partialRemainingTotal = partialPaidEmis.sumOf {
+                        (it.amount - it.paidAmount).coerceAtLeast(0.0)
+                    }
+                    val todayStart = java.util.Calendar.getInstance().apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val overdueInterestTotal = partialPaidEmis.sumOf { emi ->
+                        val dueStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = emi.dueDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val overdueDays = if (todayStart > dueStart) {
+                            (todayStart - dueStart) / 86_400_000L
+                        } else 0L
+                        val remaining = (emi.amount - emi.paidAmount).coerceAtLeast(0.0)
+                        remaining * entry.interestRate.coerceAtLeast(0.0) *
+                            overdueDays / (365.0 * 100.0)
+                    }
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -4440,13 +4528,68 @@ private fun EmiInstallmentsScreen(
             border = BorderStroke(1.dp, borderColor)
         ) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Total installments: ${sorted.size}", fontWeight = FontWeight.SemiBold)
-                Text("Paid: $paidCount   •   Pending: ${sorted.size - paidCount}")
                 Text(
                     "Transaction amount: ${CurrencySettings.symbol}${formatAmount(entry.amount)}",
                     color = accent,
                     fontWeight = FontWeight.Bold
                 )
+                Text("Total installments: ${sorted.size}", fontWeight = FontWeight.SemiBold)
+                Text("Paid: $paidCount   •   Pending: ${sorted.size - paidCount}")
+                Text(
+                    "EMIs Int.: ${CurrencySettings.symbol}${formatAmount(installmentBreakdown.values.sumOf { it.second })}",
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (delayDays > 0L) {
+                    Text(
+                        "EMI Delay Int.: ${CurrencySettings.symbol}${formatAmount(emiDelayInterest)} ($delayDays days)",
+                        color = accent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (partialRemainingTotal > 0.0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Partial Paid EMI Remaining", modifier = Modifier.weight(1f))
+                        Text(
+                            "${CurrencySettings.symbol}${formatAmount(partialRemainingTotal)}",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                if (overdueInterestTotal > 0.0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Partial Paid EMI Overdue Int.", modifier = Modifier.weight(1f))
+                        Text(
+                            "${CurrencySettings.symbol}${formatAmount(overdueInterestTotal)}",
+                            fontWeight = FontWeight.Bold,
+                            color = accent
+                        )
+                    }
+                }
+
+                val totalInterest = installmentBreakdown.values.sumOf { it.second } +
+                    emiDelayInterest + overdueInterestTotal
+                if (totalInterest > 0.0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Total Int.", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                        Text(
+                            "${CurrencySettings.symbol}${formatAmount(totalInterest)}",
+                            fontWeight = FontWeight.Bold,
+                            color = accent
+                        )
+                    }
+                }
+
             }
         }
 
@@ -4545,82 +4688,7 @@ private fun EmiInstallmentsScreen(
                     }
                 }
 
-                item {
-                    val partialPaidEmis = sorted.filter {
-                        it.paidAmount > 0.0 && it.paidAmount < it.amount
-                    }
-                    val partialRemainingTotal = partialPaidEmis.sumOf {
-                        (it.amount - it.paidAmount).coerceAtLeast(0.0)
-                    }
-                    val todayStart = java.util.Calendar.getInstance().apply {
-                        set(java.util.Calendar.HOUR_OF_DAY, 0)
-                        set(java.util.Calendar.MINUTE, 0)
-                        set(java.util.Calendar.SECOND, 0)
-                        set(java.util.Calendar.MILLISECOND, 0)
-                    }.timeInMillis
-                    val overdueInterestTotal = partialPaidEmis.sumOf { emi ->
-                        val dueStart = java.util.Calendar.getInstance().apply {
-                            timeInMillis = emi.dueDate
-                            set(java.util.Calendar.HOUR_OF_DAY, 0)
-                            set(java.util.Calendar.MINUTE, 0)
-                            set(java.util.Calendar.SECOND, 0)
-                            set(java.util.Calendar.MILLISECOND, 0)
-                        }.timeInMillis
-                        val overdueDays = if (todayStart > dueStart) {
-                            (todayStart - dueStart) / 86_400_000L
-                        } else 0L
-                        val remaining = (emi.amount - emi.paidAmount).coerceAtLeast(0.0)
-                        remaining * entry.interestRate.coerceAtLeast(0.0) *
-                            overdueDays / (365.0 * 100.0)
-                    }
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp, bottom = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardColor),
-                        border = BorderStroke(1.dp, borderColor),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Text(
-                                "Partial Paid EMI Remaining",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = accent
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Remaining Total", modifier = Modifier.weight(1f))
-                                Text(
-                                    "${CurrencySettings.symbol}${formatAmount(partialRemainingTotal)}",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Overdue Interest Total", modifier = Modifier.weight(1f))
-                                Text(
-                                    "${CurrencySettings.symbol}${formatAmount(overdueInterestTotal)}",
-                                    fontWeight = FontWeight.Bold,
-                                    color = accent
-                                )
-                            }
-                            Text(
-                                "Interest calculated from each due date to today at " +
-                                    "${formatInterestRate(entry.interestRate)}% p.a.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+
             }
         }
 

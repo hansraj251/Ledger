@@ -758,53 +758,145 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
             }
 
             item {
-                val interestPosition = calculateInterestAccountPosition(
-                    uiState.entries,
-                    uiState.interestAccountEntries,
-                    settlements = uiState.settlements
-                )
+                val nonEmiEntries = uiState.entries.filter { entry ->
+                emiSchedules.none { it.transactionId == entry.id }
+            }
 
-            val gaveTransactionInterest = uiState.entries
-                    .filter { it.type == EntryType.CREDIT }
-                    .sumOf { entry ->
-                        calculateTransactionInterest(
-                            amount = entry.amount,
-                            annualRate = entry.interestRate,
-                            transactionDate = entry.transactionDate,
-                            createdAt = entry.createdAt,
-                            settlements = uiState.settlements.filter {
-                                it.transactionId == entry.id
-                            }
-                        )
-                    }
+            val interestPosition = calculateInterestAccountPosition(
+                nonEmiEntries,
+                uiState.interestAccountEntries,
+                settlements = uiState.settlements
+            )
 
-                val gotTransactionInterest = uiState.entries
-                    .filter { it.type == EntryType.DEBIT }
-                    .sumOf { entry ->
-                        calculateTransactionInterest(
-                            amount = entry.amount,
-                            annualRate = entry.interestRate,
-                            transactionDate = entry.transactionDate,
-                            createdAt = entry.createdAt,
-                            settlements = uiState.settlements.filter {
-                                it.transactionId == entry.id
-                            }
-                        )
-                    }
+            val gaveTransactionInterest = nonEmiEntries
+                .filter { it.type == EntryType.CREDIT }
+                .sumOf { entry ->
+                    calculateTransactionInterest(
+                        amount = entry.amount,
+                        annualRate = entry.interestRate,
+                        transactionDate = entry.transactionDate,
+                        createdAt = entry.createdAt,
+                        settlements = uiState.settlements.filter {
+                            it.transactionId == entry.id
+                        }
+                    )
+                }
 
-                val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
+            val gotTransactionInterest = nonEmiEntries
+                .filter { it.type == EntryType.DEBIT }
+                .sumOf { entry ->
+                    calculateTransactionInterest(
+                        amount = entry.amount,
+                        annualRate = entry.interestRate,
+                        transactionDate = entry.transactionDate,
+                        createdAt = entry.createdAt,
+                        settlements = uiState.settlements.filter {
+                            it.transactionId == entry.id
+                        }
+                    )
+                }
+
+            val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
                 if (it.type == "GAVE") it.amount else -it.amount
             }
             val netInterest =
                 gaveTransactionInterest - gotTransactionInterest + totalRecordedInterest
 
-                            BalanceHero(
+            fun calculateBalanceCardEmiRemaining(entry: LedgerEntryEntity): Double {
+                val schedules = emiSchedules
+                    .filter { it.transactionId == entry.id }
+                    .sortedBy { it.installmentNumber }
+                if (schedules.isEmpty()) return 0.0
+
+                val baseEmiDate = java.util.Calendar.getInstance().apply {
+                    timeInMillis = entry.transactionDate
+                    add(java.util.Calendar.MONTH, 1)
+                }
+                val actualEmiStartDate = schedules.first().dueDate
+
+                fun localEmiDate(millis: Long): java.time.LocalDate {
+                    val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+                    return java.time.LocalDate.of(
+                        c.get(java.util.Calendar.YEAR),
+                        c.get(java.util.Calendar.MONTH) + 1,
+                        c.get(java.util.Calendar.DAY_OF_MONTH)
+                    )
+                }
+
+                val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+                    localEmiDate(baseEmiDate.timeInMillis),
+                    localEmiDate(actualEmiStartDate)
+                ).coerceAtLeast(0L)
+
+                val delayInterest = kotlin.math.round(
+                    kotlin.math.abs(entry.amount) *
+                        entry.interestRate.coerceAtLeast(0.0) *
+                        delayDays / 36500.0 * 100.0
+                ) / 100.0
+
+                val pendingTotal = schedules.filter { !it.isPaid }
+                    .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
+
+                val partialEmis = schedules.filter {
+                    it.paidAmount > 0.0 && it.paidAmount < it.amount
+                }
+                val partialRemaining = partialEmis.sumOf {
+                    (it.amount - it.paidAmount).coerceAtLeast(0.0)
+                }
+
+                val todayStart = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+
+                val overdueInterest = partialEmis.sumOf { emi ->
+                    val dueStart = java.util.Calendar.getInstance().apply {
+                        timeInMillis = emi.dueDate
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+                    val days = if (todayStart > dueStart) {
+                        (todayStart - dueStart) / 86_400_000L
+                    } else 0L
+                    (emi.amount - emi.paidAmount).coerceAtLeast(0.0) *
+                        entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
+                }
+
+                return (
+                    pendingTotal + delayInterest.coerceAtLeast(0.0) +
+                        partialRemaining.coerceAtLeast(0.0) +
+                        overdueInterest.coerceAtLeast(0.0)
+                    ).coerceAtLeast(0.0)
+            }
+
+            val receivableEmiRemaining = uiState.entries
+                .filter { it.type == EntryType.CREDIT }
+                .sumOf { calculateBalanceCardEmiRemaining(it) }
+
+            val payableEmiRemaining = uiState.entries
+                .filter { it.type == EntryType.DEBIT }
+                .sumOf { calculateBalanceCardEmiRemaining(it) }
+
+            val nonEmiBalance = nonEmiEntries.sumOf { entry ->
+                when (entry.type) {
+                    EntryType.CREDIT -> entry.amount
+                    EntryType.DEBIT -> -entry.amount
+                }
+            }
+
+            BalanceHero(
                     party = currentParty,
-                    balance = uiState.balance,
+                    balance = nonEmiBalance,
                     isPremium = isPremium,
                     netInterest = netInterest,
                     receivableInterest = interestPosition.receivable,
                     payableInterest = interestPosition.payable,
+                    receivableEmiRemaining = receivableEmiRemaining,
+                    payableEmiRemaining = payableEmiRemaining,
                     hasInterest = uiState.entries.any { it.interestRate > 0.0 } ||
                         uiState.interestAccountEntries.isNotEmpty(),
                     onInterestClick = { showInterestAccount = true },
@@ -2135,6 +2227,8 @@ private fun BalanceHero(
     hasInterest: Boolean,
     receivableInterest: Double,
     payableInterest: Double,
+    receivableEmiRemaining: Double,
+    payableEmiRemaining: Double,
     onInterestClick: () -> Unit,
     onSendReport: () -> Unit,
     isSharingReport: Boolean
@@ -2284,6 +2378,42 @@ if (kotlin.math.abs(netInterest) > 0.000001) {
 Spacer(
                 modifier = Modifier.height(2.dp)
             )
+
+            if (receivableEmiRemaining > 0.000001) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Receivable EMI",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFFC62828)
+                    )
+                    Text(
+                        text = "${CurrencySettings.symbol}${formatAmount(receivableEmiRemaining)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            if (payableEmiRemaining > 0.000001) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Payable EMI",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF2E7D32)
+                    )
+                    Text(
+                        text = "${CurrencySettings.symbol}${formatAmount(payableEmiRemaining)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -4334,30 +4464,92 @@ private fun TransactionCard(
                     settlements = settlements
                 )
             } else {
-                val count = emiSchedules.first().installmentCount.coerceAtLeast(1)
-                val periodsPerYear = when (emiSchedules.first().frequency) {
+                val sortedEmis = emiSchedules.sortedBy { it.installmentNumber }
+                val firstEmi = sortedEmis.first()
+                val count = firstEmi.installmentCount.coerceAtLeast(1)
+                val periodsPerYear = when (firstEmi.frequency) {
                     "Weekly" -> 52.0
                     "Quarterly" -> 4.0
                     "Half-Yearly" -> 2.0
                     else -> 12.0
                 }
-                val rate = entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
-                var balance = kotlin.math.abs(entry.amount)
-                var totalInterest = 0.0
-                val principal = kotlin.math.abs(entry.amount)
-                val payment = if (rate > 0.0) {
-                    val factor = Math.pow(1.0 + rate, count.toDouble())
-                    kotlin.math.round((principal * rate * factor / (factor - 1.0)) * 100.0) / 100.0
-                } else {
-                    kotlin.math.round((principal / count) * 100.0) / 100.0
+                val periodicRate =
+                    entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
+
+                var outstandingPrincipal = kotlin.math.abs(entry.amount)
+                var installmentInterest = 0.0
+
+                sortedEmis.forEach { emi ->
+                    val interest = kotlin.math.round(
+                        outstandingPrincipal * periodicRate * 100.0
+                    ) / 100.0
+                    installmentInterest += interest
+                    val principal = (emi.amount - interest).coerceAtLeast(0.0)
+                    outstandingPrincipal =
+                        (outstandingPrincipal - principal).coerceAtLeast(0.0)
                 }
-                repeat(count) { index ->
-                    val interest = kotlin.math.round(balance * rate * 100.0) / 100.0
-                    totalInterest += interest
-                    val actualPayment = if (index == count - 1) balance + interest else payment
-                    balance = (balance - (actualPayment - interest)).coerceAtLeast(0.0)
+
+                val baseEmiDate = java.util.Calendar.getInstance().apply {
+                    timeInMillis = entry.transactionDate
+                    add(java.util.Calendar.MONTH, 1)
                 }
-                kotlin.math.round(totalInterest * 100.0) / 100.0
+                val actualEmiStartDate = sortedEmis.firstOrNull()?.dueDate
+                    ?: baseEmiDate.timeInMillis
+
+                fun localEmiDate(millis: Long): java.time.LocalDate {
+                    val calendar = java.util.Calendar.getInstance().apply {
+                        timeInMillis = millis
+                    }
+                    return java.time.LocalDate.of(
+                        calendar.get(java.util.Calendar.YEAR),
+                        calendar.get(java.util.Calendar.MONTH) + 1,
+                        calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                    )
+                }
+
+                val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+                    localEmiDate(baseEmiDate.timeInMillis),
+                    localEmiDate(actualEmiStartDate)
+                ).coerceAtLeast(0L)
+
+                val delayInterest = kotlin.math.round(
+                    kotlin.math.abs(entry.amount) *
+                        entry.interestRate.coerceAtLeast(0.0) *
+                        delayDays / 36500.0 * 100.0
+                ) / 100.0
+
+                val todayStart = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+
+                val overdueInterest = sortedEmis
+                    .filter { it.paidAmount > 0.0 && it.paidAmount < it.amount }
+                    .sumOf { emi ->
+                        val dueStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = emi.dueDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+
+                        val overdueDays = if (todayStart > dueStart) {
+                            (todayStart - dueStart) / 86_400_000L
+                        } else {
+                            0L
+                        }
+
+                        val remaining = (emi.amount - emi.paidAmount).coerceAtLeast(0.0)
+                        remaining * entry.interestRate.coerceAtLeast(0.0) *
+                            overdueDays / (365.0 * 100.0)
+                    }
+
+                kotlin.math.round(
+                    (installmentInterest + delayInterest + overdueInterest) * 100.0
+                ) / 100.0
             }
 
             val interestDays = transactionInterestDays(
@@ -4388,7 +4580,7 @@ private fun TransactionCard(
 
                     Text(
                         text = if (emiSchedules.isNotEmpty()) {
-                            "Total EMI Interest: ${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
+                            "Total Int.: ${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
                         } else {
                             "${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
                         },

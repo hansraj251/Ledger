@@ -5059,6 +5059,7 @@ private fun EmiChargeSettlementDialog(
 
     deleteTarget?.let { item ->
         AlertDialog(
+            containerColor = androidx.compose.ui.graphics.Color.White,
             onDismissRequest = { deleteTarget = null },
             title = { Text("Delete settlement?") },
             text = {

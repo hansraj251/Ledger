@@ -4414,6 +4414,7 @@ private fun EmiInstallmentsScreen(
     var paymentTarget by remember { mutableStateOf<EmiScheduleEntity?>(null) }
     var paymentInput by remember { mutableStateOf("") }
     var paymentError by remember { mutableStateOf<String?>(null) }
+    var showEmiChargeSettlement by remember { mutableStateOf(false) }
 
     val isReceivable = entry.type == EntryType.CREDIT
     val title = if (isReceivable) "Receivable EMI" else "Payable EMI"
@@ -4523,7 +4524,8 @@ private fun EmiInstallmentsScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clickable { showEmiChargeSettlement = true },
             colors = CardDefaults.cardColors(containerColor = cardColor),
             border = BorderStroke(1.dp, borderColor)
         ) {
@@ -4692,7 +4694,18 @@ private fun EmiInstallmentsScreen(
             }
         }
 
-    paymentTarget?.let { target ->
+
+        if (showEmiChargeSettlement) {
+            EmiChargeSettlementDialog(
+                entry = entry,
+                emiDelayInterest = emiDelayInterest,
+                partialRemainingTotal = partialRemainingTotal,
+                overdueInterestTotal = overdueInterestTotal,
+                onDismiss = { showEmiChargeSettlement = false }
+            )
+        }
+
+paymentTarget?.let { target ->
         var showPartialPaymentInput by remember(target.id) { mutableStateOf(false) }
         val futureUnpaidExists = schedules.any {
             it.installmentNumber > target.installmentNumber && !it.isPaid
@@ -4833,5 +4846,255 @@ private fun EmiInstallmentsScreen(
         )
     }
 
+    }
+}
+
+
+@Composable
+private fun EmiChargeSettlementDialog(
+    entry: LedgerEntryEntity,
+    emiDelayInterest: Double,
+    partialRemainingTotal: Double,
+    overdueInterestTotal: Double,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var history by remember(entry.id) {
+        mutableStateOf<List<com.ledger.app.data.EmiChargeSettlementEntity>>(emptyList())
+    }
+    var amountText by remember(entry.id) { mutableStateOf("") }
+    var noteText by remember(entry.id) { mutableStateOf("") }
+    var validation by remember(entry.id) { mutableStateOf("") }
+    var deleteTarget by remember {
+        mutableStateOf<com.ledger.app.data.EmiChargeSettlementEntity?>(null)
+    }
+
+    val totalCharges = (
+        emiDelayInterest.coerceAtLeast(0.0) +
+        partialRemainingTotal.coerceAtLeast(0.0) +
+        overdueInterestTotal.coerceAtLeast(0.0)
+    )
+    val settledAmount = history.sumOf { it.amount }
+    val remainingBalance = (totalCharges - settledAmount).coerceAtLeast(0.0)
+
+    suspend fun refreshHistory() {
+        history = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ledger.app.data.LedgerDatabaseProvider.get(context)
+                .emiChargeSettlementDao()
+                .getByTransactionId(entry.id)
+        }
+    }
+
+    LaunchedEffect(entry.id) {
+        refreshHistory()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = { Text("Settle") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                @Composable
+                fun chargeRow(label: String, amount: Double) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, modifier = Modifier.weight(1f))
+                        Text(
+                            "${CurrencySettings.symbol}${formatAmount(amount)}",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                chargeRow("EMI Delay Int.", emiDelayInterest)
+                chargeRow("Partial Paid EMI Remaining", partialRemainingTotal)
+                chargeRow("Partial Paid EMI Overdue Int.", overdueInterestTotal)
+                Spacer(modifier = Modifier.height(1.dp))
+                chargeRow("Total Charges", totalCharges)
+                chargeRow("Already Settled", settledAmount)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Remaining Balance", fontWeight = FontWeight.Bold)
+                    Text(
+                        "${CurrencySettings.symbol}${formatAmount(remainingBalance)}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = {
+                        amountText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                        validation = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Amount") },
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Note (optional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (validation.isNotBlank()) {
+                    Text(validation, color = MaterialTheme.colorScheme.error)
+                }
+
+                Text("Settlement History", fontWeight = FontWeight.SemiBold)
+                if (history.isEmpty()) {
+                    Text(
+                        "No settlements yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    history.forEach { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { deleteTarget = item },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        SimpleDateFormat(
+                                            "dd MMM yyyy",
+                                            Locale.getDefault()
+                                        ).format(Date(item.settlementDate)),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        "${CurrencySettings.symbol}${formatAmount(item.amount)}",
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (item.note.isNotBlank()) {
+                                    Text(item.note, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text(
+                                    "Tap to delete",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val amount = amountText.trim().toDoubleOrNull()
+                    when {
+                        amount == null || !amount.isFinite() || amount <= 0.0 ->
+                            validation = "Enter a valid amount"
+                        amount > remainingBalance + 0.000001 ->
+                            validation = "Amount exceeds Remaining Balance"
+                        else -> scope.launch {
+                            try {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    com.ledger.app.data.LedgerDatabaseProvider.get(context)
+                                        .emiChargeSettlementDao()
+                                        .insert(
+                                            com.ledger.app.data.EmiChargeSettlementEntity(
+                                                transactionId = entry.id,
+                                                amount = amount,
+                                                note = noteText.trim()
+                                            )
+                                        )
+                                }
+                                amountText = ""
+                                noteText = ""
+                                validation = ""
+                                refreshHistory()
+                            } catch (e: Exception) {
+                                validation = e.message ?: "Unable to save settlement"
+                            }
+                        }
+                    }
+                },
+                enabled = remainingBalance > 0.0
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        }
+    )
+
+    deleteTarget?.let { item ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete settlement?") },
+            text = {
+                Text(
+                    "This settlement of ${CurrencySettings.symbol}" +
+                        "${formatAmount(item.amount)} will be permanently deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    com.ledger.app.data.LedgerDatabaseProvider.get(context)
+                                        .emiChargeSettlementDao()
+                                        .deleteById(item.id)
+                                }
+                                deleteTarget = null
+                                refreshHistory()
+                            } catch (e: Exception) {
+                                validation = e.message ?: "Unable to delete settlement"
+                                deleteTarget = null
+                            }
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
+            }
+        )
     }
 }

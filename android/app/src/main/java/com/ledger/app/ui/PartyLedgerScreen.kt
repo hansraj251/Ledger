@@ -4535,8 +4535,16 @@ private fun EmiInstallmentsScreen(
                     color = accent,
                     fontWeight = FontWeight.Bold
                 )
-                Text("Total installments: ${sorted.size}", fontWeight = FontWeight.SemiBold)
-                Text("Paid: $paidCount   •   Pending: ${sorted.size - paidCount}")
+                Text("Total Installments (${sorted.firstOrNull()?.frequency ?: "Monthly"}): ${sorted.size}", fontWeight = FontWeight.SemiBold)
+                val todayStart = java.util.Calendar.getInstance().apply {
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+                val overdueCount = sorted.count { !it.isPaid && it.dueDate < todayStart }
+                val pendingCount = sorted.count { !it.isPaid && it.dueDate >= todayStart }
+                Text("Paid: $paidCount • Pending: $pendingCount • Overdue: $overdueCount")
                 Text(
                     "EMIs Int.: ${CurrencySettings.symbol}${formatAmount(installmentBreakdown.values.sumOf { it.second })}",
                     color = accent,
@@ -4592,6 +4600,28 @@ private fun EmiInstallmentsScreen(
                     }
                 }
 
+                val pendingEmisTotal = sorted
+                    .filter { !it.isPaid }
+                    .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Remaining", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                    Text(
+                        "${CurrencySettings.symbol}${formatAmount(pendingEmisTotal + (
+                            emiDelayInterest.coerceAtLeast(0.0) +
+                            partialRemainingTotal.coerceAtLeast(0.0) +
+                            overdueInterestTotal.coerceAtLeast(0.0) -
+                            /* settlement total is loaded in the Settle modal */
+                            0.0
+                        ).coerceAtLeast(0.0))}",
+                        fontWeight = FontWeight.Bold,
+                        color = accent
+                    )
+                }
+
             }
         }
 
@@ -4641,51 +4671,94 @@ private fun EmiInstallmentsScreen(
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                Text("EMI ${emi.installmentNumber}/${emi.installmentCount}", fontWeight = FontWeight.Bold, color = accent)
-                                val breakdown = installmentBreakdown[emi.id]
-                                val principalAmount = breakdown?.first ?: emi.amount
-                                val interestAmount = breakdown?.second ?: 0.0
+                            val breakdown = installmentBreakdown[emi.id]
+                            val principalAmount = breakdown?.first ?: emi.amount
+                            val interestAmount = breakdown?.second ?: 0.0
+                            val isOverdue = !emi.isPaid && emi.dueDate < todayStart
+                            val statusText = when {
+                                emi.isPaid -> "Paid"
+                                isOverdue -> "Overdue"
+                                else -> "Pending"
+                            }
 
-                                Text(
-                                    "Principal: ${CurrencySettings.symbol}${formatAmount(principalAmount)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    "Interest: ${CurrencySettings.symbol}${formatAmount(interestAmount)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "EMI ${emi.installmentNumber}/${emi.installmentCount}",
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent
+                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(50),
+                                        color = when (statusText) {
+                                            "Paid" -> Color(0xFFD5EEDB)
+                                            "Overdue" -> Color(0xFFFFDAD6)
+                                            else -> Color(0xFFFFE4C7)
+                                        }
+                                    ) {
+                                        Text(
+                                            statusText,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                            color = when (statusText) {
+                                                "Paid" -> Color(0xFF216B3A)
+                                                "Overdue" -> Color(0xFFB3261E)
+                                                else -> Color(0xFF9A4815)
+                                            },
+                                            fontWeight = FontWeight.SemiBold,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+                                }
+
                                 Text(
                                     "Total EMI: ${CurrencySettings.symbol}${formatAmount(emi.amount)}",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Text(
-                                    "Due: ${formatTransactionDate(emi.dueDate)}",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                if (emi.paidAmount > 0.0) {
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        "Paid amount: ${CurrencySettings.symbol}${formatAmount(emi.paidAmount)}",
+                                        "Principal: ${CurrencySettings.symbol}${formatAmount(principalAmount)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "Interest: ${CurrencySettings.symbol}${formatAmount(interestAmount)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = accent
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Due: ${formatTransactionDate(emi.dueDate)}",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    if (emi.paidAmount > 0.0) {
+                                        Text(
+                                            "Paid: ${CurrencySettings.symbol}${formatAmount(emi.paidAmount)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = accent
+                                        )
+                                    }
+                                }
                             }
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (emi.isPaid) Color(0xFFD5EEDB) else Color(0xFFFFE4C7)
-                            ) {
-                                Text(
-                                    if (emi.isPaid) "Paid" else "Pending",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    color = if (emi.isPaid) Color(0xFF216B3A) else Color(0xFF9A4815),
-                                    fontWeight = FontWeight.SemiBold,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            }
+
                         }
                     }
                 }

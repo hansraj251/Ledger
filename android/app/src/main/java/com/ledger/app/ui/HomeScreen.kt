@@ -100,6 +100,7 @@ fun HomeScreen(
     autoSyncOff: Boolean = false,
     onAutoSyncOff: () -> Unit = {},
     onAutoSyncOn: () -> Unit = {},
+    onActivityClick: () -> Unit = {},
     onHelpClick: () -> Unit = {},
 
     onStaffClick: (Long) -> Unit = {},
@@ -1188,6 +1189,32 @@ Surface(
                                     }
 
                                     Spacer(Modifier.height(8.dp))
+Surface(
+    modifier = Modifier
+        .fillMaxWidth()
+        .clickable {
+            showMenu = false
+            onActivityClick()
+        },
+    shape = RoundedCornerShape(13.dp),
+    color = Color(0xFFE8F5E9)
+) {
+    Row(
+        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("🕘", fontSize = 20.sp)
+        Text(
+            text = "Activity",
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFF176B35)
+        )
+    }
+}
+
+Spacer(Modifier.height(8.dp))
 Surface(
     modifier = Modifier
         .fillMaxWidth()

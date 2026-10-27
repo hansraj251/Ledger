@@ -327,6 +327,100 @@ class GoogleDriveBackup(
         }
     }
 
+
+    /**
+     * Permanently deletes Ledger backup files from this app's Google Drive appDataFolder.
+     * The callback receives failure if listing or any deletion fails.
+     */
+    fun deleteAllBackups(accessToken: String, callback: (Result<Unit>) -> Unit) {
+        Thread {
+            try {
+                var pageToken: String? = null
+                val fileIds = mutableListOf<String>()
+
+                do {
+                    val query = "name = 'Ledger Backup.db' and trashed = false and 'appDataFolder' in parents"
+                    val url = buildString {
+                        append(DRIVE_FILE_URL)
+                        append("?spaces=appDataFolder&pageSize=100")
+                        append("&fields=nextPageToken,files(id,name)")
+                        append("&q=")
+                        append(java.net.URLEncoder.encode(query, "UTF-8"))
+                        if (!pageToken.isNullOrBlank()) {
+                            append("&pageToken=")
+                            append(java.net.URLEncoder.encode(pageToken, "UTF-8"))
+                        }
+                    }
+
+                    val connection = java.net.URL(url).openConnection()
+                        as java.net.HttpURLConnection
+                    try {
+                        connection.requestMethod = "GET"
+                        connection.connectTimeout = 20_000
+                        connection.readTimeout = 30_000
+                        connection.setRequestProperty("Authorization", "Bearer $accessToken")
+
+                        val code = connection.responseCode
+                        if (code !in 200..299) {
+                            val body = connection.errorStream?.bufferedReader()
+                                ?.use { it.readText() }.orEmpty()
+                            throw java.io.IOException(
+                                "Could not list Ledger Drive backups (HTTP $code): $body"
+                            )
+                        }
+
+                        val json = org.json.JSONObject(
+                            connection.inputStream.bufferedReader().use { it.readText() }
+                        )
+                        val files = json.optJSONArray("files")
+                        if (files != null) {
+                            for (i in 0 until files.length()) {
+                                val file = files.optJSONObject(i) ?: continue
+                                val id = file.optString("id").trim()
+                                val name = file.optString("name")
+                                if (id.isNotBlank() && name == "Ledger Backup.db") {
+                                    fileIds.add(id)
+                                }
+                            }
+                        }
+                        pageToken = json.optString("nextPageToken")
+                            .takeIf { it.isNotBlank() && it != "null" }
+                    } finally {
+                        connection.disconnect()
+                    }
+                } while (pageToken != null)
+
+                for (fileId in fileIds.distinct()) {
+                    val encodedId = java.net.URLEncoder.encode(fileId, "UTF-8")
+                    val connection = java.net.URL("$DRIVE_FILE_URL/$encodedId")
+                        .openConnection() as java.net.HttpURLConnection
+                    try {
+                        connection.requestMethod = "DELETE"
+                        connection.connectTimeout = 20_000
+                        connection.readTimeout = 30_000
+                        connection.setRequestProperty("Authorization", "Bearer $accessToken")
+
+                        val code = connection.responseCode
+                        // 404 means the file has already been deleted.
+                        if (code !in 200..299 && code != 404) {
+                            val body = connection.errorStream?.bufferedReader()
+                                ?.use { it.readText() }.orEmpty()
+                            throw java.io.IOException(
+                                "Could not delete Ledger Drive backup (HTTP $code): $body"
+                            )
+                        }
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+
+                callback(Result.success(Unit))
+            } catch (error: Exception) {
+                callback(Result.failure(error))
+            }
+        }.start()
+    }
+
     private fun readError(
         connection: HttpURLConnection
     ): String {

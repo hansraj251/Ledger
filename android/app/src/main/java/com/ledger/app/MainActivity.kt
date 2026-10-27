@@ -67,6 +67,7 @@ import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
 import com.ledger.app.ui.HelpScreen
+import com.ledger.app.ui.ActivityScreen
 import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.GroupSharingScreen
 import com.ledger.app.ui.GroupExpenseReportScreen
@@ -192,6 +193,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var showHelpScreen by remember { mutableStateOf(false) }
+                var showActivityScreen by remember { mutableStateOf(false) }
             // Temporary UI state only: app restart defaults Auto Sync to ON.
             val autoSyncOffState = androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(false)
@@ -514,6 +516,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             }
                         }
                     )
+                } else if (showActivityScreen) {
+                    ActivityScreen(
+                        database = ledgerSqliteDatabase,
+                        onBack = { showActivityScreen = false }
+                    )
                 } else if (showHelpScreen) {
                     HelpScreen(onBack = { showHelpScreen = false })
                 } else if (showProfileScreen) {
@@ -521,6 +528,130 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         onChangeDriveEmail = { onUpdated -> connectGoogleDrive(onUpdated) },
                         onDownloadBackup = { downloadGoogleDriveBackupToDevice() },
                         onRestoreBackup = { launchLocalBackupRestorePicker() },
+                        onClearData = {
+                            googleDriveSyncCoordinator.pause()
+                            Toast.makeText(
+                                this,
+                                "Deleting Ledger backup from Google Drive...",
+                                Toast.LENGTH_LONG
+                            ).show()
+
+                            googleDriveAuthorization.authorize()
+                                .addOnSuccessListener { authResult ->
+                                    if (authResult.hasResolution()) {
+                                        Toast.makeText(
+                                            this,
+                                            "Please reconnect Google Drive, then try Clear Data again. Local data has not been deleted.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        return@addOnSuccessListener
+                                    }
+
+                                    val token = authResult.accessToken
+                                    if (token.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            this,
+                                            "Google Drive authorization failed. Local data has not been deleted.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        return@addOnSuccessListener
+                                    }
+
+                                    googleDriveBackup.deleteAllBackups(token) { result ->
+                                        runOnUiThread {
+                                            result.onSuccess {
+                                                try {
+                                                    // Only clear local data after Drive confirms deletion.
+                                                    LedgerDatabaseProvider.close()
+
+                                                    databaseList().toList().forEach { dbName ->
+                                                        val dbFile = getDatabasePath(dbName)
+                                                        listOf(
+                                                            dbFile,
+                                                            java.io.File(dbFile.path + "-wal"),
+                                                            java.io.File(dbFile.path + "-shm"),
+                                                            java.io.File(dbFile.path + "-journal")
+                                                        ).forEach { file ->
+                                                            if (file.exists() && !file.delete()) {
+                                                                throw java.io.IOException(
+                                                                    "Unable to delete local database file: ${file.name}"
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    val prefsDir = java.io.File(
+                                                        applicationInfo.dataDir,
+                                                        "shared_prefs"
+                                                    )
+                                                    prefsDir.listFiles()?.forEach { file ->
+                                                        if (!file.deleteRecursively()) {
+                                                            throw java.io.IOException(
+                                                                "Unable to clear local preferences."
+                                                            )
+                                                        }
+                                                    }
+
+                                                    listOf(
+                                                        filesDir,
+                                                        cacheDir,
+                                                        noBackupFilesDir,
+                                                        codeCacheDir
+                                                    ).distinct().forEach { dir ->
+                                                        dir.listFiles()?.forEach { file ->
+                                                            if (!file.deleteRecursively()) {
+                                                                throw java.io.IOException(
+                                                                    "Unable to clear local app files."
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    val launchIntent =
+                                                        packageManager.getLaunchIntentForPackage(packageName)
+
+                                                    if (launchIntent != null) {
+                                                        launchIntent.addFlags(
+                                                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                                                Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                                        )
+                                                        finishAffinity()
+                                                        startActivity(launchIntent)
+                                                        android.os.Process.killProcess(
+                                                            android.os.Process.myPid()
+                                                        )
+                                                    } else {
+                                                        Toast.makeText(
+                                                            this,
+                                                            "Local data and Google Drive backup deleted. Please reopen Ledger.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                } catch (error: Exception) {
+                                                    Toast.makeText(
+                                                        this,
+                                                        "Drive backup was deleted, but local cleanup failed: ${error.message ?: "Unknown error"}. Please reopen Ledger and check the device.",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            }.onFailure { error ->
+                                                Toast.makeText(
+                                                    this,
+                                                    "Google Drive backup deletion failed. Local data was not deleted: ${error.message ?: "Unknown error"}",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                                }
+                                .addOnFailureListener { error ->
+                                    Toast.makeText(
+                                        this,
+                                        "Google Drive authorization failed. Local data was not deleted: ${error.message ?: "Unknown error"}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                        },
                         onBack = {
                             showProfileScreen = false
                         },
@@ -609,6 +740,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     )
                 } else if (selectedParty == null) {
                     HomeScreen(
+                        onActivityClick = { showActivityScreen = true },
                         onHelpClick = { showHelpScreen = true },
                         viewModel = viewModel,
                         onPartyClick = { party ->
@@ -1682,6 +1814,7 @@ private fun ProfileScreen(
     onChangeDriveEmail: ((String) -> Unit) -> Unit,
     onDownloadBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onClearData: () -> Unit,
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit
@@ -1697,6 +1830,10 @@ private fun ProfileScreen(
     }
 
 var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
+    var showClearDataConfirmation by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
     }
 
@@ -1757,6 +1894,60 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                 androidx.compose.material3.OutlinedButton(
                     onClick = {
                         showDriveAccountChangeConfirmation = false
+                    }
+                ) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showClearDataConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showClearDataConfirmation = false
+            },
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            titleContentColor = androidx.compose.ui.graphics.Color(0xFF171717),
+            textContentColor = androidx.compose.ui.graphics.Color(0xFF424242),
+            title = {
+                androidx.compose.material3.Text("Clear All Data?")
+            },
+            text = {
+                androidx.compose.material3.Text(
+                    "WARNING: This action will permanently delete all data stored " +
+                        "locally by Ledger on this device. This includes your parties, " +
+                        "transactions, ledger entries, expenses, staff records, salary " +
+                        "details, groups, settlements, activity history, local settings, " +
+                        "and other locally stored app data.\n\n" +
+                        "Any data that has not been backed up may be lost permanently. " +
+                        "Please download or verify a backup before proceeding if you " +
+                        "may need these records later.\n\n" +
+                        "Your Ledger backup stored in Google Drive will also be permanently deleted. The app will delete its Ledger Backup.db files from its private Google Drive app storage before clearing local data. If Google Drive deletion fails, local data will be kept. " +
+                        "You can use Restore Backup later to recover data from that backup. " +
+                        "Clearing local data may also reset this device's app preferences " +
+                        "and Google Drive connection settings.\n\n" +
+                        "This action cannot be undone. Are you sure you want to continue?"
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showClearDataConfirmation = false
+                        onClearData()
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(0xFFB42318),
+                        contentColor = androidx.compose.ui.graphics.Color.White
+                    )
+                ) {
+                    androidx.compose.material3.Text("Clear Data")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        showClearDataConfirmation = false
                     }
                 ) {
                     androidx.compose.material3.Text("Cancel")
@@ -2411,6 +2602,22 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                         ) {
                             androidx.compose.material3.Text(
                                 text = "Restore Backup",
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = {
+                                showClearDataConfirmation = true
+                            },
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                contentColor = androidx.compose.ui.graphics.Color(0xFFB42318)
+                            )
+                        ) {
+                            androidx.compose.material3.Text(
+                                text = "Clear Data",
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )
                         }

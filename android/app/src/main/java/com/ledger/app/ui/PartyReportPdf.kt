@@ -525,8 +525,16 @@ val emiGotRemaining = emiEntries
 
         val profileLabel = profileName.trim().ifEmpty { "You" }
         val emiSummaryRows = mutableListOf<List<String>>()
-        emiSummaryRows.add(listOf("Total $profileLabel Gave", money(emiGave)))
-        emiSummaryRows.add(listOf("Total $profileLabel Got", money(emiGot)))
+        if (emiGave > 0.0) {
+            emiSummaryRows.add(
+                listOf("Total $profileLabel Gave", money(emiGave))
+            )
+        }
+        if (emiGot > 0.0) {
+            emiSummaryRows.add(
+                listOf("Total $profileLabel Got", money(emiGot))
+            )
+        }
         if (emiGaveInterest > 0.0) {
             emiSummaryRows.add(
                 listOf("Total EMI Int. of ${party.name.trim()}", money(emiGaveInterest))
@@ -724,6 +732,357 @@ val emiGotRemaining = emiEntries
             rows = interestRows,
             notes = interestNotes
         )
+    }
+
+
+    // Append a separate installment table for every EMI transaction.
+    val emiReportEntries = orderedEntries.mapNotNull { entry ->
+        val transactionEmis = emiSchedules
+            .filter { it.transactionId == entry.id }
+            .sortedBy { it.installmentNumber }
+
+        if (transactionEmis.isEmpty()) null else entry to transactionEmis
+    }
+
+    if (emiReportEntries.isNotEmpty()) {
+        writer.space(14f)
+        writer.section("EMI Installment Details (${emiReportEntries.size} transactions)")
+
+        val todayStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = today
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        emiReportEntries.forEachIndexed { index, (entry, transactionEmis) ->
+            writer.space(6f)
+
+            val transactionDate = if (entry.transactionDate > 0L) {
+                entry.transactionDate
+            } else {
+                entry.createdAt
+            }
+
+            val transactionType = if (entry.type == EntryType.CREDIT) {
+                gaveLabel.uppercase()
+            } else {
+                gotLabel.uppercase()
+            }
+
+            val transactionTitle = buildString {
+                append("${index + 1}. $transactionType")
+                if (entry.note.isNotBlank()) append(" - ${entry.note}")
+                append(" (${dateFormat.format(Date(transactionDate))})")
+            }
+
+            writer.subtitle(transactionTitle)
+
+            // Transaction Summary: mirror the EMI Details screen's top card.
+            val summaryTodayStart = java.util.Calendar.getInstance().apply {
+                timeInMillis = today
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+
+            val summaryPaidCount = transactionEmis.count { it.isPaid }
+            val summaryPendingCount = transactionEmis.count {
+                !it.isPaid && it.dueDate >= summaryTodayStart
+            }
+            val summaryOverdueCount = transactionEmis.count {
+                !it.isPaid && it.dueDate < summaryTodayStart
+            }
+
+            val summaryPeriodsPerYear = when (transactionEmis.first().frequency) {
+                "Weekly" -> 52.0
+                "Quarterly" -> 4.0
+                "Half-Yearly" -> 2.0
+                else -> 12.0
+            }
+            val summaryPeriodicRate =
+                entry.interestRate.coerceAtLeast(0.0) / 100.0 /
+                    summaryPeriodsPerYear
+
+            var summaryOutstandingPrincipal = kotlin.math.abs(entry.amount)
+            val summaryInstallmentInterest = transactionEmis.sumOf { emi ->
+                val interest = kotlin.math.round(
+                    summaryOutstandingPrincipal * summaryPeriodicRate * 100.0
+                ) / 100.0
+                val principal = (emi.amount - interest).coerceAtLeast(0.0)
+                summaryOutstandingPrincipal =
+                    (summaryOutstandingPrincipal - principal).coerceAtLeast(0.0)
+                interest
+            }
+
+            val summaryBaseEmiDate = java.util.Calendar.getInstance().apply {
+                timeInMillis = entry.transactionDate
+                add(java.util.Calendar.MONTH, 1)
+            }
+            val summaryActualStartDate = transactionEmis.first().dueDate
+
+            fun summaryLocalDate(millis: Long): java.time.LocalDate {
+                val c = java.util.Calendar.getInstance().apply {
+                    timeInMillis = millis
+                }
+                return java.time.LocalDate.of(
+                    c.get(java.util.Calendar.YEAR),
+                    c.get(java.util.Calendar.MONTH) + 1,
+                    c.get(java.util.Calendar.DAY_OF_MONTH)
+                )
+            }
+
+            val summaryDelayDays = java.time.temporal.ChronoUnit.DAYS.between(
+                summaryLocalDate(summaryBaseEmiDate.timeInMillis),
+                summaryLocalDate(summaryActualStartDate)
+            ).coerceAtLeast(0L)
+
+            val summaryDelayInterest = kotlin.math.round(
+                kotlin.math.abs(entry.amount) *
+                    entry.interestRate.coerceAtLeast(0.0) *
+                    summaryDelayDays / 36500.0 * 100.0
+            ) / 100.0
+
+            val summaryPartialEmis = transactionEmis.filter {
+                it.paidAmount > 0.0 && it.paidAmount < it.amount
+            }
+            val summaryPartialRemaining = summaryPartialEmis.sumOf {
+                (it.amount - it.paidAmount).coerceAtLeast(0.0)
+            }
+
+            val summaryOverdueInterest = summaryPartialEmis.sumOf { emi ->
+                val dueStart = java.util.Calendar.getInstance().apply {
+                    timeInMillis = emi.dueDate
+                    set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+
+                val days = if (summaryTodayStart > dueStart) {
+                    (summaryTodayStart - dueStart) / 86_400_000L
+                } else 0L
+
+                (emi.amount - emi.paidAmount).coerceAtLeast(0.0) *
+                    entry.interestRate.coerceAtLeast(0.0) *
+                    days / (365.0 * 100.0)
+            }
+
+            val summaryHistory = emiChargeSettlements.filter {
+                it.transactionId == entry.id
+            }
+            val summarySettledEmiAmount = summaryHistory.sumOf {
+                it.emiAmount.coerceAtLeast(0.0)
+            }
+            val summarySettledOverdueInterest = summaryHistory.sumOf { settlement ->
+                val settledEmi = settlement.emiAmount.coerceAtLeast(0.0)
+                if (settledEmi <= 0.0) {
+                    0.0
+                } else {
+                    val settlementStart = java.util.Calendar.getInstance().apply {
+                        timeInMillis = settlement.settlementDate
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+
+                    val days = (
+                        (summaryTodayStart - settlementStart) / 86_400_000L
+                    ).coerceAtLeast(0L)
+
+                    kotlin.math.round(
+                        settledEmi * entry.interestRate.coerceAtLeast(0.0) *
+                            days / 36500.0 * 100.0
+                    ) / 100.0
+                }
+            }
+
+            val summaryAdjustedPartialRemaining =
+                (summaryPartialRemaining - summarySettledEmiAmount)
+                    .coerceAtLeast(0.0)
+            val summaryAdjustedOverdueInterest =
+                (summaryOverdueInterest - summarySettledOverdueInterest)
+                    .coerceAtLeast(0.0)
+            val summarySettledInterest = summaryHistory.sumOf {
+                it.interestAmount.coerceAtLeast(0.0)
+            }
+            val summaryPendingEmisTotal = transactionEmis
+                .filter { !it.isPaid }
+                .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
+
+            val summaryTotalInterest =
+                summaryInstallmentInterest + summaryDelayInterest +
+                    summaryAdjustedOverdueInterest
+
+            val summaryRemaining =
+                summaryPendingEmisTotal + (
+                    summaryDelayInterest.coerceAtLeast(0.0) +
+                        summaryAdjustedPartialRemaining.coerceAtLeast(0.0) +
+                        summaryAdjustedOverdueInterest.coerceAtLeast(0.0) -
+                        summarySettledInterest
+                    ).coerceAtLeast(0.0)
+
+            writer.subtitle("Transaction Summary")
+
+            val summaryRows = mutableListOf<List<String>>()
+            summaryRows.add(
+                listOf("Transaction amount", money(entry.amount))
+            )
+            summaryRows.add(
+                listOf(
+                    "Total Installments (${transactionEmis.first().frequency})",
+                    transactionEmis.size.toString()
+                )
+            )
+            summaryRows.add(
+                listOf(
+                    "Paid / Pending / Overdue",
+                    "$summaryPaidCount / $summaryPendingCount / $summaryOverdueCount"
+                )
+            )
+            summaryRows.add(
+                listOf("EMIs Int.", money(summaryInstallmentInterest))
+            )
+
+            if (summaryDelayDays > 0L) {
+                summaryRows.add(
+                    listOf(
+                        "EMI Delay Int. ($summaryDelayDays days)",
+                        money(summaryDelayInterest)
+                    )
+                )
+            }
+            if (summaryAdjustedPartialRemaining > 0.0) {
+                summaryRows.add(
+                    listOf(
+                        "Partial Paid EMI Remaining",
+                        money(summaryAdjustedPartialRemaining)
+                    )
+                )
+            }
+            if (summaryAdjustedOverdueInterest > 0.0) {
+                summaryRows.add(
+                    listOf(
+                        "Partial Paid EMI Overdue Int.",
+                        money(summaryAdjustedOverdueInterest)
+                    )
+                )
+            }
+            if (summaryTotalInterest > 0.0) {
+                summaryRows.add(
+                    listOf("Total Int.", money(summaryTotalInterest))
+                )
+            }
+            summaryRows.add(
+                listOf("Remaining", money(summaryRemaining))
+            )
+
+            writer.table(
+                headers = listOf("Transaction Summary", "Details"),
+                rows = summaryRows,
+                notes = List(summaryRows.size) { null },
+                widths = listOf(300f, 223f)
+            )
+
+            // Settlement history for this EMI transaction.
+            writer.subtitle("Settlement History")
+
+            val settlementHistoryRows = summaryHistory
+                .sortedBy { it.settlementDate }
+                .map { settlement ->
+                    val emiSettled = settlement.emiAmount.coerceAtLeast(0.0)
+                    val interestSettled =
+                        settlement.interestAmount.coerceAtLeast(0.0)
+
+                    listOf(
+                        dateFormat.format(Date(settlement.settlementDate)),
+                        money(emiSettled),
+                        money(interestSettled),
+                        money(emiSettled + interestSettled)
+                    )
+                }
+
+            if (settlementHistoryRows.isEmpty()) {
+                writer.text("No settlement history recorded.", 9f, false)
+            } else {
+                writer.table(
+                    headers = listOf(
+                        "Settlement Date",
+                        "EMI Settled",
+                        "Interest Settled",
+                        "Total Settled"
+                    ),
+                    rows = settlementHistoryRows,
+                    notes = List(settlementHistoryRows.size) { null },
+                    widths = listOf(105f, 125f, 135f, 158f)
+                )
+            }
+
+            val periodsPerYear = when (transactionEmis.first().frequency) {
+                "Weekly" -> 52.0
+                "Quarterly" -> 4.0
+                "Half-Yearly" -> 2.0
+                else -> 12.0
+            }
+
+            val periodicRate =
+                entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
+
+            var outstandingPrincipal = kotlin.math.abs(entry.amount)
+
+            val rows = transactionEmis.map { emi ->
+                val interest = kotlin.math.round(
+                    outstandingPrincipal * periodicRate * 100.0
+                ) / 100.0
+
+                val principal = (emi.amount - interest).coerceAtLeast(0.0)
+                outstandingPrincipal =
+                    (outstandingPrincipal - principal).coerceAtLeast(0.0)
+
+                val remaining = (emi.amount - emi.paidAmount)
+                    .coerceAtLeast(0.0)
+
+                val status = when {
+                    emi.paidAmount > 0.0 &&
+                        emi.paidAmount < emi.amount - 0.001 -> "Partial Paid"
+                    emi.isPaid -> "Paid"
+                    emi.dueDate < todayStart -> "Overdue"
+                    else -> "Pending"
+                }
+
+                listOf(
+                    "${emi.installmentNumber}/${emi.installmentCount}",
+                    dateFormat.format(Date(emi.dueDate)),
+                    money(principal),
+                    money(interest),
+                    money(emi.amount),
+                    money(emi.paidAmount.coerceAtLeast(0.0)),
+                    money(remaining),
+                    status
+                )
+            }
+
+            writer.table(
+                headers = listOf(
+                    "EMI No.",
+                    "Due Date",
+                    "Principal",
+                    "Interest",
+                    "EMI Amount",
+                    "Paid",
+                    "Remaining",
+                    "Status"
+                ),
+                rows = rows,
+                notes = List(rows.size) { null },
+                widths = listOf(
+                    48f, 64f, 62f, 57f, 64f, 64f, 64f, 100f
+                )
+            )
+        }
     }
 
     writer.finish()

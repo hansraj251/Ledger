@@ -176,19 +176,11 @@ fun ReportTypeSelectionScreen(
             item {
 }
 
-            item {
-                ReportOptionCard(
-                    letter = "A",
-                    title = "All Parties Report",
-                    subtitle = "View report details for all parties.",
-                    onClick = onAllPartiesClick
-                )
-            }
 
             item {
                 ReportOptionCard(
                     letter = "P",
-                    title = "One Party Report",
+                    title = "Party Report",
                     subtitle = "Choose one party and view its report.",
                     onClick = onOnePartyClick
                 )

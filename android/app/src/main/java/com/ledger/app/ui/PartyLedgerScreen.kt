@@ -321,7 +321,9 @@ var showDeletePartyDialog by remember {
                             party = currentParty,
                             entries = uiState.entries,
                             interestRecords = uiState.interestAccountEntries,
-                            profileName = profileName
+                            profileName = profileName,
+                            settlements = uiState.settlements,
+                            emiSchedules = db.emiScheduleDao().getByPartyId(currentParty.id)
                         )
                         try {
                             GoogleDriveTemporaryReport().uploadAndShare(
@@ -611,7 +613,9 @@ var showDeletePartyDialog by remember {
     if (showInterestAccount) {
         InterestAccountScreen(
             party = currentParty,
-            transactions = uiState.entries,
+            transactions = uiState.entries.filterNot { entry ->
+                emiSchedules.any { it.transactionId == entry.id }
+            },
             records = uiState.interestAccountEntries,
             settlements = uiState.settlements,
             errorMessage = uiState.errorMessage,

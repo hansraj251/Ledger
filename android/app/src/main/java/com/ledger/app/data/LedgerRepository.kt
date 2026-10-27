@@ -112,6 +112,12 @@ class LedgerRepository(
         return ledgerEntryDao.getByPartyId(partyId)
     }
 
+    override fun getEmiTransactionIds(partyId: Long): Set<Long> {
+        return database.emiScheduleDao()
+            .getByPartyId(partyId)
+            .mapTo(mutableSetOf()) { it.transactionId }
+    }
+
     override fun getInterestAccountEntries(
         partyId: Long
     ): List<InterestAccountEntryEntity> {

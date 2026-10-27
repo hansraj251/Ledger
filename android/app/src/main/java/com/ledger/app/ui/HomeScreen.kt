@@ -181,6 +181,8 @@ fun HomeScreen(
     var totalStaffAdvanceOutstanding by remember { mutableStateOf(0.0) }
     var groupPayableTotal by remember { mutableStateOf(0.0) }
     var totalRemainingStaffSalary by remember { mutableStateOf(0.0) }
+    var receivableEmiTotal by remember { mutableStateOf(0.0) }
+    var payableEmiTotal by remember { mutableStateOf(0.0) }
     var isReceivableExpanded by rememberSaveable { mutableStateOf(false) }
     var isPayableExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
@@ -373,8 +375,14 @@ fun HomeScreen(
             val asOf = System.currentTimeMillis()
 
             val partyInterestPositions = repository.getParties().map { party ->
+                val entries = repository.getEntries(party.id)
+                val emiTransactionIds = database.emiScheduleDao()
+                    .getByPartyId(party.id)
+                    .mapTo(mutableSetOf()) { it.transactionId }
+                val nonEmiEntries = entries.filterNot { it.id in emiTransactionIds }
+
                 com.ledger.app.data.calculateInterestAccountPosition(
-                    transactions = repository.getEntries(party.id),
+                    transactions = nonEmiEntries,
                     records = repository.getInterestAccountEntries(party.id),
                     asOf = asOf
                 )
@@ -425,6 +433,112 @@ fun HomeScreen(
         payableInterestTotal = totals.first.second
         groupReceivableTotal = totals.first.third
         groupPayableTotal = totals.second
+    }
+
+    LaunchedEffect(uiState.parties, isReceivableExpanded, isPayableExpanded) {
+        if (isReceivableExpanded || isPayableExpanded) {
+            val totals = kotlinx.coroutines.withContext(
+                kotlinx.coroutines.Dispatchers.IO
+            ) {
+                val database = LedgerDatabaseProvider.get(context)
+                val repository = LedgerRepository(database)
+                var receivableTotal = 0.0
+                var payableTotal = 0.0
+
+                fun remainingEmi(
+                    entry: com.ledger.app.data.LedgerEntryEntity,
+                    schedules: List<com.ledger.app.data.EmiScheduleEntity>
+                ): Double {
+                    val matching = schedules
+                        .filter { it.transactionId == entry.id }
+                        .sortedBy { it.installmentNumber }
+                    if (matching.isEmpty()) return 0.0
+
+                    val baseDate = java.util.Calendar.getInstance().apply {
+                        timeInMillis = entry.transactionDate
+                        add(java.util.Calendar.MONTH, 1)
+                    }
+                    fun localDate(millis: Long): java.time.LocalDate {
+                        val c = java.util.Calendar.getInstance().apply {
+                            timeInMillis = millis
+                        }
+                        return java.time.LocalDate.of(
+                            c.get(java.util.Calendar.YEAR),
+                            c.get(java.util.Calendar.MONTH) + 1,
+                            c.get(java.util.Calendar.DAY_OF_MONTH)
+                        )
+                    }
+
+                    val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+                        localDate(baseDate.timeInMillis),
+                        localDate(matching.first().dueDate)
+                    ).coerceAtLeast(0L)
+
+                    val delayInterest = kotlin.math.round(
+                        kotlin.math.abs(entry.amount) *
+                            entry.interestRate.coerceAtLeast(0.0) *
+                            delayDays / 36500.0 * 100.0
+                    ) / 100.0
+
+                    val pending = matching.filter { !it.isPaid }
+                        .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
+
+                    val partial = matching.filter {
+                        it.paidAmount > 0.0 && it.paidAmount < it.amount
+                    }
+                    val partialRemaining = partial.sumOf {
+                        (it.amount - it.paidAmount).coerceAtLeast(0.0)
+                    }
+
+                    val today = java.util.Calendar.getInstance().apply {
+                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        set(java.util.Calendar.MINUTE, 0)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }.timeInMillis
+
+                    val overdueInterest = partial.sumOf { emi ->
+                        val dueStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = emi.dueDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val days = if (today > dueStart) {
+                            (today - dueStart) / 86_400_000L
+                        } else 0L
+                        (emi.amount - emi.paidAmount).coerceAtLeast(0.0) *
+                            entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
+                    }
+
+                    return (
+                        pending + delayInterest.coerceAtLeast(0.0) +
+                            partialRemaining.coerceAtLeast(0.0) +
+                            overdueInterest.coerceAtLeast(0.0)
+                    ).coerceAtLeast(0.0)
+                }
+
+                uiState.parties.forEach { party ->
+                    val entries = repository.getEntries(party.id)
+                    val schedules = database.emiScheduleDao().getByPartyId(party.id)
+
+                    entries.filter {
+                        it.type == com.ledger.app.data.EntryType.CREDIT
+                    }.forEach { entry ->
+                        receivableTotal += remainingEmi(entry, schedules)
+                    }
+                    entries.filter {
+                        it.type == com.ledger.app.data.EntryType.DEBIT
+                    }.forEach { entry ->
+                        payableTotal += remainingEmi(entry, schedules)
+                    }
+                }
+                receivableTotal to payableTotal
+            }
+            receivableEmiTotal = totals.first
+            payableEmiTotal = totals.second
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -1148,6 +1262,7 @@ item {
                         onClick = { isReceivableExpanded = !isReceivableExpanded },
                         details = listOf(
                             "Receivable Int." to receivableInterestTotal,
+                            "Receivable EMI" to receivableEmiTotal,
                             "Group Receivable" to groupReceivableTotal,
                             "Advanced Salary" to totalStaffAdvanceOutstanding
                         ).filter { kotlin.math.abs(it.second) >= 0.01 }
@@ -1162,6 +1277,7 @@ item {
                         onClick = { isPayableExpanded = !isPayableExpanded },
                         details = listOf(
                             "Payable Int." to payableInterestTotal,
+                            "Payable EMI" to payableEmiTotal,
                             "Group Payable" to groupPayableTotal,
                             "Salaries" to totalRemainingStaffSalary
                         ).filter { kotlin.math.abs(it.second) >= 0.01 }

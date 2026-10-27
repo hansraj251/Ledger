@@ -48,6 +48,8 @@ interface LedgerDataSource {
         partyId: Long
     ): List<LedgerEntryEntity>
 
+    fun getEmiTransactionIds(partyId: Long): Set<Long> = emptySet()
+
     fun getInterestAccountEntries(
         partyId: Long
     ): List<InterestAccountEntryEntity>

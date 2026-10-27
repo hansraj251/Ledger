@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.ledger.app.data.EntryType
+import com.ledger.app.data.EmiScheduleEntity
 import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateInterestPosition
@@ -34,13 +35,86 @@ private const val RIGHT = 559f
 private const val TOP = 42f
 private const val BOTTOM = 800f
 
+private fun calculateReportEmiTotalInterest(
+    entry: LedgerEntryEntity,
+    schedules: List<EmiScheduleEntity>,
+    asOf: Long
+): Double {
+    if (schedules.isEmpty()) return 0.0
+
+    val sorted = schedules.sortedBy { it.installmentNumber }
+    val periodsPerYear = when (sorted.firstOrNull()?.frequency) {
+        "Weekly" -> 52.0
+        "Quarterly" -> 4.0
+        "Half-Yearly" -> 2.0
+        else -> 12.0
+    }
+    val periodicRate = entry.interestRate.coerceAtLeast(0.0) / 100.0 / periodsPerYear
+    var outstandingPrincipal = kotlin.math.abs(entry.amount)
+    val installmentInterest = sorted.sumOf { emi ->
+        val interest = kotlin.math.round(outstandingPrincipal * periodicRate * 100.0) / 100.0
+        val principal = (emi.amount - interest).coerceAtLeast(0.0)
+        outstandingPrincipal = (outstandingPrincipal - principal).coerceAtLeast(0.0)
+        interest
+    }
+
+    val baseEmiDate = java.util.Calendar.getInstance().apply {
+        timeInMillis = entry.transactionDate
+        add(java.util.Calendar.MONTH, 1)
+    }
+    val actualStartDate = sorted.firstOrNull()?.dueDate ?: baseEmiDate.timeInMillis
+    fun localDate(millis: Long): java.time.LocalDate {
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return java.time.LocalDate.of(
+            c.get(java.util.Calendar.YEAR),
+            c.get(java.util.Calendar.MONTH) + 1,
+            c.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
+    val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+        localDate(baseEmiDate.timeInMillis),
+        localDate(actualStartDate)
+    ).coerceAtLeast(0L)
+    val delayInterest = kotlin.math.round(
+        kotlin.math.abs(entry.amount) * entry.interestRate.coerceAtLeast(0.0) *
+            delayDays / 36500.0 * 100.0
+    ) / 100.0
+
+    val todayStart = java.util.Calendar.getInstance().apply {
+        timeInMillis = asOf
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val overdueInterest = sorted.filter {
+        it.paidAmount > 0.0 && it.paidAmount < it.amount
+    }.sumOf { emi ->
+        val dueStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = emi.dueDate
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val overdueDays = if (todayStart > dueStart) {
+            (todayStart - dueStart) / 86_400_000L
+        } else 0L
+        val remaining = (emi.amount - emi.paidAmount).coerceAtLeast(0.0)
+        remaining * entry.interestRate.coerceAtLeast(0.0) * overdueDays / (365.0 * 100.0)
+    }
+
+    return installmentInterest + delayInterest + overdueInterest
+}
+
 internal fun createPartyReportPdf(
     context: Context,
     party: PartyEntity,
     entries: List<LedgerEntryEntity>,
     interestRecords: List<InterestAccountEntryEntity> = emptyList(),
     settlements: List<TransactionSettlementEntity> = emptyList(),
-    profileName: String = ""
+    profileName: String = "",
+    emiSchedules: List<EmiScheduleEntity> = emptyList()
 ): File {
     val pdf = PdfDocument()
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -55,41 +129,62 @@ internal fun createPartyReportPdf(
         }.thenByDescending { it.id }
     )
 
+    val emiTransactionIdsForSummary =
+        emiSchedules.mapTo(mutableSetOf()) { it.transactionId }
+
     val gave = orderedEntries
-        .filter { it.type == EntryType.CREDIT }
+        .filter { it.type == EntryType.CREDIT && it.id !in emiTransactionIdsForSummary }
         .sumOf { it.amount }
 
     val got = orderedEntries
-        .filter { it.type == EntryType.DEBIT }
+        .filter { it.type == EntryType.DEBIT && it.id !in emiTransactionIdsForSummary }
         .sumOf { it.amount }
 
     val gaveInterest = orderedEntries
         .filter { it.type == EntryType.CREDIT }
         .sumOf { entry ->
-            calculateTransactionInterest(
-                amount = entry.amount,
-                annualRate = entry.interestRate,
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt,
-                asOf = today,
-                settlements = settlements.filter { it.transactionId == entry.id }
-            )
+            if (entry.id in emiTransactionIdsForSummary) {
+                calculateReportEmiTotalInterest(
+                    entry = entry,
+                    schedules = emiSchedules.filter { it.transactionId == entry.id },
+                    asOf = today
+                )
+            } else {
+                calculateTransactionInterest(
+                    amount = entry.amount,
+                    annualRate = entry.interestRate,
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt,
+                    asOf = today,
+                    settlements = settlements.filter { it.transactionId == entry.id }
+                )
+            }
         }
 
     val gotInterest = orderedEntries
         .filter { it.type == EntryType.DEBIT }
         .sumOf { entry ->
-            calculateTransactionInterest(
-                amount = entry.amount,
-                annualRate = entry.interestRate,
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt,
-                asOf = today,
-                settlements = settlements.filter { it.transactionId == entry.id }
-            )
+            if (entry.id in emiTransactionIdsForSummary) {
+                calculateReportEmiTotalInterest(
+                    entry = entry,
+                    schedules = emiSchedules.filter { it.transactionId == entry.id },
+                    asOf = today
+                )
+            } else {
+                calculateTransactionInterest(
+                    amount = entry.amount,
+                    annualRate = entry.interestRate,
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt,
+                    asOf = today,
+                    settlements = settlements.filter { it.transactionId == entry.id }
+                )
+            }
         }
 
-    val principalBalance = orderedEntries.sumOf { entry ->
+    val principalBalance = orderedEntries
+        .filter { it.id !in emiTransactionIdsForSummary }
+        .sumOf { entry ->
         val related = settlements.filter {
             it.transactionId == entry.id && it.settlementDate <= today
         }
@@ -98,14 +193,18 @@ internal fun createPartyReportPdf(
         if (entry.type == EntryType.CREDIT) remaining else -remaining
     }
 
+    val nonEmiEntries = orderedEntries.filter {
+        it.id !in emiTransactionIdsForSummary
+    }
+
     val accruedInterest = calculateInterestPosition(
-        entries = orderedEntries,
+        entries = nonEmiEntries,
         asOf = today,
         settlements = settlements
     )
 
     val remainingInterest = calculateInterestAccountPosition(
-        transactions = orderedEntries,
+        transactions = nonEmiEntries,
         records = interestRecords,
         asOf = today,
         settlements = settlements
@@ -146,14 +245,14 @@ internal fun createPartyReportPdf(
 
     val summaryRows = mutableListOf<List<String>>()
     summaryRows.add(listOf("Total $gaveLabel", money(gave)))
-    summaryRows.add(listOf("Total $gotLabel", money(got)))
+    summaryRows.add(listOf("Total ${party.name.trim()} Gave", money(got)))
 
-    val gaveTransactionIds = orderedEntries
+    val gaveTransactionIds = nonEmiEntries
         .filter { it.type == EntryType.CREDIT }
         .map { it.id }
         .toSet()
 
-    val gotTransactionIds = orderedEntries
+    val gotTransactionIds = nonEmiEntries
         .filter { it.type == EntryType.DEBIT }
         .map { it.id }
         .toSet()
@@ -255,6 +354,158 @@ internal fun createPartyReportPdf(
         widths = listOf(360f, 163f)
     )
 
+    val emiEntries = orderedEntries.filter { it.id in emiTransactionIdsForSummary }
+    val emiGave = emiEntries
+        .filter { it.type == EntryType.CREDIT }
+        .sumOf { it.amount }
+    val emiGot = emiEntries
+        .filter { it.type == EntryType.DEBIT }
+        .sumOf { it.amount }
+    val emiGaveInterest = emiEntries
+        .filter { it.type == EntryType.CREDIT }
+        .sumOf { entry ->
+            calculateReportEmiTotalInterest(
+                entry = entry,
+                schedules = emiSchedules.filter { it.transactionId == entry.id },
+                asOf = today
+            )
+        }
+    val emiGotInterest = emiEntries
+        .filter { it.type == EntryType.DEBIT }
+        .sumOf { entry ->
+            calculateReportEmiTotalInterest(
+                entry = entry,
+                schedules = emiSchedules.filter { it.transactionId == entry.id },
+                asOf = today
+            )
+        }
+    val emiGaveTransactionIds = emiEntries
+        .filter { it.type == EntryType.CREDIT }
+        .map { it.id }
+        .toSet()
+    val emiGotTransactionIds = emiEntries
+        .filter { it.type == EntryType.DEBIT }
+        .map { it.id }
+        .toSet()
+
+    fun calculateReportEmiRemaining(entry: LedgerEntryEntity): Double {
+    val schedules = emiSchedules
+        .filter { it.transactionId == entry.id }
+        .sortedBy { it.installmentNumber }
+    if (schedules.isEmpty()) return 0.0
+
+    val baseEmiDate = java.util.Calendar.getInstance().apply {
+        timeInMillis = entry.transactionDate
+        add(java.util.Calendar.MONTH, 1)
+    }
+    val actualEmiStartDate = schedules.first().dueDate
+
+    fun localEmiDate(millis: Long): java.time.LocalDate {
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = millis }
+        return java.time.LocalDate.of(
+            c.get(java.util.Calendar.YEAR),
+            c.get(java.util.Calendar.MONTH) + 1,
+            c.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    val delayDays = java.time.temporal.ChronoUnit.DAYS.between(
+        localEmiDate(baseEmiDate.timeInMillis),
+        localEmiDate(actualEmiStartDate)
+    ).coerceAtLeast(0L)
+
+    val delayInterest = kotlin.math.round(
+        kotlin.math.abs(entry.amount) *
+            entry.interestRate.coerceAtLeast(0.0) *
+            delayDays / 36500.0 * 100.0
+    ) / 100.0
+
+    val pendingTotal = schedules.filter { !it.isPaid }
+        .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
+
+    val partialEmis = schedules.filter {
+        it.paidAmount > 0.0 && it.paidAmount < it.amount
+    }
+    val partialRemaining = partialEmis.sumOf {
+        (it.amount - it.paidAmount).coerceAtLeast(0.0)
+    }
+
+    val todayStart = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val overdueInterest = partialEmis.sumOf { emi ->
+        val dueStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = emi.dueDate
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val days = if (todayStart > dueStart) {
+            (todayStart - dueStart) / 86_400_000L
+        } else 0L
+
+        (emi.amount - emi.paidAmount).coerceAtLeast(0.0) *
+            entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
+    }
+
+    return (
+        pendingTotal + delayInterest.coerceAtLeast(0.0) +
+            partialRemaining.coerceAtLeast(0.0) +
+            overdueInterest.coerceAtLeast(0.0)
+    ).coerceAtLeast(0.0)
+}
+
+val emiGaveRemaining = emiEntries
+    .filter { it.type == EntryType.CREDIT }
+    .sumOf { calculateReportEmiRemaining(it) }
+
+val emiGotRemaining = emiEntries
+    .filter { it.type == EntryType.DEBIT }
+    .sumOf { calculateReportEmiRemaining(it) }
+
+    if (emiEntries.isNotEmpty()) {
+        writer.space(14f)
+        writer.section("EMI Summary")
+
+        val profileLabel = profileName.trim().ifEmpty { "You" }
+        val emiSummaryRows = mutableListOf<List<String>>()
+        emiSummaryRows.add(listOf("Total $profileLabel Gave", money(emiGave)))
+        emiSummaryRows.add(listOf("Total $profileLabel Got", money(emiGot)))
+        if (emiGaveInterest > 0.0) {
+            emiSummaryRows.add(
+                listOf("Total EMI Int. of ${party.name.trim()}", money(emiGaveInterest))
+            )
+        }
+        if (emiGotInterest > 0.0) {
+            emiSummaryRows.add(
+                listOf("Total EMI Int. of $profileLabel", money(emiGotInterest))
+            )
+        }
+        if (emiGaveRemaining > 0.0) {
+            emiSummaryRows.add(
+                listOf("Remaining Balance of ${party.name.trim()}", money(emiGaveRemaining))
+            )
+        }
+        if (emiGotRemaining > 0.0) {
+            emiSummaryRows.add(
+                listOf("Remaining Balance of $profileLabel", money(emiGotRemaining))
+            )
+        }
+
+        writer.table(
+            headers = listOf("EMI Summary", "Amount"),
+            rows = emiSummaryRows,
+            notes = List(emiSummaryRows.size) { null },
+            widths = listOf(360f, 163f)
+        )
+    }
+
     writer.space(14f)
     writer.section("Transactions (${orderedEntries.size})")
 
@@ -264,6 +515,7 @@ internal fun createPartyReportPdf(
         val transactionRows = mutableListOf<List<String>>()
         val transactionNotes = mutableListOf<String?>()
         var hasTransactionInterest = false
+        val emiTransactionIds = emiSchedules.mapTo(mutableSetOf()) { it.transactionId }
 
         orderedEntries.forEach { entry ->
             val transactionDate =
@@ -274,15 +526,27 @@ internal fun createPartyReportPdf(
                 transactionDate = entry.transactionDate,
                 createdAt = entry.createdAt
             )
-            val interest = calculateTransactionInterest(
-                amount = entry.amount,
-                annualRate = entry.interestRate,
-                transactionDate = entry.transactionDate,
-                createdAt = entry.createdAt,
-                asOf = today,
-                settlements = settlements.filter { it.transactionId == entry.id }
-            )
-            if (interest > 0.0) hasTransactionInterest = true
+            val isEmiTransaction = entry.id in emiTransactionIds
+            val interest = if (isEmiTransaction) {
+                0.0
+            } else {
+                calculateTransactionInterest(
+                    amount = entry.amount,
+                    annualRate = entry.interestRate,
+                    transactionDate = entry.transactionDate,
+                    createdAt = entry.createdAt,
+                    asOf = today,
+                    settlements = settlements.filter { it.transactionId == entry.id }
+                )
+            }
+            val emiTotalInterest = if (isEmiTransaction) {
+                calculateReportEmiTotalInterest(
+                    entry = entry,
+                    schedules = emiSchedules.filter { it.transactionId == entry.id },
+                    asOf = today
+                )
+            } else 0.0
+            if (interest > 0.0 || emiTotalInterest > 0.0) hasTransactionInterest = true
 
             val type = if (entry.type == EntryType.CREDIT) {
                 gaveLabel.uppercase()
@@ -290,7 +554,9 @@ internal fun createPartyReportPdf(
                 gotLabel.uppercase()
             }
 
-            val interestDetails = if (entry.interestRate > 0.0) {
+            val interestDetails = if (isEmiTransaction) {
+                "EMI Total Int.\n${money(emiTotalInterest)}"
+            } else if (entry.interestRate > 0.0) {
                 "${money(interest)}\n${formatRate(entry.interestRate)}% p.a."
             } else {
                 "${money(interest)}\n0% rate"

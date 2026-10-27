@@ -88,7 +88,8 @@ fun PartyReportScreen(
                     entries = entries,
                     interestRecords = records,
                     settlements = settlements,
-                    profileName = profileName
+                    profileName = profileName,
+                    emiSchedules = database.emiScheduleDao().getByPartyId(party.id)
                 )
             }
         } catch (error: Exception) {

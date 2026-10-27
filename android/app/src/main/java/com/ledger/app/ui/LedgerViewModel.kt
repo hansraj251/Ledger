@@ -93,8 +93,14 @@ class LedgerViewModel(
                     val entries = dataSource.getEntries(party.id)
                     val records = dataSource.getInterestAccountEntries(party.id)
                     val settlements = dataSource.getSettlementsForParty(party.id)
+                    val emiTransactionIds = dataSource.getEmiTransactionIds(party.id)
+                    val nonEmiEntries = entries.filterNot { it.id in emiTransactionIds }
 
-                    party.id to calculateAdjustedBalance(entries, records, settlements = settlements)
+                    party.id to calculateAdjustedBalance(
+                        nonEmiEntries,
+                        records,
+                        settlements = settlements.filter { it.transactionId !in emiTransactionIds }
+                    )
                 }
             }
 

@@ -82,6 +82,14 @@ fun PartyReportScreen(
                     ?.trim()
                     .orEmpty()
 
+                val reportSchedules = database.emiScheduleDao().getByPartyId(party.id)
+                val reportEmiSettlements = reportSchedules
+                    .map { it.transactionId }
+                    .distinct()
+                    .flatMap { transactionId ->
+                        database.emiChargeSettlementDao().getByTransactionId(transactionId)
+                    }
+
                 createPartyReportPdf(
                     context = context,
                     party = party,
@@ -89,7 +97,8 @@ fun PartyReportScreen(
                     interestRecords = records,
                     settlements = settlements,
                     profileName = profileName,
-                    emiSchedules = database.emiScheduleDao().getByPartyId(party.id)
+                    emiSchedules = reportSchedules,
+                    emiChargeSettlements = reportEmiSettlements
                 )
             }
         } catch (error: Exception) {

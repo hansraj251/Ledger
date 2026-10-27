@@ -13,6 +13,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.ledger.app.data.EntryType
 import com.ledger.app.data.EmiScheduleEntity
+import com.ledger.app.data.EmiChargeSettlementEntity
 import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
 import com.ledger.app.data.calculateInterestPosition
@@ -38,7 +39,8 @@ private const val BOTTOM = 800f
 private fun calculateReportEmiTotalInterest(
     entry: LedgerEntryEntity,
     schedules: List<EmiScheduleEntity>,
-    asOf: Long
+    asOf: Long,
+    settlements: List<EmiChargeSettlementEntity> = emptyList()
 ): Double {
     if (schedules.isEmpty()) return 0.0
 
@@ -104,7 +106,24 @@ private fun calculateReportEmiTotalInterest(
         remaining * entry.interestRate.coerceAtLeast(0.0) * overdueDays / (365.0 * 100.0)
     }
 
-    return installmentInterest + delayInterest + overdueInterest
+    val settledEmiOverdueInterest = settlements.sumOf { settlement ->
+        val settlementStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = settlement.settlementDate
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val days = ((todayStart - settlementStart) / 86_400_000L).coerceAtLeast(0L)
+        kotlin.math.round(
+            settlement.emiAmount.coerceAtLeast(0.0) *
+                entry.interestRate.coerceAtLeast(0.0) * days / 36500.0 * 100.0
+        ) / 100.0
+    }
+    val adjustedOverdueInterest =
+        (overdueInterest - settledEmiOverdueInterest).coerceAtLeast(0.0)
+
+    return installmentInterest + delayInterest + adjustedOverdueInterest
 }
 
 internal fun createPartyReportPdf(
@@ -114,7 +133,8 @@ internal fun createPartyReportPdf(
     interestRecords: List<InterestAccountEntryEntity> = emptyList(),
     settlements: List<TransactionSettlementEntity> = emptyList(),
     profileName: String = "",
-    emiSchedules: List<EmiScheduleEntity> = emptyList()
+    emiSchedules: List<EmiScheduleEntity> = emptyList(),
+    emiChargeSettlements: List<EmiChargeSettlementEntity> = emptyList()
 ): File {
     val pdf = PdfDocument()
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
@@ -147,7 +167,8 @@ internal fun createPartyReportPdf(
                 calculateReportEmiTotalInterest(
                     entry = entry,
                     schedules = emiSchedules.filter { it.transactionId == entry.id },
-                    asOf = today
+                    asOf = today,
+                    settlements = emiChargeSettlements.filter { it.transactionId == entry.id }
                 )
             } else {
                 calculateTransactionInterest(
@@ -168,7 +189,8 @@ internal fun createPartyReportPdf(
                 calculateReportEmiTotalInterest(
                     entry = entry,
                     schedules = emiSchedules.filter { it.transactionId == entry.id },
-                    asOf = today
+                    asOf = today,
+                    settlements = emiChargeSettlements.filter { it.transactionId == entry.id }
                 )
             } else {
                 calculateTransactionInterest(
@@ -367,7 +389,8 @@ internal fun createPartyReportPdf(
             calculateReportEmiTotalInterest(
                 entry = entry,
                 schedules = emiSchedules.filter { it.transactionId == entry.id },
-                asOf = today
+                asOf = today,
+                    settlements = emiChargeSettlements.filter { it.transactionId == entry.id }
             )
         }
     val emiGotInterest = emiEntries
@@ -376,7 +399,8 @@ internal fun createPartyReportPdf(
             calculateReportEmiTotalInterest(
                 entry = entry,
                 schedules = emiSchedules.filter { it.transactionId == entry.id },
-                asOf = today
+                asOf = today,
+                    settlements = emiChargeSettlements.filter { it.transactionId == entry.id }
             )
         }
     val emiGaveTransactionIds = emiEntries
@@ -454,10 +478,36 @@ internal fun createPartyReportPdf(
             entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
     }
 
+    val history = emiChargeSettlements.filter { it.transactionId == entry.id }
+    val settledEmiAmountTotal = history.sumOf { it.emiAmount.coerceAtLeast(0.0) }
+    val settledInterestAmountTotal = history.sumOf { it.interestAmount.coerceAtLeast(0.0) }
+
+    val settledEmiOverdueInterest = history.sumOf { settlement ->
+        val settlementStart = java.util.Calendar.getInstance().apply {
+            timeInMillis = settlement.settlementDate
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val days = ((todayStart - settlementStart) / 86_400_000L).coerceAtLeast(0L)
+        kotlin.math.round(
+            settlement.emiAmount.coerceAtLeast(0.0) *
+                entry.interestRate.coerceAtLeast(0.0) * days / 36500.0 * 100.0
+        ) / 100.0
+    }
+
+    val adjustedOverdueInterest =
+        (overdueInterest - settledEmiOverdueInterest).coerceAtLeast(0.0)
+    val adjustedPartialRemaining =
+        (partialRemaining - settledEmiAmountTotal).coerceAtLeast(0.0)
+
     return (
-        pendingTotal + delayInterest.coerceAtLeast(0.0) +
-            partialRemaining.coerceAtLeast(0.0) +
-            overdueInterest.coerceAtLeast(0.0)
+        pendingTotal +
+            delayInterest.coerceAtLeast(0.0) +
+            adjustedPartialRemaining +
+            adjustedOverdueInterest -
+            settledInterestAmountTotal
     ).coerceAtLeast(0.0)
 }
 
@@ -543,7 +593,8 @@ val emiGotRemaining = emiEntries
                 calculateReportEmiTotalInterest(
                     entry = entry,
                     schedules = emiSchedules.filter { it.transactionId == entry.id },
-                    asOf = today
+                    asOf = today,
+                    settlements = emiChargeSettlements.filter { it.transactionId == entry.id }
                 )
             } else 0.0
             if (interest > 0.0 || emiTotalInterest > 0.0) hasTransactionInterest = true

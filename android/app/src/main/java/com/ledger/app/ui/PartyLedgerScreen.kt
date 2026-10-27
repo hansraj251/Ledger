@@ -316,6 +316,15 @@ var showDeletePartyDialog by remember {
                         val profileName = db.profileDao()
                             .getProfile()?.name?.trim().orEmpty()
 
+                        val reportSchedules =
+                            db.emiScheduleDao().getByPartyId(currentParty.id)
+                        val reportEmiSettlements = reportSchedules
+                            .map { it.transactionId }
+                            .distinct()
+                            .flatMap { transactionId ->
+                                db.emiChargeSettlementDao().getByTransactionId(transactionId)
+                            }
+
                         val report = createPartyReportPdf(
                             context = context,
                             party = currentParty,
@@ -323,7 +332,8 @@ var showDeletePartyDialog by remember {
                             interestRecords = uiState.interestAccountEntries,
                             profileName = profileName,
                             settlements = uiState.settlements,
-                            emiSchedules = db.emiScheduleDao().getByPartyId(currentParty.id)
+                            emiSchedules = reportSchedules,
+                            emiChargeSettlements = reportEmiSettlements
                         )
                         try {
                             GoogleDriveTemporaryReport().uploadAndShare(
@@ -456,6 +466,21 @@ var showDeletePartyDialog by remember {
             LedgerDatabaseProvider.get(context)
                 .emiScheduleDao()
                 .getByPartyId(party.id)
+        }
+    }
+
+    var emiChargeSettlements by remember(party.id) {
+        mutableStateOf<List<com.ledger.app.data.EmiChargeSettlementEntity>>(emptyList())
+    }
+
+    LaunchedEffect(party.id, emiSchedules) {
+        val transactionIds = emiSchedules.map { it.transactionId }.distinct()
+        emiChargeSettlements = withContext(Dispatchers.IO) {
+            val dao = LedgerDatabaseProvider.get(context).emiChargeSettlementDao()
+            transactionIds.flatMap { transactionId ->
+                runCatching { dao.getByTransactionId(transactionId) }
+                    .getOrDefault(emptyList())
+            }
         }
     }
 
@@ -806,6 +831,37 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
             val netInterest =
                 gaveTransactionInterest - gotTransactionInterest + totalRecordedInterest
 
+            val emiEntryIds = remember(uiState.entries, emiSchedules) {
+                uiState.entries
+                    .filter { entry -> emiSchedules.any { it.transactionId == entry.id } }
+                    .map { it.id }
+                    .distinct()
+                    .sorted()
+            }
+
+            var emiSettlementHistoryByTransaction by remember {
+                mutableStateOf<
+                    Map<Long, List<com.ledger.app.data.EmiChargeSettlementEntity>>
+                >(emptyMap())
+            }
+
+            LaunchedEffect(emiEntryIds) {
+                val loadedHistory = kotlinx.coroutines.withContext(
+                    kotlinx.coroutines.Dispatchers.IO
+                ) {
+                    val dao = com.ledger.app.data.LedgerDatabaseProvider
+                        .get(context)
+                        .emiChargeSettlementDao()
+
+                    emiEntryIds.associateWith { transactionId ->
+                        runCatching {
+                            dao.getByTransactionId(transactionId)
+                        }.getOrDefault(emptyList())
+                    }
+                }
+                emiSettlementHistoryByTransaction = loadedHistory
+            }
+
             fun calculateBalanceCardEmiRemaining(entry: LedgerEntryEntity): Double {
                 val schedules = emiSchedules
                     .filter { it.transactionId == entry.id }
@@ -870,10 +926,56 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                         entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
                 }
 
+                val settlementHistory =
+                    emiSettlementHistoryByTransaction[entry.id].orEmpty()
+
+                val settledEmiAmountTotal = settlementHistory.sumOf {
+                    it.emiAmount.coerceAtLeast(0.0)
+                }
+
+                val settledInterestAmountTotal = settlementHistory.sumOf {
+                    it.interestAmount.coerceAtLeast(0.0)
+                }
+
+                val settledEmiInterest = settlementHistory.sumOf { settlement ->
+                    val settledEmi = settlement.emiAmount.coerceAtLeast(0.0)
+                    if (settledEmi <= 0.0) {
+                        0.0
+                    } else {
+                        val settlementStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = settlement.settlementDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+
+                        val daysSinceSettlement = (
+                            (todayStart - settlementStart) / 86_400_000L
+                        ).coerceAtLeast(0L)
+
+                        kotlin.math.round(
+                            settledEmi *
+                                entry.interestRate.coerceAtLeast(0.0) *
+                                daysSinceSettlement / 36500.0 * 100.0
+                        ) / 100.0
+                    }
+                }
+
+                val adjustedOverdueInterest = (
+                    overdueInterest - settledEmiInterest
+                ).coerceAtLeast(0.0)
+
+                val adjustedPartialRemaining = (
+                    partialRemaining - settledEmiAmountTotal
+                ).coerceAtLeast(0.0)
+
                 return (
-                    pendingTotal + delayInterest.coerceAtLeast(0.0) +
-                        partialRemaining.coerceAtLeast(0.0) +
-                        overdueInterest.coerceAtLeast(0.0)
+                    pendingTotal +
+                        delayInterest.coerceAtLeast(0.0) +
+                        adjustedPartialRemaining +
+                        adjustedOverdueInterest -
+                        settledInterestAmountTotal
                     ).coerceAtLeast(0.0)
             }
 
@@ -885,12 +987,22 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                 .filter { it.type == EntryType.DEBIT }
                 .sumOf { calculateBalanceCardEmiRemaining(it) }
 
-            val nonEmiBalance = nonEmiEntries.sumOf { entry ->
-                when (entry.type) {
-                    EntryType.CREDIT -> entry.amount
-                    EntryType.DEBIT -> -entry.amount
-                }
+            val nonEmiSettlements = uiState.settlements.filter { settlement ->
+                nonEmiEntries.any { it.id == settlement.transactionId }
             }
+
+            val balanceAccruedInterest = calculateInterestPosition(
+                entries = nonEmiEntries,
+                settlements = nonEmiSettlements
+            )
+
+            val nonEmiBalance = com.ledger.app.data.calculateLedgerBalance(
+                entries = nonEmiEntries,
+                settlements = nonEmiSettlements
+            ) - (
+                balanceAccruedInterest.receivable -
+                balanceAccruedInterest.payable
+            )
 
             BalanceHero(
                     party = currentParty,
@@ -1198,6 +1310,9 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                             it.transactionId == entry.id
                         },
                         emiSchedules = emiSchedules.filter { it.transactionId == entry.id },
+                        emiChargeSettlements = emiChargeSettlements.filter {
+                            it.transactionId == entry.id
+                        },
                         modifier = Modifier
                             .padding(horizontal = 20.dp)
                             .combinedClickable(
@@ -4373,6 +4488,7 @@ private fun TransactionCard(
     entry: LedgerEntryEntity,
     settlements: List<TransactionSettlementEntity> = emptyList(),
     emiSchedules: List<EmiScheduleEntity> = emptyList(),
+    emiChargeSettlements: List<com.ledger.app.data.EmiChargeSettlementEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val isCredit = entry.type == EntryType.CREDIT
@@ -4551,8 +4667,33 @@ private fun TransactionCard(
                             overdueDays / (365.0 * 100.0)
                     }
 
+                val settledEmiOverdueInterest = emiChargeSettlements.sumOf { settlement ->
+                    val settledEmi = settlement.emiAmount.coerceAtLeast(0.0)
+                    if (settledEmi <= 0.0) {
+                        0.0
+                    } else {
+                        val settlementStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = settlement.settlementDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val daysSinceSettlement =
+                            ((todayStart - settlementStart) / 86_400_000L).coerceAtLeast(0L)
+
+                        kotlin.math.round(
+                            settledEmi * entry.interestRate.coerceAtLeast(0.0) *
+                                daysSinceSettlement / 36500.0 * 100.0
+                        ) / 100.0
+                    }
+                }
+
+                val adjustedOverdueInterest =
+                    (overdueInterest - settledEmiOverdueInterest).coerceAtLeast(0.0)
+
                 kotlin.math.round(
-                    (installmentInterest + delayInterest + overdueInterest) * 100.0
+                    (installmentInterest + delayInterest + adjustedOverdueInterest) * 100.0
                 ) / 100.0
             }
 
@@ -4611,6 +4752,24 @@ private fun EmiInstallmentsScreen(
     var paymentInput by remember { mutableStateOf("") }
     var paymentError by remember { mutableStateOf<String?>(null) }
     var showEmiChargeSettlement by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    var emiSettlementHistory by remember(entry.id) {
+        mutableStateOf<List<com.ledger.app.data.EmiChargeSettlementEntity>>(emptyList())
+    }
+
+    LaunchedEffect(entry.id, showEmiChargeSettlement) {
+        emiSettlementHistory = kotlinx.coroutines.withContext(
+            kotlinx.coroutines.Dispatchers.IO
+        ) {
+            runCatching {
+                com.ledger.app.data.LedgerDatabaseProvider
+                    .get(context)
+                    .emiChargeSettlementDao()
+                    .getByTransactionId(entry.id)
+            }.getOrDefault(emptyList())
+        }
+    }
 
     val isReceivable = entry.type == EntryType.CREDIT
     val title = if (isReceivable) "Receivable EMI" else "Payable EMI"
@@ -4746,6 +4905,46 @@ private fun EmiInstallmentsScreen(
                     color = accent,
                     fontWeight = FontWeight.SemiBold
                 )
+                val settledEmiAmountTotal = emiSettlementHistory.sumOf {
+                    it.emiAmount.coerceAtLeast(0.0)
+                }
+
+                val settledEmiOverdueInterestTotal = emiSettlementHistory.sumOf { settlement ->
+                    val settledEmi = settlement.emiAmount.coerceAtLeast(0.0)
+                    if (settledEmi <= 0.0) {
+                        0.0
+                    } else {
+                        val settlementStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = settlement.settlementDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+
+                        val daysSinceSettlement = (
+                            (todayStart - settlementStart) / 86_400_000L
+                        ).coerceAtLeast(0L)
+
+                        kotlin.math.round(
+                            settledEmi * entry.interestRate.coerceAtLeast(0.0) *
+                                daysSinceSettlement / 36500.0 * 100.0
+                        ) / 100.0
+                    }
+                }
+
+                val adjustedPartialRemainingTotal = (
+                    partialRemainingTotal - settledEmiAmountTotal
+                ).coerceAtLeast(0.0)
+
+                val adjustedOverdueInterestTotal = (
+                    overdueInterestTotal - settledEmiOverdueInterestTotal
+                ).coerceAtLeast(0.0)
+
+                val totalSettledInterest = emiSettlementHistory.sumOf {
+                    it.interestAmount.coerceAtLeast(0.0)
+                }
+
                 if (delayDays > 0L) {
                     Text(
                         "EMI Delay Int.: ${CurrencySettings.symbol}${formatAmount(emiDelayInterest)} ($delayDays days)",
@@ -4754,26 +4953,26 @@ private fun EmiInstallmentsScreen(
                     )
                 }
 
-                if (partialRemainingTotal > 0.0) {
+                if (adjustedPartialRemainingTotal > 0.0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Partial Paid EMI Remaining", modifier = Modifier.weight(1f))
                         Text(
-                            "${CurrencySettings.symbol}${formatAmount(partialRemainingTotal)}",
+                            "${CurrencySettings.symbol}${formatAmount(adjustedPartialRemainingTotal)}",
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
-                if (overdueInterestTotal > 0.0) {
+                if (adjustedOverdueInterestTotal > 0.0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("Partial Paid EMI Overdue Int.", modifier = Modifier.weight(1f))
                         Text(
-                            "${CurrencySettings.symbol}${formatAmount(overdueInterestTotal)}",
+                            "${CurrencySettings.symbol}${formatAmount(adjustedOverdueInterestTotal)}",
                             fontWeight = FontWeight.Bold,
                             color = accent
                         )
@@ -4781,7 +4980,7 @@ private fun EmiInstallmentsScreen(
                 }
 
                 val totalInterest = installmentBreakdown.values.sumOf { it.second } +
-                    emiDelayInterest + overdueInterestTotal
+                    emiDelayInterest + adjustedOverdueInterestTotal
                 if (totalInterest > 0.0) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -4808,10 +5007,9 @@ private fun EmiInstallmentsScreen(
                     Text(
                         "${CurrencySettings.symbol}${formatAmount(pendingEmisTotal + (
                             emiDelayInterest.coerceAtLeast(0.0) +
-                            partialRemainingTotal.coerceAtLeast(0.0) +
-                            overdueInterestTotal.coerceAtLeast(0.0) -
-                            /* settlement total is loaded in the Settle modal */
-                            0.0
+                            adjustedPartialRemainingTotal.coerceAtLeast(0.0) +
+                            adjustedOverdueInterestTotal.coerceAtLeast(0.0) -
+                            totalSettledInterest
                         ).coerceAtLeast(0.0))}",
                         fontWeight = FontWeight.Bold,
                         color = accent

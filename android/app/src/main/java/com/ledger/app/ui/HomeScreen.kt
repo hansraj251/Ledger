@@ -380,11 +380,14 @@ fun HomeScreen(
                     .getByPartyId(party.id)
                     .mapTo(mutableSetOf()) { it.transactionId }
                 val nonEmiEntries = entries.filterNot { it.id in emiTransactionIds }
+                val partySettlements = database.transactionSettlementDao()
+                    .getByPartyId(party.id)
 
                 com.ledger.app.data.calculateInterestAccountPosition(
                     transactions = nonEmiEntries,
                     records = repository.getInterestAccountEntries(party.id),
-                    asOf = asOf
+                    asOf = asOf,
+                    settlements = partySettlements
                 )
             }
             val interestTotal = partyInterestPositions.sumOf { it.receivable }
@@ -447,12 +450,19 @@ fun HomeScreen(
 
                 fun remainingEmi(
                     entry: com.ledger.app.data.LedgerEntryEntity,
-                    schedules: List<com.ledger.app.data.EmiScheduleEntity>
+                    schedules: List<com.ledger.app.data.EmiScheduleEntity>,
+                    settlements: List<com.ledger.app.data.EmiChargeSettlementEntity>
                 ): Double {
                     val matching = schedules
                         .filter { it.transactionId == entry.id }
                         .sortedBy { it.installmentNumber }
                     if (matching.isEmpty()) return 0.0
+
+                    val history = settlements.filter { it.transactionId == entry.id }
+                    val settledEmiAmountTotal =
+                        history.sumOf { it.emiAmount.coerceAtLeast(0.0) }
+                    val settledInterestAmountTotal =
+                        history.sumOf { it.interestAmount.coerceAtLeast(0.0) }
 
                     val baseDate = java.util.Calendar.getInstance().apply {
                         timeInMillis = entry.transactionDate
@@ -473,16 +483,15 @@ fun HomeScreen(
                         localDate(baseDate.timeInMillis),
                         localDate(matching.first().dueDate)
                     ).coerceAtLeast(0L)
-
                     val delayInterest = kotlin.math.round(
                         kotlin.math.abs(entry.amount) *
                             entry.interestRate.coerceAtLeast(0.0) *
                             delayDays / 36500.0 * 100.0
                     ) / 100.0
 
+                    // Pending already contains the unpaid part of partial EMIs.
                     val pending = matching.filter { !it.isPaid }
                         .sumOf { (it.amount - it.paidAmount).coerceAtLeast(0.0) }
-
                     val partial = matching.filter {
                         it.paidAmount > 0.0 && it.paidAmount < it.amount
                     }
@@ -512,26 +521,56 @@ fun HomeScreen(
                             entry.interestRate.coerceAtLeast(0.0) * days / 36500.0
                     }
 
+                    val settledEmiOverdueInterest = history.sumOf { settlement ->
+                        val settlementStart = java.util.Calendar.getInstance().apply {
+                            timeInMillis = settlement.settlementDate
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                        val days = ((today - settlementStart) / 86_400_000L)
+                            .coerceAtLeast(0L)
+                        kotlin.math.round(
+                            settlement.emiAmount.coerceAtLeast(0.0) *
+                                entry.interestRate.coerceAtLeast(0.0) *
+                                days / 36500.0 * 100.0
+                        ) / 100.0
+                    }
+
+                    val adjustedOverdueInterest =
+                        (overdueInterest - settledEmiOverdueInterest).coerceAtLeast(0.0)
+                    val adjustedPartialRemaining =
+                        (partialRemaining - settledEmiAmountTotal).coerceAtLeast(0.0)
+
                     return (
-                        pending + delayInterest.coerceAtLeast(0.0) +
-                            partialRemaining.coerceAtLeast(0.0) +
-                            overdueInterest.coerceAtLeast(0.0)
+                        pending +
+                            delayInterest.coerceAtLeast(0.0) +
+                            adjustedPartialRemaining +
+                            adjustedOverdueInterest -
+                            settledInterestAmountTotal
                     ).coerceAtLeast(0.0)
                 }
-
                 uiState.parties.forEach { party ->
                     val entries = repository.getEntries(party.id)
                     val schedules = database.emiScheduleDao().getByPartyId(party.id)
+                    val emiSettlements = schedules
+                        .map { it.transactionId }
+                        .distinct()
+                        .flatMap { transactionId ->
+                            database.emiChargeSettlementDao()
+                                .getByTransactionId(transactionId)
+                        }
 
                     entries.filter {
                         it.type == com.ledger.app.data.EntryType.CREDIT
                     }.forEach { entry ->
-                        receivableTotal += remainingEmi(entry, schedules)
+                        receivableTotal += remainingEmi(entry, schedules, emiSettlements)
                     }
                     entries.filter {
                         it.type == com.ledger.app.data.EntryType.DEBIT
                     }.forEach { entry ->
-                        payableTotal += remainingEmi(entry, schedules)
+                        payableTotal += remainingEmi(entry, schedules, emiSettlements)
                     }
                 }
                 receivableTotal to payableTotal

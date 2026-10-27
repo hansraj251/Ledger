@@ -5132,19 +5132,76 @@ private fun EmiChargeSettlementDialog(
     var history by remember(entry.id) {
         mutableStateOf<List<com.ledger.app.data.EmiChargeSettlementEntity>>(emptyList())
     }
-    var amountText by remember(entry.id) { mutableStateOf("") }
+    var emiAmountText by remember(entry.id) { mutableStateOf("") }
+    var interestAmountText by remember(entry.id) { mutableStateOf("") }
     var noteText by remember(entry.id) { mutableStateOf("") }
     var validation by remember(entry.id) { mutableStateOf("") }
     var deleteTarget by remember {
         mutableStateOf<com.ledger.app.data.EmiChargeSettlementEntity?>(null)
     }
 
+    val todayForSettlementInterest = java.util.Calendar.getInstance().apply {
+        set(java.util.Calendar.HOUR_OF_DAY, 0)
+        set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    val settledEmiOverdueInterest = history.sumOf { settlement ->
+        val settledEmi = settlement.emiAmount.coerceAtLeast(0.0)
+        if (settledEmi <= 0.0) {
+            0.0
+        } else {
+            val settlementDay = java.util.Calendar.getInstance().apply {
+                timeInMillis = settlement.settlementDate
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+
+            val daysSinceSettlement = (
+                (todayForSettlementInterest - settlementDay) / 86_400_000L
+            ).coerceAtLeast(0L)
+
+            kotlin.math.round(
+                settledEmi * entry.interestRate.coerceAtLeast(0.0) *
+                    daysSinceSettlement / 36500.0 * 100.0
+            ) / 100.0
+        }
+    }
+
+    val adjustedOverdueInterestTotal = (
+        overdueInterestTotal.coerceAtLeast(0.0) -
+            settledEmiOverdueInterest
+    ).coerceAtLeast(0.0)
+
     val totalCharges = (
         emiDelayInterest.coerceAtLeast(0.0) +
         partialRemainingTotal.coerceAtLeast(0.0) +
-        overdueInterestTotal.coerceAtLeast(0.0)
+        adjustedOverdueInterestTotal
     )
     val settledAmount = history.sumOf { it.amount }
+    val settledEmiAmount = history.sumOf { it.emiAmount }
+    val settledInterestAmount = history.sumOf { it.interestAmount }
+    val remainingEmiAmount =
+        (partialRemainingTotal.coerceAtLeast(0.0) - settledEmiAmount).coerceAtLeast(0.0)
+    val remainingInterestAmount = (
+        emiDelayInterest.coerceAtLeast(0.0) +
+            adjustedOverdueInterestTotal -
+            settledInterestAmount
+    ).coerceAtLeast(0.0)
+var settlementDate by remember(entry.id) {
+                    mutableStateOf(
+                        java.util.Calendar.getInstance().apply {
+                            set(java.util.Calendar.HOUR_OF_DAY, 0)
+                            set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0)
+                            set(java.util.Calendar.MILLISECOND, 0)
+                        }.timeInMillis
+                    )
+                }
+
     val remainingBalance = (totalCharges - settledAmount).coerceAtLeast(0.0)
 
     suspend fun refreshHistory() {
@@ -5186,9 +5243,8 @@ private fun EmiChargeSettlementDialog(
                     }
                 }
 
-                chargeRow("EMI Delay Int.", emiDelayInterest)
-                chargeRow("Partial Paid EMI Remaining", partialRemainingTotal)
-                chargeRow("Partial Paid EMI Overdue Int.", overdueInterestTotal)
+                chargeRow("EMI Remaining", remainingEmiAmount)
+                chargeRow("Int. Remaining", remainingInterestAmount)
                 Spacer(modifier = Modifier.height(1.dp))
                 chargeRow("Total Charges", totalCharges)
                 chargeRow("Already Settled", settledAmount)
@@ -5205,28 +5261,96 @@ private fun EmiChargeSettlementDialog(
                     )
                 }
 
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = {
-                        amountText = it.filter { ch -> ch.isDigit() || ch == '.' }
-                        validation = ""
-                    },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Amount") },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = emiAmountText,
+                        onValueChange = {
+                            emiAmountText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            validation = ""
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("EMI") },
+                        supportingText = {
+                            Text("Max: ${CurrencySettings.symbol}${formatAmount(remainingEmiAmount)}")
+                        },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    OutlinedTextField(
+                        value = interestAmountText,
+                        onValueChange = {
+                            interestAmountText = it.filter { ch -> ch.isDigit() || ch == '.' }
+                            validation = ""
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Int.") },
+                        supportingText = {
+                            Text("Max: ${CurrencySettings.symbol}${formatAmount(remainingInterestAmount)}")
+                        },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Note (optional)") },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        modifier = Modifier
+                            .weight(0.9f)
+                            .height(56.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        onClick = {
+                            val calendar = java.util.Calendar.getInstance().apply {
+                                timeInMillis = settlementDate
+                            }
+                            android.app.DatePickerDialog(
+                                context,
+                                { _, year, month, day ->
+                                    settlementDate = java.util.Calendar.getInstance().apply {
+                                        set(java.util.Calendar.YEAR, year)
+                                        set(java.util.Calendar.MONTH, month)
+                                        set(java.util.Calendar.DAY_OF_MONTH, day)
+                                        set(java.util.Calendar.HOUR_OF_DAY, 0)
+                                        set(java.util.Calendar.MINUTE, 0)
+                                        set(java.util.Calendar.SECOND, 0)
+                                        set(java.util.Calendar.MILLISECOND, 0)
+                                    }.timeInMillis
+                                },
+                                calendar.get(java.util.Calendar.YEAR),
+                                calendar.get(java.util.Calendar.MONTH),
+                                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                    ) {
+                        Text(
+                            SimpleDateFormat("dd MMM yy", Locale.getDefault())
+                                .format(Date(settlementDate)),
+                            maxLines = 1
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = noteText,
+                        onValueChange = { noteText = it },
+                        modifier = Modifier.weight(1.1f),
+                        label = { Text("Note") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
 
                 if (validation.isNotBlank()) {
                     Text(validation, color = MaterialTheme.colorScheme.error)
@@ -5266,7 +5390,11 @@ private fun EmiChargeSettlementDialog(
                                         style = MaterialTheme.typography.labelMedium
                                     )
                                     Text(
-                                        "${CurrencySettings.symbol}${formatAmount(item.amount)}",
+                                        if (item.emiAmount > 0.0 || item.interestAmount > 0.0) {
+                                            "EMI ${formatAmount(item.emiAmount)} · Int. ${formatAmount(item.interestAmount)}"
+                                        } else {
+                                            "${CurrencySettings.symbol}${formatAmount(item.amount)}"
+                                        },
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -5287,12 +5415,17 @@ private fun EmiChargeSettlementDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val amount = amountText.trim().toDoubleOrNull()
+                    val emiAmount = emiAmountText.trim().toDoubleOrNull() ?: 0.0
+                    val interestAmount = interestAmountText.trim().toDoubleOrNull() ?: 0.0
                     when {
-                        amount == null || !amount.isFinite() || amount <= 0.0 ->
-                            validation = "Enter a valid amount"
-                        amount > remainingBalance + 0.000001 ->
-                            validation = "Amount exceeds Remaining Balance"
+                        !emiAmount.isFinite() || !interestAmount.isFinite() ||
+                            emiAmount < 0.0 || interestAmount < 0.0 ||
+                            (emiAmount <= 0.0 && interestAmount <= 0.0) ->
+                            validation = "Enter a valid amount in at least one field"
+                        emiAmount > remainingEmiAmount + 0.000001 ->
+                            validation = "EMI Remaining exceeds its maximum balance"
+                        interestAmount > remainingInterestAmount + 0.000001 ->
+                            validation = "Int. Remaining exceeds its maximum balance"
                         else -> scope.launch {
                             try {
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -5301,12 +5434,16 @@ private fun EmiChargeSettlementDialog(
                                         .insert(
                                             com.ledger.app.data.EmiChargeSettlementEntity(
                                                 transactionId = entry.id,
-                                                amount = amount,
+                                                amount = emiAmount + interestAmount,
+                                                emiAmount = emiAmount,
+                                                interestAmount = interestAmount,
+                                                settlementDate = settlementDate,
                                                 note = noteText.trim()
                                             )
                                         )
                                 }
-                                amountText = ""
+                                emiAmountText = ""
+                                interestAmountText = ""
                                 noteText = ""
                                 validation = ""
                                 refreshHistory()

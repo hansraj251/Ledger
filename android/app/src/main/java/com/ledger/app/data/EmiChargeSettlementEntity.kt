@@ -21,6 +21,8 @@ data class EmiChargeSettlementEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val transactionId: Long,
     val amount: Double,
+    val emiAmount: Double = 0.0,
+    val interestAmount: Double = 0.0,
     val settlementDate: Long = System.currentTimeMillis(),
     val note: String = "",
     val createdAt: Long = System.currentTimeMillis()

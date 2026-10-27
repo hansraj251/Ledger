@@ -4752,6 +4752,7 @@ private fun EmiInstallmentsScreen(
     var paymentInput by remember { mutableStateOf("") }
     var paymentError by remember { mutableStateOf<String?>(null) }
     var showEmiChargeSettlement by remember { mutableStateOf(false) }
+    var showAllEmis by remember(entry.id) { mutableStateOf(false) }
 
     val context = LocalContext.current
     var emiSettlementHistory by remember(entry.id) {
@@ -4803,6 +4804,35 @@ private fun EmiInstallmentsScreen(
 
         val sorted = schedules.sortedBy { it.installmentNumber }
         val paidCount = sorted.count { it.isPaid }
+
+        // Hide only completed-status EMIs whose payment card is not actionable.
+        val hiddenCompletedEmis = sorted.filter { emi ->
+            val isCompletedStatus =
+                emi.isPaid ||
+                    (emi.paidAmount > 0.0 &&
+                        emi.paidAmount < emi.amount - 0.001)
+
+            val laterPaid = sorted.any {
+                it.installmentNumber > emi.installmentNumber && it.isPaid
+            }
+            val firstUnpaid = sorted.firstOrNull { !it.isPaid }
+            val canOpenPayment =
+                !laterPaid && (emi.isPaid || firstUnpaid?.id == emi.id)
+
+            isCompletedStatus && !canOpenPayment
+        }
+
+        val displayedEmis = if (showAllEmis) {
+            sorted
+        } else {
+            sorted.filterNot { emi -> hiddenCompletedEmis.any { it.id == emi.id } }
+        }
+
+        val emiListState = rememberLazyListState()
+
+        LaunchedEffect(showAllEmis) {
+            emiListState.scrollToItem(0)
+        }
 
         val periodsPerYear = when (sorted.firstOrNull()?.frequency) {
             "Weekly" -> 52.0
@@ -5024,12 +5054,32 @@ private fun EmiInstallmentsScreen(
                 Text("No EMI installments found.")
             }
         } else {
+            if (hiddenCompletedEmis.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = { showAllEmis = !showAllEmis },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(if (showAllEmis) "Hide Paid" else "View All")
+                    }
+                }
+            }
+
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                state = emiListState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(sorted, key = { it.id }) { emi ->
+                items(displayedEmis, key = { it.id }) { emi ->
                     val laterPaid = sorted.any {
                         it.installmentNumber > emi.installmentNumber && it.isPaid
                     }
@@ -5070,6 +5120,8 @@ private fun EmiInstallmentsScreen(
                             val interestAmount = breakdown?.second ?: 0.0
                             val isOverdue = !emi.isPaid && emi.dueDate < todayStart
                             val statusText = when {
+                                emi.paidAmount > 0.0 &&
+                                    emi.paidAmount < emi.amount - 0.001 -> "Partial Paid"
                                 emi.isPaid -> "Paid"
                                 isOverdue -> "Overdue"
                                 else -> "Pending"
@@ -5093,6 +5145,7 @@ private fun EmiInstallmentsScreen(
                                         shape = RoundedCornerShape(50),
                                         color = when (statusText) {
                                             "Paid" -> Color(0xFFD5EEDB)
+                                            "Partial Paid" -> Color(0xFFDCE8FF)
                                             "Overdue" -> Color(0xFFFFDAD6)
                                             else -> Color(0xFFFFE4C7)
                                         }
@@ -5102,6 +5155,7 @@ private fun EmiInstallmentsScreen(
                                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                             color = when (statusText) {
                                                 "Paid" -> Color(0xFF216B3A)
+                                                "Partial Paid" -> Color(0xFF174EA6)
                                                 "Overdue" -> Color(0xFFB3261E)
                                                 else -> Color(0xFF9A4815)
                                             },

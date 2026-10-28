@@ -402,7 +402,7 @@ private val MIGRATION_29_30 = object : Migration(29, 30) {
             "sharing_members", "group_expenses", "group_expense_splits",
             "group_expense_payments", "group_settlements", "app_settings",
             "staff_members", "salary_revisions", "salary_payments",
-            "staff_advance_transactions", "staff_bonuses",
+            "staff_advance_transactions", "staff_bonus_payments",
             "staff_salary_deductions", "party_sell_items",
             "emi_schedules", "transaction_settlements",
             "emi_charge_settlements"
@@ -1746,7 +1746,7 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
             "sharing_members", "group_expenses", "group_expense_splits",
             "group_expense_payments", "group_settlements", "app_settings",
             "staff_members", "salary_revisions", "salary_payments",
-            "staff_advance_transactions", "staff_bonuses",
+            "staff_advance_transactions", "staff_bonus_payments",
             "staff_salary_deductions", "party_sell_items", "emi_schedules",
             "transaction_settlements", "emi_charge_settlements"
         )
@@ -1901,6 +1901,176 @@ private val MIGRATION_37_38 = object : Migration(37, 38) {
     }
 }
 
+
+private val MIGRATION_38_39 = object : Migration(38, 39) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        val trackedTables = listOf(
+            "salary_revisions",
+            "salary_payments",
+            "staff_advance_transactions",
+            "staff_bonus_payments",
+            "staff_salary_deductions"
+        )
+
+        fun detailExpression(table: String, row: String): String {
+            val staff =
+                "'Staff: ' || COALESCE((SELECT name FROM staff_members WHERE id = $row.staffId), 'Unknown staff')"
+            val amount = "' · Amount: ₹' || printf('%.2f', $row.amount)"
+            val note =
+                "CASE WHEN COALESCE($row.note, '') <> '' THEN ' · Note: ' || $row.note ELSE '' END"
+
+            return when (table) {
+                "salary_revisions" ->
+                    staff +
+                    " || ' · Monthly Salary: ₹' || printf('%.2f', $row.amount)" +
+                    " || ' · Effective Date: ' || strftime('%d-%m-%Y', $row.effectiveDate / 1000, 'unixepoch')" +
+                    " || " + note
+
+                "salary_payments" ->
+                    staff + " || " + amount +
+                    " || ' · Payment Date: ' || strftime('%d-%m-%Y', $row.paymentDate / 1000, 'unixepoch')" +
+                    " || ' · Mode: ' || COALESCE($row.paymentMode, 'Cash')" +
+                    " || CASE WHEN COALESCE($row.salaryMonth, '') <> '' THEN ' · Salary Month: ' || $row.salaryMonth ELSE '' END" +
+                    " || " + note
+
+                "staff_advance_transactions" ->
+                    staff +
+                    " || ' · Type: ' || $row.transactionType" +
+                    " || " + amount +
+                    " || ' · Date: ' || strftime('%d-%m-%Y', $row.transactionDate / 1000, 'unixepoch')" +
+                    " || CASE WHEN COALESCE($row.salaryMonth, '') <> '' THEN ' · Salary Month: ' || $row.salaryMonth ELSE '' END" +
+                    " || " + note
+
+                "staff_bonus_payments" ->
+                    staff +
+                    " || ' · Type: ' || CASE WHEN UPPER($row.bonusType) = 'ALLOWANCE' THEN 'Allowance' ELSE 'Bonus' END" +
+                    " || " + amount +
+                    " || ' · Date: ' || strftime('%d-%m-%Y', $row.bonusDate / 1000, 'unixepoch')" +
+                    " || " + note
+
+                "staff_salary_deductions" ->
+                    staff + " || " + amount +
+                    " || ' · Deduction Date: ' || strftime('%d-%m-%Y', $row.deductionDate / 1000, 'unixepoch')" +
+                    " || CASE WHEN COALESCE($row.salaryMonth, '') <> '' THEN ' · Salary Month: ' || $row.salaryMonth ELSE '' END" +
+                    " || CASE WHEN COALESCE($row.note, '') <> '' THEN ' · Reason: ' || $row.note ELSE '' END"
+
+                else -> "'Record ID: ' || $row.id"
+            }
+        }
+
+        trackedTables.forEach { table ->
+            val exists = database.query(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                arrayOf(table)
+            ).use { it.moveToFirst() }
+
+            if (exists) {
+                listOf(
+                    Triple("INSERT", "ADD", "NEW"),
+                    Triple("UPDATE", "EDIT", "NEW"),
+                    Triple("DELETE", "DELETE", "OLD")
+                ).forEach { (sqlOperation, operation, row) ->
+                    database.execSQL(
+                        "DROP TRIGGER IF EXISTS activity_${table}_${sqlOperation.lowercase()}"
+                    )
+
+                    database.execSQL(
+                        """
+                        CREATE TRIGGER activity_${table}_${sqlOperation.lowercase()}
+                        AFTER $sqlOperation ON $table
+                        BEGIN
+                            INSERT INTO activity_logs
+                                (tableName, operation, recordId, occurredAt, details)
+                            VALUES (
+                                '$table',
+                                '$operation',
+                                $row.id,
+                                CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                ${detailExpression(table, row)}
+                            );
+                        END
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+private val MIGRATION_39_40 = object : Migration(39, 40) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        val trackedTables = listOf(
+            "group_expense_payments",
+            "group_settlements"
+        )
+
+        fun detailExpression(table: String, row: String): String {
+            return when (table) {
+                "group_expense_payments" ->
+                    "'Member: ' || COALESCE(${row}.memberNameSnapshot, 'Unknown member')" +
+                    " || ' · Amount: ₹' || printf('%.2f', ${row}.amount)" +
+                    " || ' · Date: ' || strftime('%d-%m-%Y', ${row}.paidAt / 1000, 'unixepoch')" +
+                    " || ' · Expense: ' || COALESCE(" +
+                    "(SELECT title FROM group_expenses WHERE id = ${row}.expenseId)," +
+                    "'Expense #' || ${row}.expenseId)" +
+                    " || ' · Group: ' || COALESCE(" +
+                    "(SELECT sg.name FROM group_expenses ge " +
+                    "JOIN sharing_groups sg ON sg.id = ge.groupId " +
+                    "WHERE ge.id = ${row}.expenseId), 'Unknown group')"
+
+                "group_settlements" ->
+                    "'Member: ' || COALESCE(${row}.memberNameSnapshot, 'Unknown member')" +
+                    " || ' · Amount: ₹' || printf('%.2f', ${row}.amount)" +
+                    " || ' · Date: ' || strftime('%d-%m-%Y', ${row}.receivedAt / 1000, 'unixepoch')" +
+                    " || ' · Mode: ' || COALESCE(${row}.paymentType, 'Cash')" +
+                    " || ' · Group: ' || COALESCE(" +
+                    "(SELECT name FROM sharing_groups WHERE id = ${row}.groupId)," +
+                    "'Unknown group')"
+
+                else -> "'Record ID: ' || ${row}.id"
+            }
+        }
+
+        trackedTables.forEach { table ->
+            val exists = database.query(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                arrayOf(table)
+            ).use { it.moveToFirst() }
+
+            if (exists) {
+                listOf(
+                    Triple("INSERT", "ADD", "NEW"),
+                    Triple("UPDATE", "EDIT", "NEW"),
+                    Triple("DELETE", "DELETE", "OLD")
+                ).forEach { (sqlOperation, operation, row) ->
+                    database.execSQL(
+                        "DROP TRIGGER IF EXISTS activity_${table}_${sqlOperation.lowercase()}"
+                    )
+
+                    database.execSQL(
+                        """
+                        CREATE TRIGGER activity_${table}_${sqlOperation.lowercase()}
+                        AFTER $sqlOperation ON $table
+                        BEGIN
+                            INSERT INTO activity_logs
+                                (tableName, operation, recordId, occurredAt, details)
+                            VALUES (
+                                '$table',
+                                '$operation',
+                                ${row}.id,
+                                CAST(strftime('%s','now') AS INTEGER) * 1000,
+                                ${detailExpression(table, row)}
+                            );
+                        END
+                        """.trimIndent()
+                    )
+                }
+            }
+        }
+    }
+}
+
 fun get(context: Context): LedgerDatabase {
         return instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
@@ -1908,7 +2078,7 @@ fun get(context: Context): LedgerDatabase {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40)
                 .addCallback(object : androidx.room.RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

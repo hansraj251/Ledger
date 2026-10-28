@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import android.app.DatePickerDialog
 
 import androidx.compose.foundation.background
@@ -59,6 +61,8 @@ fun ActivityScreen(
     database: SupportSQLiteDatabase,
     onBack: () -> Unit
 ) {
+    val activityCurrencyCode = CurrencySettings.currentCode.value
+
     BackHandler { onBack() }
 
     var logs by remember { mutableStateOf<List<ActivityLogRow>>(emptyList()) }
@@ -233,7 +237,10 @@ fun ActivityScreen(
                             )
                             if (log.details.isNotBlank()) {
                                 Text(
-                                    text = log.details,
+                                    text = log.details.replace("₹", CurrencySettings.symbol).let { _ ->
+                                    activityCurrencyCode // Observe Profile currency changes.
+                                    log.details.replace("₹", CurrencySettings.symbol)
+                                },
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -333,21 +340,13 @@ private fun calculateEmiActivityDetails(
     val principalText = String.format(Locale.US, "%.2f", principal)
     val interestText = String.format(Locale.US, "%.2f", interest)
 
-    var result = details.replace(
-        Regex(""" · Principal: ₹[0-9,.]+"""),
-        " · Principal: ₹$principalText"
-    )
-    if (!result.contains(" · Principal: ₹")) {
-        result += " · Principal: ₹$principalText"
-    }
+    val resultWithoutEmiAmounts = details
+        .replace(Regex(""" · Principal: ₹[0-9,.]+"""), "")
+        .replace(Regex(""" · Int\.: ₹[0-9,.]+"""), "")
 
-    result = result.replace(
-        Regex(""" · Int\.: ₹[0-9,.]+"""),
+    val result = resultWithoutEmiAmounts +
+        " · Principal: ₹$principalText" +
         " · Int.: ₹$interestText"
-    )
-    if (!result.contains(" · Int.: ₹")) {
-        result += " · Int.: ₹$interestText"
-    }
 
     return result
 }

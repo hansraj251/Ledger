@@ -114,6 +114,18 @@ fun ActivityScreen(
                 }
                 result.filter {
                     it.occurredAt >= dayStart && it.occurredAt < nextDayStart
+                }.map { log ->
+                    if (log.tableName.equals("emi_schedules", ignoreCase = true)) {
+                        log.copy(
+                            details = calculateEmiActivityDetails(
+                                database = database,
+                                recordId = log.recordId,
+                                details = log.details
+                            )
+                        )
+                    } else {
+                        log
+                    }
                 }
             }
         } catch (_: Exception) {
@@ -242,6 +254,102 @@ fun ActivityScreen(
             }
         }
     }
+}
+
+
+private fun calculateEmiActivityDetails(
+    database: SupportSQLiteDatabase,
+    recordId: Long,
+    details: String
+): String {
+    data class ScheduleRow(val number: Int, val amount: Double)
+
+    val schedule = database.query(
+        "SELECT transactionId, installmentNumber, frequency " +
+            "FROM emi_schedules WHERE id = ? LIMIT 1",
+        arrayOf(recordId)
+    ).use { cursor ->
+        if (!cursor.moveToFirst()) return details
+        Triple(
+            cursor.getLong(0),
+            cursor.getInt(1),
+            cursor.getString(2).orEmpty()
+        )
+    }
+
+    val transactionId = schedule.first
+    val targetNumber = schedule.second
+    val frequency = schedule.third
+
+    val entry = database.query(
+        "SELECT amount, interestRate FROM ledger_entries WHERE id = ? LIMIT 1",
+        arrayOf(transactionId)
+    ).use { cursor ->
+        if (!cursor.moveToFirst()) return details
+        Pair(
+            kotlin.math.abs(cursor.getDouble(0)),
+            cursor.getDouble(1).coerceAtLeast(0.0)
+        )
+    }
+
+    val periodsPerYear = when (frequency) {
+        "Weekly" -> 52.0
+        "Quarterly" -> 4.0
+        "Half-Yearly" -> 2.0
+        else -> 12.0
+    }
+    val periodicRate = entry.second / 100.0 / periodsPerYear
+
+    val schedules = mutableListOf<ScheduleRow>()
+    database.query(
+        "SELECT installmentNumber, amount FROM emi_schedules " +
+            "WHERE transactionId = ? AND installmentNumber <= ? " +
+            "ORDER BY installmentNumber",
+        arrayOf(transactionId, targetNumber)
+    ).use { cursor ->
+        while (cursor.moveToNext()) {
+            schedules += ScheduleRow(cursor.getInt(0), cursor.getDouble(1))
+        }
+    }
+
+    var outstanding = entry.first
+    var principal = 0.0
+    var interest = 0.0
+
+    for (item in schedules) {
+        val installmentInterest =
+            kotlin.math.round(outstanding * periodicRate * 100.0) / 100.0
+        val installmentPrincipal =
+            (item.amount - installmentInterest).coerceAtLeast(0.0)
+
+        if (item.number == targetNumber) {
+            principal = installmentPrincipal
+            interest = installmentInterest
+        }
+
+        outstanding = (outstanding - installmentPrincipal).coerceAtLeast(0.0)
+    }
+
+    val principalText = String.format(Locale.US, "%.2f", principal)
+    val interestText = String.format(Locale.US, "%.2f", interest)
+
+    var result = details.replace(
+        Regex(""" · Principal: ₹[0-9,.]+"""),
+        " · Principal: ₹$principalText"
+    )
+    if (!result.contains(" · Principal: ₹")) {
+        result += " · Principal: ₹$principalText"
+    }
+
+    result = result.replace(
+        Regex(""" · Int\.: ₹[0-9,.]+"""),
+        " · Int.: ₹$interestText"
+    )
+    if (!result.contains(" · Int.: ₹")) {
+        result += " · Int.: ₹$interestText"
+    }
+
+    return result
 }
 
 private fun friendlyTableName(table: String): String = when (table) {

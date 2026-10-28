@@ -678,6 +678,8 @@ private val MIGRATION_35_36 = object : Migration(35, 36) {
         database.execSQL("""
             CREATE TRIGGER activity_emi_schedules_update
             AFTER UPDATE ON emi_schedules
+            WHEN OLD.isPaid IS NOT NEW.isPaid
+              OR OLD.paidAmount IS NOT NEW.paidAmount
             BEGIN
                 INSERT INTO activity_logs
                     (tableName, operation, recordId, occurredAt, details)
@@ -1849,6 +1851,56 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
         }
     }
 
+
+private val MIGRATION_37_38 = object : Migration(37, 38) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("DROP TRIGGER IF EXISTS activity_emi_schedules_update")
+        database.execSQL("""
+            CREATE TRIGGER activity_emi_schedules_update
+            AFTER UPDATE ON emi_schedules
+            WHEN OLD.isPaid IS NOT NEW.isPaid
+              OR OLD.paidAmount IS NOT NEW.paidAmount
+            BEGIN
+                INSERT INTO activity_logs
+                    (tableName, operation, recordId, occurredAt, details)
+                VALUES (
+                    'emi_schedules',
+                    'EDIT',
+                    NEW.id,
+                    CAST(strftime('%s','now') AS INTEGER) * 1000,
+                    'Party: ' ||
+                    COALESCE((
+                        SELECT p.name
+                        FROM ledger_entries le
+                        JOIN parties p ON p.id = le.partyId
+                        WHERE le.id = NEW.transactionId
+                    ), 'Unknown party') ||
+                    ' · Transaction: ' ||
+                    COALESCE((
+                        SELECT CASE le.type
+                            WHEN 'CREDIT' THEN 'You Gave'
+                            WHEN 'DEBIT' THEN 'You Got'
+                            ELSE le.type
+                        END
+                        FROM ledger_entries le
+                        WHERE le.id = NEW.transactionId
+                    ), 'Unknown') ||
+                    ' · Installment: ' || NEW.installmentNumber ||
+                    '/' || NEW.installmentCount ||
+                    ' · Frequency: ' || NEW.frequency ||
+                    ' · Amount: ₹' || printf('%.2f', NEW.amount) ||
+                    ' · Principal: ₹' || printf('%.2f', NEW.baseAmount) ||
+                    ' · Paid Amount: ₹' || printf('%.2f', NEW.paidAmount) ||
+                    ' · Due Date: ' || strftime('%d-%m-%Y',
+                        NEW.dueDate / 1000, 'unixepoch') ||
+                    ' · Status: ' ||
+                    CASE WHEN NEW.isPaid = 1 THEN 'Paid' ELSE 'Unpaid' END
+                );
+            END
+        """.trimIndent())
+    }
+}
+
 fun get(context: Context): LedgerDatabase {
         return instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
@@ -1856,7 +1908,7 @@ fun get(context: Context): LedgerDatabase {
                 LedgerDatabase::class.java,
                 DATABASE_NAME
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38)
                 .addCallback(object : androidx.room.RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         super.onCreate(db)

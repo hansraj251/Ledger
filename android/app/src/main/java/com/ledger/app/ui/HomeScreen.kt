@@ -289,8 +289,7 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(isPayableExpanded, staffMembers) {
-        if (isPayableExpanded) {
+    LaunchedEffect(staffMembers) {
             totalRemainingStaffSalary =
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     val dao = LedgerDatabaseProvider.get(context).staffDao()
@@ -369,7 +368,6 @@ fun HomeScreen(
                         }
                 }
         }
-    }
 
     LaunchedEffect(context) {
         val totals = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1331,7 +1329,11 @@ item {
                 ) {
                     BalanceSummaryCard(
                         title = "Receivable",
-                        amount = receivable,
+                        amount = receivable
+                            + receivableInterestTotal
+                            + receivableEmiTotal
+                            + groupReceivableTotal
+                            + totalStaffAdvanceOutstanding,
                         modifier = Modifier.weight(1f),
                         amountColor = Color(0xFFC62828),
                         expanded = isReceivableExpanded,
@@ -1346,7 +1348,11 @@ item {
 
                     BalanceSummaryCard(
                         title = "Payable",
-                        amount = payable,
+                        amount = payable
+                            + payableInterestTotal
+                            + payableEmiTotal
+                            + groupPayableTotal
+                            + totalRemainingStaffSalary,
                         modifier = Modifier.weight(1f),
                         amountColor = Color(0xFF2E7D32),
                         expanded = isPayableExpanded,

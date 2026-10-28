@@ -184,6 +184,8 @@ fun HomeScreen(
     var totalRemainingStaffSalary by remember { mutableStateOf(0.0) }
     var receivableEmiTotal by remember { mutableStateOf(0.0) }
     var payableEmiTotal by remember { mutableStateOf(0.0) }
+    var partyReceivableEmiBalances by remember { mutableStateOf(emptyMap<Long, Double>()) }
+    var partyPayableEmiBalances by remember { mutableStateOf(emptyMap<Long, Double>()) }
     var isReceivableExpanded by rememberSaveable { mutableStateOf(false) }
     var isPayableExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateGroupDialog by rememberSaveable { mutableStateOf(false) }
@@ -439,15 +441,16 @@ fun HomeScreen(
         groupPayableTotal = totals.second
     }
 
-    LaunchedEffect(uiState.parties, isReceivableExpanded, isPayableExpanded) {
-        if (isReceivableExpanded || isPayableExpanded) {
-            val totals = kotlinx.coroutines.withContext(
-                kotlinx.coroutines.Dispatchers.IO
-            ) {
+    LaunchedEffect(uiState.parties, uiState.partyBalances, isReceivableExpanded, isPayableExpanded) {
+        val totals = kotlinx.coroutines.withContext(
+            kotlinx.coroutines.Dispatchers.IO
+        ) {
                 val database = LedgerDatabaseProvider.get(context)
                 val repository = LedgerRepository(database)
                 var receivableTotal = 0.0
                 var payableTotal = 0.0
+                val receivableByParty = mutableMapOf<Long, Double>()
+                val payableByParty = mutableMapOf<Long, Double>()
 
                 fun remainingEmi(
                     entry: com.ledger.app.data.LedgerEntryEntity,
@@ -566,19 +569,26 @@ fun HomeScreen(
                     entries.filter {
                         it.type == com.ledger.app.data.EntryType.CREDIT
                     }.forEach { entry ->
-                        receivableTotal += remainingEmi(entry, schedules, emiSettlements)
+                        val amount = remainingEmi(entry, schedules, emiSettlements)
+                        receivableTotal += amount
+                        receivableByParty[party.id] =
+                            (receivableByParty[party.id] ?: 0.0) + amount
                     }
                     entries.filter {
                         it.type == com.ledger.app.data.EntryType.DEBIT
                     }.forEach { entry ->
-                        payableTotal += remainingEmi(entry, schedules, emiSettlements)
+                        val amount = remainingEmi(entry, schedules, emiSettlements)
+                        payableTotal += amount
+                        payableByParty[party.id] =
+                            (payableByParty[party.id] ?: 0.0) + amount
                     }
                 }
-                receivableTotal to payableTotal
-            }
-            receivableEmiTotal = totals.first
-            payableEmiTotal = totals.second
+                Triple(receivableTotal to payableTotal, receivableByParty, payableByParty)
         }
+        receivableEmiTotal = totals.first.first
+        payableEmiTotal = totals.first.second
+        partyReceivableEmiBalances = totals.second
+        partyPayableEmiBalances = totals.third
     }
 
     LaunchedEffect(Unit) {
@@ -1551,6 +1561,8 @@ item {
                     PartyCard(
                         party = party,
                         balance = uiState.partyBalances[party.id] ?: 0.0,
+                        receivableEmiBalance = partyReceivableEmiBalances[party.id] ?: 0.0,
+                        payableEmiBalance = partyPayableEmiBalances[party.id] ?: 0.0,
                         isPremium = isPremium,
                         onClick = {
                             onPartyClick(party)
@@ -2418,6 +2430,8 @@ private fun BalanceSummaryCard(
 private fun PartyCard(
     party: PartyEntity,
     balance: Double,
+    receivableEmiBalance: Double,
+    payableEmiBalance: Double,
     isPremium: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -2509,11 +2523,22 @@ private fun PartyCard(
                         color = Color(0xFF2E7D32)
                     )
                 } else {
-                    Text(
-                        text = "Settled",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    val hasReceivableEmi = receivableEmiBalance > 0.000001
+                    val hasPayableEmi = payableEmiBalance > 0.000001
+                    if (hasReceivableEmi) {
+                        Text(
+                            text = "Receivable EMI: ${CurrencySettings.symbol}${formatAmount(receivableEmiBalance)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFC62828)
+                        )
+                    }
+                    if (hasPayableEmi) {
+                        Text(
+                            text = "Payable EMI: ${CurrencySettings.symbol}${formatAmount(payableEmiBalance)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
                 }
             }
 

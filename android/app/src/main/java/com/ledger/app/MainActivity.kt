@@ -1840,6 +1840,12 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
     var showClearDataConfirmation by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
     }
+    var showTypeToClearConfirmation by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+    var clearDataConfirmationText by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf("")
+    }
 
     var showDriveAccountChangeConfirmation by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(false)
@@ -1938,7 +1944,8 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                 androidx.compose.material3.Button(
                     onClick = {
                         showClearDataConfirmation = false
-                        onClearData()
+                        clearDataConfirmationText = ""
+                        showTypeToClearConfirmation = true
                     },
                     colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                         containerColor = androidx.compose.ui.graphics.Color(0xFFB42318),
@@ -1952,6 +1959,63 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                 androidx.compose.material3.OutlinedButton(
                     onClick = {
                         showClearDataConfirmation = false
+                    }
+                ) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showTypeToClearConfirmation) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = {
+                showTypeToClearConfirmation = false
+                clearDataConfirmationText = ""
+            },
+            containerColor = androidx.compose.ui.graphics.Color.White,
+            titleContentColor = androidx.compose.ui.graphics.Color(0xFF171717),
+            textContentColor = androidx.compose.ui.graphics.Color(0xFF424242),
+            title = {
+                androidx.compose.material3.Text("Confirm Permanent Deletion")
+            },
+            text = {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                ) {
+                    androidx.compose.material3.Text(
+                        "To permanently delete local Ledger data and its Google Drive backup, type CLEAR below. This cannot be undone."
+                    )
+                    androidx.compose.material3.OutlinedTextField(
+                        value = clearDataConfirmationText,
+                        onValueChange = { clearDataConfirmationText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { androidx.compose.material3.Text("Type CLEAR to confirm") },
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.Button(
+                    onClick = {
+                        showTypeToClearConfirmation = false
+                        clearDataConfirmationText = ""
+                        onClearData()
+                    },
+                    enabled = clearDataConfirmationText == "CLEAR",
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color(0xFFB42318),
+                        contentColor = androidx.compose.ui.graphics.Color.White
+                    )
+                ) {
+                    androidx.compose.material3.Text("Clear Data")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = {
+                        showTypeToClearConfirmation = false
+                        clearDataConfirmationText = ""
                     }
                 ) {
                     androidx.compose.material3.Text("Cancel")

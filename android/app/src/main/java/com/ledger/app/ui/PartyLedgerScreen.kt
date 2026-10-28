@@ -5393,6 +5393,7 @@ private fun EmiChargeSettlementDialog(
     }
     var emiAmountText by remember(entry.id) { mutableStateOf("") }
     var interestAmountText by remember(entry.id) { mutableStateOf("") }
+    var settlementAmountsEdited by remember(entry.id) { mutableStateOf(false) }
     var noteText by remember(entry.id) { mutableStateOf("") }
     var validation by remember(entry.id) { mutableStateOf("") }
     var deleteTarget by remember {
@@ -5475,6 +5476,15 @@ var settlementDate by remember(entry.id) {
         refreshHistory()
     }
 
+    LaunchedEffect(remainingEmiAmount, remainingInterestAmount) {
+        if (!settlementAmountsEdited) {
+            emiAmountText = java.math.BigDecimal.valueOf(remainingEmiAmount)
+                .stripTrailingZeros().toPlainString()
+            interestAmountText = java.math.BigDecimal.valueOf(remainingInterestAmount)
+                .stripTrailingZeros().toPlainString()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Color.White,
@@ -5528,6 +5538,7 @@ var settlementDate by remember(entry.id) {
                     OutlinedTextField(
                         value = emiAmountText,
                         onValueChange = {
+                            settlementAmountsEdited = true
                             emiAmountText = it.filter { ch -> ch.isDigit() || ch == '.' }
                             validation = ""
                         },
@@ -5545,6 +5556,7 @@ var settlementDate by remember(entry.id) {
                     OutlinedTextField(
                         value = interestAmountText,
                         onValueChange = {
+                            settlementAmountsEdited = true
                             interestAmountText = it.filter { ch -> ch.isDigit() || ch == '.' }
                             validation = ""
                         },
@@ -5568,7 +5580,8 @@ Row(
                     OutlinedButton(
                         modifier = Modifier
                             .weight(0.9f)
-                            .height(56.dp),
+                            .height(56.dp)
+                            .align(Alignment.CenterVertically),
                         shape = RoundedCornerShape(12.dp),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                         onClick = {
@@ -5604,7 +5617,10 @@ Row(
                     OutlinedTextField(
                         value = noteText,
                         onValueChange = { noteText = it },
-                        modifier = Modifier.weight(1.1f),
+                        modifier = Modifier
+                            .weight(1.1f)
+                            .height(56.dp)
+                            .align(Alignment.CenterVertically),
                         label = { Text("Note") },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp)
@@ -5705,6 +5721,7 @@ Row(
                                 interestAmountText = ""
                                 noteText = ""
                                 validation = ""
+                                settlementAmountsEdited = false
                                 refreshHistory()
                             } catch (e: Exception) {
                                 validation = e.message ?: "Unable to save settlement"
@@ -5744,6 +5761,7 @@ Row(
                                         .deleteById(item.id)
                                 }
                                 deleteTarget = null
+                                settlementAmountsEdited = false
                                 refreshHistory()
                             } catch (e: Exception) {
                                 validation = e.message ?: "Unable to delete settlement"

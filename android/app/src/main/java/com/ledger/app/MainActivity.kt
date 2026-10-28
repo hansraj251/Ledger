@@ -797,6 +797,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             }
                     ,
                         onDataChanged = {
+                            android.util.Log.d("LedgerSyncDebug", "MainActivity PartyLedgerScreen callback reached")
                             googleDriveSyncCoordinator.requestAutoSync()
                         }
                     )
@@ -808,7 +809,10 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             selectedParty = null
                         },
                         isPremium = premiumBillingState.isPremium,
-                        onUpgradeClick = { launchPremiumPurchase() }
+                        onUpgradeClick = { launchPremiumPurchase() },
+                        onDataChanged = {
+                            googleDriveSyncCoordinator.requestAutoSync()
+                        }
                     )
                 }
 

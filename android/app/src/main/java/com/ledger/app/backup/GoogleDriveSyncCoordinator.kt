@@ -55,6 +55,7 @@ class GoogleDriveSyncCoordinator(
     private var paused = false
 
     fun requestAutoSync() {
+        android.util.Log.d("LedgerSyncDebug", "requestAutoSync() called")
         requestSync(manual = false)
     }
 
@@ -226,12 +227,17 @@ class GoogleDriveSyncCoordinator(
             }
         }
 
+        android.util.Log.d(
+            "LedgerSyncDebug",
+            "requestSync: manual=$manual shouldStart=$shouldStart paused=$paused running=$running generation=${generation.get()}"
+        )
         if (shouldStart) {
             startSync(manual)
         }
     }
 
     private fun startSync(manual: Boolean) {
+        android.util.Log.d("LedgerSyncDebug", "startSync() called; manual=$manual")
         val syncGeneration = generation.get()
 
         onSyncStarted?.invoke()

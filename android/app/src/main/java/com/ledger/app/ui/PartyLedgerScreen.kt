@@ -136,8 +136,8 @@ fun PartyLedgerScreen(
     onBack: () -> Unit,
     isPremium: Boolean = false
 ,
-    onUpgradeClick: () -> Unit = {}
-) {
+    onUpgradeClick: () -> Unit = {},
+    onDataChanged: () -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsState()
     var emiSchedules by remember(party.id) {
         mutableStateOf<List<EmiScheduleEntity>>(emptyList())
@@ -600,6 +600,7 @@ var showDeletePartyDialog by remember {
                                 emiSchedules = withContext(Dispatchers.IO) {
                                     database.emiScheduleDao().getByPartyId(party.id)
                                 }
+                                onDataChanged()
                                 Toast.makeText(context, "EMI payment saved.", Toast.LENGTH_SHORT).show()
                             }
                         } catch (error: Exception) {
@@ -1402,12 +1403,18 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                         } else {
                             viewModel.updateSettlement(entry, settlementId, value, date, note)
                         }
-                        if (succeeded) settlingEntry = null
+                        if (succeeded) {
+                            android.util.Log.d("LedgerSyncDebug", "Settlement SAVE succeeded; invoking onDataChanged")
+                            onDataChanged()
+                            settlingEntry = null
+                        }
                     }
                 },
                 onDelete = { settlement ->
                     scope.launch {
                         if (viewModel.deleteSettlement(entry, settlement.id)) {
+                            android.util.Log.d("LedgerSyncDebug", "Settlement HISTORY DELETE succeeded; invoking onDataChanged")
+                            onDataChanged()
                             // The history is refreshed; keep the modal open.
                         }
                     }

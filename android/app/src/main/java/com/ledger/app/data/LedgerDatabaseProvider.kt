@@ -1705,7 +1705,151 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
         }
     }
 
-    fun get(context: Context): LedgerDatabase {
+
+    /**
+     * Creates activity history infrastructure for fresh and existing databases.
+     * Existing detailed triggers are preserved.
+     */
+    private fun ensureActivityLogging(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS activity_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                tableName TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                recordId INTEGER NOT NULL,
+                occurredAt INTEGER NOT NULL,
+                details TEXT NOT NULL DEFAULT ''
+            )
+            """.trimIndent()
+        )
+
+        val columns = mutableSetOf<String>()
+        database.query("PRAGMA table_info(activity_logs)").use { cursor ->
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(1))
+            }
+        }
+
+        if ("details" !in columns) {
+            database.execSQL(
+                "ALTER TABLE activity_logs ADD COLUMN details TEXT NOT NULL DEFAULT ''"
+            )
+        }
+
+        val trackedTables = listOf(
+            "parties", "ledger_entries", "user_profile",
+            "interest_account_entries", "daily_expenses",
+            "custom_expense_categories", "sharing_groups",
+            "sharing_members", "group_expenses", "group_expense_splits",
+            "group_expense_payments", "group_settlements", "app_settings",
+            "staff_members", "salary_revisions", "salary_payments",
+            "staff_advance_transactions", "staff_bonuses",
+            "staff_salary_deductions", "party_sell_items", "emi_schedules",
+            "transaction_settlements", "emi_charge_settlements"
+        )
+
+        fun detailExpression(table: String, row: String): String =
+            when (table) {
+                "parties" ->
+                    "'Party: ' || COALESCE($row.name, '') || " +
+                    "CASE WHEN COALESCE($row.mobile, '') <> '' " +
+                    "THEN ' · Mobile: ' || $row.mobile ELSE '' END"
+
+                "ledger_entries" ->
+                    "'Party: ' || COALESCE((SELECT name FROM parties " +
+                    "WHERE id = $row.partyId), 'Unknown party') || " +
+                    "' · Amount: ₹' || printf('%.2f', $row.amount) || " +
+                    "' · Type: ' || $row.type || " +
+                    "CASE WHEN COALESCE($row.note, '') <> '' " +
+                    "THEN ' · Note: ' || $row.note ELSE '' END"
+
+                "daily_expenses" ->
+                    "'Category: ' || COALESCE($row.category, '') || " +
+                    "' · Amount: ₹' || printf('%.2f', $row.amount) || " +
+                    "CASE WHEN COALESCE($row.note, '') <> '' " +
+                    "THEN ' · Note: ' || $row.note ELSE '' END"
+
+                else -> "'Record ID: ' || $row.rowid"
+            }
+
+        trackedTables.forEach { table ->
+            val exists = database.query(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                arrayOf(table)
+            ).use { it.moveToFirst() }
+
+            if (!exists) return@forEach
+
+            listOf(
+                Triple("INSERT", "ADD", "NEW"),
+                Triple("UPDATE", "EDIT", "NEW"),
+                Triple("DELETE", "DELETE", "OLD")
+            ).forEach { (sqlOperation, operation, row) ->
+                database.execSQL(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS activity_${table}_${sqlOperation.lowercase()}
+                    AFTER $sqlOperation ON $table
+                    BEGIN
+                        INSERT INTO activity_logs
+                            (tableName, operation, recordId, occurredAt, details)
+                        VALUES (
+                            '$table',
+                            '$operation',
+                            $row.rowid,
+                            CAST(strftime('%s','now') AS INTEGER) * 1000,
+                            ${detailExpression(table, row)}
+                        );
+                    END
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+
+    /**
+     * Applies the detailed activity trigger migrations once to the current
+     * schema, including databases created directly at version 37.
+     */
+    private fun ensureDetailedActivityLogging(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS activity_logging_meta (
+                version INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+
+        val version = database.query(
+            "SELECT version FROM activity_logging_meta LIMIT 1"
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getInt(0) else 0
+        }
+
+        if (version >= 37) return
+
+        database.beginTransaction()
+        try {
+            MIGRATION_29_30.migrate(database)
+            MIGRATION_30_31.migrate(database)
+            MIGRATION_31_32.migrate(database)
+            MIGRATION_32_33.migrate(database)
+            MIGRATION_33_34.migrate(database)
+            MIGRATION_34_35.migrate(database)
+            MIGRATION_35_36.migrate(database)
+            MIGRATION_36_37.migrate(database)
+
+            database.execSQL("DELETE FROM activity_logging_meta")
+            database.execSQL(
+                "INSERT INTO activity_logging_meta(version) VALUES (37)"
+            )
+            database.setTransactionSuccessful()
+        } finally {
+            database.endTransaction()
+        }
+    }
+
+fun get(context: Context): LedgerDatabase {
         return instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(
                 context.applicationContext,
@@ -1713,6 +1857,19 @@ private val MIGRATION_18_19 = object : Migration(18, 19) {
                 DATABASE_NAME
             )
                 .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37)
+                .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        super.onCreate(db)
+                        ensureActivityLogging(db)
+                        ensureDetailedActivityLogging(db)
+                    }
+
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        ensureActivityLogging(db)
+                        ensureDetailedActivityLogging(db)
+                    }
+                })
                 .build().also {
                 instance = it
             }

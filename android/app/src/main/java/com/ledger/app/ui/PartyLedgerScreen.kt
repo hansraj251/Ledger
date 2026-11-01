@@ -1031,7 +1031,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                     transactionDate = transactionDate,
                     interestRate = interestRate,
                     interestRateText = interestRateText,
-                    showInterestInput = showInterestInput,
+                    showInterestInput = true,
                     hideInterestButton = hideInterestButton,
                     hideSellButton = hideSellButton,
                     onInterestClick = {
@@ -3402,29 +3402,6 @@ private fun TransactionComposer(
                     }
                 )
 
-                if (!hideInterestButton) {
-FilterChip(
-                    modifier = Modifier.weight(0.8f),
-                    selected = interestRate > 0.0,
-                    onClick = {
-                            if (emiEnabled) {
-                                if (!showInterestInput) onInterestClick()
-                            } else {
-                                onInterestClick()
-                            }
-                        },
-                    label = {
-                        Text(
-                            if (interestRate > 0.0) {
-                                "Int. ${formatInterestRate(interestRate)}%"
-                            } else {
-                                "Int."
-                            },
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                )
-                }
 
 
 

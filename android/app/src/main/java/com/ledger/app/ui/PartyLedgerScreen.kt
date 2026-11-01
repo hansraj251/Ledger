@@ -4487,7 +4487,11 @@ private fun TransactionCard(
         modifier = modifier.fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = if (emiSchedules.isNotEmpty()) {
+                androidx.compose.ui.graphics.Color(0xFFEFF6FF)
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 1.dp

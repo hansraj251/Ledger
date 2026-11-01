@@ -228,6 +228,15 @@ private val customExpenseCategoryIcons = listOf(
 
 private fun expenseMoney(amount: Double): String = CurrencySettings.format(amount)
 
+private fun expenseReportMoney(amount: Double): String {
+    val formatter = java.text.NumberFormat.getNumberInstance(Locale.getDefault()).apply {
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
+    }
+    val sign = if (amount < 0.0) "-" else ""
+    return sign + CurrencySettings.symbol + formatter.format(kotlin.math.abs(amount))
+}
+
 private fun expenseDateText(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(timestamp))
 
@@ -3442,7 +3451,7 @@ private fun createDailyExpenseReportPdf(
                     dateFormat.format(java.util.Date(expense.expenseDate)),
                     expense.category.ifBlank { "Uncategorized" },
                     expense.note.ifBlank { "-" },
-                    CurrencySettings.format(expense.amount)
+                    expenseReportMoney(expense.amount)
                 )
                 var x = left
                 cells.forEachIndexed { index, value ->

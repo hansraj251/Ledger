@@ -4486,6 +4486,14 @@ private fun TransactionCard(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isCredit) {
+                androidx.compose.ui.graphics.Color(0xFFE57373)
+            } else {
+                androidx.compose.ui.graphics.Color(0xFF43A047)
+            }
+        ),
         colors = CardDefaults.cardColors(
             containerColor = if (emiSchedules.isNotEmpty()) {
                 androidx.compose.ui.graphics.Color(0xFFEFF6FF)

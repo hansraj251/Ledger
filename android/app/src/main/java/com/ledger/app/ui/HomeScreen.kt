@@ -65,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -603,7 +604,7 @@ fun HomeScreen(
         }
     }
 
-    
+
     var showAutoSyncOffDialog by remember { mutableStateOf(false) }
 
     if (showAutoSyncOffDialog) {
@@ -689,96 +690,231 @@ fun HomeScreen(
     }
 
 if (showTipsDialog) {
-        androidx.compose.material3.AlertDialog(
+        androidx.activity.compose.BackHandler {
+            showTipsDialog = false
+        }
+
+        androidx.compose.ui.window.Dialog(
             onDismissRequest = { showTipsDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("💡", fontSize = 25.sp)
-                    Text(
-                        text = "  Tips & Tricks",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(0.dp),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 2.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.IconButton(
+                                onClick = { showTipsDialog = false }
+                            ) {
+                                Text(
+                                    text = "←",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Text(
+                                text = "💡  Guide",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(
+                                androidx.compose.foundation.rememberScrollState()
+                            )
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(18.dp)
+                    ) {
+                        Text(
+                            text = "Welcome to Ledger",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+
+                        Text(
+                            text = "Ledger is an all-in-one app to manage parties, group expenses, staff salaries, and daily expenses in one place. You can connect your Google Drive account to back up your data automatically when Auto Sync is enabled, helping keep your records safe.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+
+                        Text(
+                            text = "Main Features",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        Text(
+                            text = "1. Party",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2563EB)
+                        )
+                        Text(
+                            text = """
+                                After adding a Party, you can record new transactions using You Gave and You Got. The app automatically calculates the balance and displays it in the Party Balance Card.
+
+                                Transaction Management:
+                                Tap a transaction to edit, delete, or settle it. You can also settle a transaction directly by holding it. Normal transactions can be adjusted against each other, such as adjusting a You Gave transaction against a You Got transaction.
+
+                                Interest Transactions:
+                                For transactions carrying interest, it is better to use the settlement system instead of adjusting them through another transaction. This ensures that, after settlement, interest is calculated only on the remaining balance from the settlement date. You can settle outstanding interest using the Int. button in the Party Balance Card, where the remaining interest is calculated automatically.
+
+                                EMI Transactions:
+                                Tap an EMI transaction to open its EMI Details page. Hold the EMI transaction to delete it. The details page shows the remaining EMI balance and the complete EMI schedule. Tap an EMI to mark it as fully paid or partially paid.
+
+                                Partial EMI Payment:
+                                When an EMI is partially paid, the remaining EMI amount is tracked separately, and interest is calculated separately on that remaining amount. Use the settlement option in the balance card to settle both the outstanding EMI amount and its interest.
+
+                                EMI Start Date and Interest:
+                                By default, the EMI start date is the same date in the following month. If you change this date, the EMI Details page's balance card shows the interest calculated for the remaining days. You can settle this amount through the same settlement system.
+
+                                Party Balance Card:
+                                The Party Balance Card keeps the balances separate: the outstanding balance from non-EMI transactions, the interest outstanding on interest-bearing transactions, and the remaining EMI amount with its interest. This helps you distinguish normal dues, interest dues, and EMI dues.
+                            """.trimIndent(),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Text(
+                            text = "2. Group",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF16A34A)
+                        )
+                        Text(
+                            text = """
+                                After creating a Group, you can add members and record shared expenses.
+
+                                Adding Expenses:
+                                Use the Paid By button to select the member who paid and enter how much each member contributed. By default, the You field is filled with the full expense amount.
+
+                                Split Types:
+                                Equal: Split the expense equally among the selected members.
+                                Custom: Enter a custom share amount for each member.
+                                Share: Allocate expenses according to each member's assigned share.
+
+                                Default Member Share:
+                                If a member's share is usually the same, hold that member in the members list to set their default share. When you select the Share split type while adding an expense, the saved default share is filled in automatically.
+
+                                Expense Details and Management:
+                                After adding an expense, tap it on the Expenses page to view its full details. Hold an expense to access the edit and delete options.
+
+                                Member Details:
+                                Tap a member in the members list to open their details. This page shows the member's total share, amount paid, balance, and all expenses in which that member has a share.
+
+                                Member Settlement:
+                                Tap the Paid card on the member details page to settle the member's balance. You can also initiate settlement from the three-dot menu.
+
+                                Member PDF Report:
+                                Download a PDF report for an individual member to review their expense and balance details.
+                            """.trimIndent(),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Text(
+                            text = "3. Staff",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF9333EA)
+                        )
+                        Text(
+                            text = """
+                                The Staff section helps you manage staff members, their monthly salaries, salary payments, advances, bonuses, allowances, and deductions in one place.
+
+                                Add Staff:
+                                Add a staff member by entering their name, mobile number, role, joining date, and starting monthly salary. The starting monthly salary is required when creating a staff profile.
+
+                                Salary Management:
+                                Open a staff member's details to view their salary information. The app maintains salary revision history so you can track changes in salary over time.
+
+                                Revise Salary:
+                                Record a salary revision with its effective date and note. The revision date must be after the staff member's joining date. You can view the salary revision history to review previous changes.
+
+                                Salary Payments:
+                                Record salary payments with the amount, date, payment mode, and optional note. You can review payments by selecting the salary month and year.
+
+                                Salary Breakdown:
+                                Open the Salary Breakdown page to review the staff member's salary figures, including the remaining salary. The breakdown helps you understand the amount remaining after recorded payments and other applicable entries.
+
+                                Advances:
+                                Record advances given to staff and manage their advance transactions. Advance adjustments are tracked separately to help determine the outstanding advance balance.
+
+                                Bonus and Allowances:
+                                Record bonuses or allowances for a staff member, along with the amount, date, and optional note. You can review these entries separately.
+
+                                Salary Deductions:
+                                Add a salary deduction with its amount, date, and optional note. You can edit or delete deduction entries. A deduction cannot exceed the remaining salary.
+
+                                Records and Tracking:
+                                Keep salary revisions, payments, advances, bonuses, allowances, and deductions organized under the relevant staff member for easier review and salary tracking.
+                            """.trimIndent(),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
+                        Text(
+                            text = "4. Daily Expenses",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFFEA580C)
+                        )
+                        Text(
+                            text = """
+                                The Daily Expenses section helps you record and track day-to-day expenses in one place.
+
+                                Add Expense:
+                                Open the three-dot menu and select Add Expense to record a daily expense. Enter the required expense details and save the record.
+
+                                Expense Categories:
+                                Organize expenses using the available categories so you can identify and review different types of spending more easily.
+
+                                Custom Categories:
+                                Create your own expense categories and configure a quantity type and default price for each category. When adding an expense, the selected custom category helps calculate the amount automatically using the quantity and default price. It also helps auto-fill the Note field, reducing repetitive data entry and making expense recording faster.
+
+                                Search Expenses:
+                                Use the search feature to find relevant expense records without having to browse the entire list manually.
+
+                                Date Filters:
+                                Filter expenses using Today, This Month, or This Year to review spending for the period you need. You can also select a specific month or year where available.
+
+                                Expense Tracking:
+                                Review the recorded expenses and their amounts to understand your day-to-day spending for the selected period.
+
+                                Expense Reports:
+                                Open the three-dot menu and select Report. Choose All Time to review the complete available period or select a year to review expenses for that year. Reports include expense records and totals.
+
+                                Regularly recording expenses helps you maintain an organized record of daily spending and review your expenses over time.
+
+                                Need Help or Have a Suggestion?
+                                If you are still facing any issues, you can contact us through the Help section in the sidebar. If you have any suggestions or would like to request an additional feature, please feel free to contact us. Your feedback helps us improve Ledger and make it more useful for you.
+                            """.trimIndent(),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text("1.", fontWeight = FontWeight.Bold, color = Color(0xFFB7791F))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Create Group", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Long-press the Add Party button to Create Group.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text("2.", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Set Default Share", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Long-press a member in a Group to set their default share. It is automatically filled when you select the Share split type while adding a Group expense.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text("3.", fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Daily Expenses Report", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Long-press the Add Expense button on the Daily Expense page to open the Daily Expenses Report options.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text("4.", fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Edit or Delete Parties & Groups", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Long-press any Party or Group on the Home page to access the Edit and Delete options.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text("5.", fontWeight = FontWeight.Bold, color = Color(0xFF0D9488))
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("View, Edit & Delete Group Expenses", fontWeight = FontWeight.SemiBold)
-                            Text(
-                                text = "Tap an expense card in a Group page to view its full details. Long-press the card to access the Edit and Delete options.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { showTipsDialog = false }
-                ) {
-                    Text("Got it")
-                }
-            },
-            shape = RoundedCornerShape(24.dp)
-        )
+            }
+        }
     }
 
     Scaffold(
@@ -1142,7 +1278,7 @@ Surface(
                                                     ) {
                                                         Text("💡", fontSize = 20.sp)
                                                         Text(
-                                                            text = "Tips & Tricks",
+                                                            text = "Guide",
                                                             modifier = Modifier.padding(start = 12.dp),
                                                             style = MaterialTheme.typography.titleSmall,
                                                             fontWeight = FontWeight.SemiBold,
@@ -1151,7 +1287,7 @@ Surface(
                                                     }
                                                 }
 
-                                                
+
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()

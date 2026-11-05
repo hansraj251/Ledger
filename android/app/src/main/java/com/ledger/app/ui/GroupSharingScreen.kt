@@ -3241,25 +3241,6 @@ Row(
                     }
                 }
 
-if (mode == "Share") {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFFF1F5FF), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("ⓘ", color = Color(0xFF3157D5), fontSize = 17.sp)
-        Text(
-            text = "Tip: Long-press a member to set their default share.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF3157D5)
-        )
-    }
-    Spacer(Modifier.height(8.dp))
-}
-
 Row(
     modifier = Modifier.fillMaxWidth(),
     verticalAlignment = Alignment.CenterVertically

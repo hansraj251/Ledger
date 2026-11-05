@@ -12,8 +12,8 @@ android {
         applicationId = "in.alignos.ledger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 26
-        versionName = "0.7.0"
+        versionCode = 30
+        versionName = "0.7.4"
     }
 
     signingConfigs {
@@ -30,6 +30,11 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 

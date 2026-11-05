@@ -65,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -1010,6 +1011,7 @@ if (showTipsDialog) {
                                                     .fillMaxSize()
                                                     .statusBarsPadding()
                                                     .navigationBarsPadding()
+                                                .verticalScroll(rememberScrollState())
                                                     .padding(
                                                         horizontal = 18.dp,
                                                         vertical = 18.dp

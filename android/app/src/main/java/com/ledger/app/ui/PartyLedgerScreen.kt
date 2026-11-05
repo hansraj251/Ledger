@@ -541,14 +541,6 @@ var showDeletePartyDialog by remember {
                                         paymentError = "Enter a valid payment amount."
                                         return@runInTransaction
                                     }
-                                    if (!current.isPaid && paid < amount && future.isEmpty()) {
-                                        paymentError = "No upcoming unpaid EMI is available for adjustment."
-                                        return@runInTransaction
-                                    }
-                                    if (current.isPaid && kotlin.math.abs(delta) > 0.001 && future.isEmpty()) {
-                                        paymentError = "No upcoming unpaid EMI is available to adjust this edit."
-                                        return@runInTransaction
-                                    }
 
                                     dao.updateSchedule(
                                         current.copy(
@@ -5269,13 +5261,6 @@ paymentTarget?.let { target ->
                             Text(paymentError!!, color = Color(0xFFB3261E))
                         }
 
-                        if (!futureUnpaidExists && !target.isPaid) {
-                            Text(
-                                "This is the last unpaid EMI; partial payment cannot be carried forward.",
-                                color = Color(0xFFB3261E),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
                     }
                 }
             },
@@ -5294,7 +5279,7 @@ paymentTarget?.let { target ->
                         }
                     }
 
-                    if (!showPartialPaymentInput) {
+                    if (!target.isPaid && !showPartialPaymentInput) {
                         Button(
                             onClick = {
                                 onPayment(target, target.amount)
@@ -5314,12 +5299,12 @@ paymentTarget?.let { target ->
                                 paymentError = null
                                 showPartialPaymentInput = true
                             },
-                            enabled = futureUnpaidExists || target.isPaid,
+                            enabled = true,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Partial Paid")
                         }
-                    } else {
+                    } else if (showPartialPaymentInput) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -5343,8 +5328,6 @@ paymentTarget?.let { target ->
                                             paymentError = "Enter an amount greater than zero."
                                         amount >= target.amount ->
                                             paymentError = "For a full payment, use Full Paid."
-                                        !futureUnpaidExists && !target.isPaid ->
-                                            paymentError = "No upcoming unpaid EMI is available."
                                         else -> {
                                             onPayment(target, amount)
                                             paymentTarget = null

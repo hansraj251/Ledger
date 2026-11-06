@@ -140,6 +140,7 @@ class MainActivity : ComponentActivity() {
                             0
                         )
                     } catch (error: Exception) {
+                        googleDriveSyncCoordinator.onAuthorizationCancelled()
                         Toast.makeText(
                             this,
                             "Unable to open Google Drive authorization.",
@@ -1445,12 +1446,12 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     Toast.LENGTH_SHORT
                 ).show()
 
-                googleDriveRestore.findBackupFile(
+                googleDriveRestore.findBackupMetadata(
                     accessToken
                 ) { backupResult ->
                     backupResult
-                        .onSuccess { fileId ->
-                            if (fileId.isNullOrBlank()) {
+                        .onSuccess { metadata ->
+                            if (metadata == null || metadata.fileId.isBlank()) {
                                 markInitialDriveSetupComplete()
 
                                 Toast.makeText(
@@ -1471,12 +1472,13 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
                             googleDriveRestore.restore(
                                 accessToken,
-                                fileId
+                                metadata.fileId
                             ) { restoreResult ->
                                 restoreResult
                                     .onSuccess {
                                         replaceDatabaseAndRestart(
-                                            onComplete
+                                            onComplete,
+                                            remoteModifiedTime = metadata.modifiedTime
                                         )
                                     }
                                     .onFailure { error ->
@@ -1513,7 +1515,8 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
     }
 
     private fun replaceDatabaseAndRestart(
-        onComplete: () -> Unit
+        onComplete: () -> Unit,
+        remoteModifiedTime: String? = null
     ) {
         try {
             val validatedFile =
@@ -1549,15 +1552,26 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
             markInitialDriveSetupComplete()
 
-            // Resume sync and trigger a sync after the restored database is installed.
-            googleDriveSyncCoordinator.resume()
-            googleDriveSyncCoordinator.requestAutoSync()
-
-            Toast.makeText(
-                this,
-                "Backup restored successfully. Sync requested.",
-                Toast.LENGTH_LONG
-            ).show()
+            if (remoteModifiedTime != null) {
+                // Initial Google Drive restore: do not upload the restored backup again.
+                googleDriveSyncCoordinator.markRemoteRestoreCompleted(
+                    remoteModifiedTime
+                )
+                Toast.makeText(
+                    this,
+                    "Backup restored successfully.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                // Preserve existing local backup restore behaviour.
+                googleDriveSyncCoordinator.resume()
+                googleDriveSyncCoordinator.requestAutoSync()
+                Toast.makeText(
+                    this,
+                    "Backup restored successfully. Sync requested.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
 
             window.decorView.postDelayed(
                 {
@@ -1699,6 +1713,66 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     this,
                     "Google Drive account change cancelled.",
                     Toast.LENGTH_SHORT
+                ).show()
+            }
+            return
+        }
+
+        if (requestCode == GOOGLE_DRIVE_SYNC_REQUEST_CODE) {
+            if (resultCode == RESULT_OK && data != null) {
+                try {
+                    val authorizationResult =
+                        googleDriveAuthorization.authorizationResultFromIntent(data)
+
+                    if (authorizationResult.hasResolution()) {
+                        val pendingIntent = authorizationResult.pendingIntent
+                        if (pendingIntent != null) {
+                            startIntentSenderForResult(
+                                pendingIntent.intentSender,
+                                GOOGLE_DRIVE_SYNC_REQUEST_CODE,
+                                null,
+                                0,
+                                0,
+                                0
+                            )
+                        } else {
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(
+                                this,
+                                "Google Drive authorization could not continue.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    } else {
+                        val accessToken = authorizationResult.accessToken
+                        if (accessToken.isNullOrBlank()) {
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(
+                                this,
+                                "Google Drive access token is unavailable.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            // Refresh the Drive identity and repeat the startup
+                            // remote-backup check before allowing any upload.
+                            captureDriveAccountIdentity(accessToken)
+                            googleDriveSyncCoordinator.resume()
+                        }
+                    }
+                } catch (error: Exception) {
+                    googleDriveSyncCoordinator.onAuthorizationCancelled()
+                    Toast.makeText(
+                        this,
+                        "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            } else {
+                googleDriveSyncCoordinator.onAuthorizationCancelled()
+                Toast.makeText(
+                    this,
+                    "Google Drive authorization cancelled. Automatic backup will retry after the next data change.",
+                    Toast.LENGTH_LONG
                 ).show()
             }
             return

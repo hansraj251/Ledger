@@ -85,11 +85,42 @@ class GoogleDriveSyncCoordinator(
         }
     }
 
+    /**
+     * Called when the user cancels or cannot complete the Drive authorization
+     * activity. Keep the pending generation so a later data change can retry.
+     */
+    fun onAuthorizationCancelled() {
+        synchronized(lock) {
+            running = false
+            paused = false
+        }
+    }
+
     private fun checkRemoteBackupBeforeSync() {
         authorization
             .authorize()
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
+                    val pendingIntent = result.pendingIntent
+                    if (pendingIntent != null) {
+                        try {
+                            onAuthorizationRequired?.invoke(
+                                pendingIntent.intentSender
+                            )
+                        } catch (error: Exception) {
+                            onAuthorizationCancelled()
+                            onSyncFailure?.invoke(error)
+                        }
+                    } else {
+                        // Do not leave startup permanently paused if no
+                        // resolution intent is available.
+                        finishStartupCheck(startPendingSync = false)
+                        onSyncFailure?.invoke(
+                            IllegalStateException(
+                                "Google Drive authorization is required, but no authorization screen is available."
+                            )
+                        )
+                    }
                     synchronized(lock) {
                         running = false
                     }
@@ -175,20 +206,45 @@ class GoogleDriveSyncCoordinator(
             paused = false
             running = false
 
-            startPendingSync &&
-                generation.get() > completedGeneration
-        }
+            val hasPendingChanges =
+                startPendingSync &&
+                    generation.get() > completedGeneration
 
-        if (shouldStart) {
-            synchronized(lock) {
-                if (running || paused) {
-                    return@synchronized
-                }
+            if (hasPendingChanges) {
+                // Claim the running slot in the same critical section.
+                // This prevents two callbacks from starting parallel uploads.
                 running = true
             }
 
+            hasPendingChanges
+        }
+
+        if (shouldStart) {
             startSync(manual = false)
         }
+    }
+
+    fun markRemoteRestoreCompleted(
+        modifiedTime: String
+    ) {
+        synchronized(lock) {
+            val restoredGeneration = generation.get()
+            completedGeneration = restoredGeneration
+
+            prefs.edit()
+                .putLong(PENDING_GENERATION, restoredGeneration)
+                .putLong(COMPLETED_GENERATION, restoredGeneration)
+                .putString(LAST_SYNCED_DRIVE_MODIFIED_TIME, modifiedTime)
+                .apply()
+
+            paused = false
+            running = false
+        }
+
+        android.util.Log.d(
+            "LedgerSyncDebug",
+            "Initial Drive restore recorded; no upload requested. modifiedTime=$modifiedTime"
+        )
     }
 
     fun markRemoteBackupSynced(
@@ -251,20 +307,24 @@ class GoogleDriveSyncCoordinator(
                         running = false
                     }
 
-                    if (manual) {
-                        val pendingIntent = result.pendingIntent
-
-                        if (pendingIntent != null) {
+                    val pendingIntent = result.pendingIntent
+                    if (pendingIntent != null) {
+                        try {
+                            // Automatic sync also needs to request consent;
+                            // otherwise it silently remains pending forever.
                             onAuthorizationRequired?.invoke(
                                 pendingIntent.intentSender
                             )
-                        } else {
-                            onSyncFailure?.invoke(
-                                IllegalStateException(
-                                    "Google Drive authorization is required."
-                                )
-                            )
+                        } catch (error: Exception) {
+                            onAuthorizationCancelled()
+                            onSyncFailure?.invoke(error)
                         }
+                    } else {
+                        onSyncFailure?.invoke(
+                            IllegalStateException(
+                                "Google Drive authorization is required."
+                            )
+                        )
                     }
 
                     return@addOnSuccessListener

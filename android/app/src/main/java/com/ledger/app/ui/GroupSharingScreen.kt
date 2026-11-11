@@ -583,7 +583,7 @@ Spacer(Modifier.height(12.dp))
 Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 20.dp, top = 6.dp, end = 20.dp, bottom = 14.dp),
+                            .padding(start = 20.dp, top = 2.dp, end = 20.dp, bottom = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -3168,7 +3168,13 @@ Row(
                             label = { Text("Date") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
+                            shape = RoundedCornerShape(15.dp),
+                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                     OutlinedTextField(

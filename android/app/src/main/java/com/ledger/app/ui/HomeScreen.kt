@@ -2016,12 +2016,15 @@ title = { Text("Delete Party?") },
                 if (!isSavingParty) {
                     showAddPartyDialog = false
                 }
-            }
+            },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false
+            )
         ) {
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
+                    .fillMaxWidth(0.92f)
+                    .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(28.dp),
                 color = androidx.compose.ui.graphics.Color.White,
                 tonalElevation = 0.dp
@@ -2029,7 +2032,7 @@ title = { Text("Delete Party?") },
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp)
+                        .padding(20.dp)
                 ) {
                     Text(
                         text = "Add Party",
@@ -2062,15 +2065,26 @@ title = { Text("Delete Party?") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            horizontal = 8.dp,
+                            vertical = 0.dp
+                        ),
                         enabled = !isSavingParty,
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.PersonAdd,
-                            contentDescription = null
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Add from Contacts", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Add from Contacts",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -2138,21 +2152,28 @@ title = { Text("Delete Party?") },
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
                                 showAddPartyDialog = false
                             },
                             modifier = Modifier
-                                .weight(0.85f)
-                                .height(52.dp),
+                                .weight(1f)
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 6.dp,
+                                vertical = 0.dp
+                            ),
                             enabled = !isSavingParty,
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(14.dp)
                         ) {
                             Text(
                                 text = "Cancel",
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
 
@@ -2181,10 +2202,18 @@ title = { Text("Delete Party?") },
                                 }
                             },
                             modifier = Modifier
-                                .weight(1.15f)
-                                .height(52.dp),
+                                .weight(1f)
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 6.dp,
+                                vertical = 0.dp
+                            ),
                             enabled = partyName.isNotBlank() && !isSavingParty,
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFFCBD5E1)
+                            )
                         ) {
                             if (isSavingParty) {
                                 CircularProgressIndicator(

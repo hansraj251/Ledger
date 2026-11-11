@@ -1677,7 +1677,12 @@ private fun PartyHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(
+                start = 20.dp,
+                top = 10.dp,
+                end = 20.dp,
+                bottom = 14.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
@@ -4530,40 +4535,25 @@ private fun TransactionCard(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = if (isCredit) "You Gave" else "You Got",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                if (settlements.isNotEmpty()) {
-                    Text("Settled ${CurrencySettings.symbol}${formatAmount(settlements.sumOf { it.amount })} • Remaining ${CurrencySettings.symbol}${formatAmount((entry.amount - settlements.sumOf { it.amount }).coerceAtLeast(0.0))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-
-                if (entry.note.isNotBlank()) {
-                    Spacer(
-                        modifier = Modifier.height(3.dp)
-                    )
-
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = entry.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = if (isCredit) "You Gave" else "You Got",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(entry.amount))}",
+                        color = accent,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                Spacer(
-                    modifier = Modifier.height(5.dp)
-                )
-
-                Text(
-                    text = transactionDateTimeLabel(entry),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            val accruedInterest = if (emiSchedules.isEmpty()) {
+val accruedInterest = if (emiSchedules.isEmpty()) {
                 calculateTransactionInterest(
                     amount = entry.amount,
                     annualRate = entry.interestRate,
@@ -4692,31 +4682,71 @@ private fun TransactionCard(
 
             val total = calculateEntryTotal(entry, settlements = settlements)
 
-            Column(
-                horizontalAlignment = Alignment.End
-            ) {
-                Text(
-                    text = "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(entry.amount))}",
-                    color = accent,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (entry.interestRate > 0.0) {
+                if (settlements.isNotEmpty() || entry.interestRate > 0.0) {
                     Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (settlements.isNotEmpty()) {
+                            Text(
+                                text = "Settled ${CurrencySettings.symbol}${formatAmount(settlements.sumOf { it.amount })}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        if (entry.interestRate > 0.0) {
+                            Text(
+                                text = "Int. ${formatInterestRate(entry.interestRate)}% p.a.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (settlements.isNotEmpty()) {
+                            Text(
+                                text = "Remaining ${CurrencySettings.symbol}${formatAmount((entry.amount - settlements.sumOf { it.amount }).coerceAtLeast(0.0))}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        if (entry.interestRate > 0.0) {
+                            Text(
+                                text = if (emiSchedules.isNotEmpty()) {
+                                    "Total Int.: ${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
+                                } else {
+                                    "${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (entry.note.isNotBlank()) {
+                        Text(
+                            text = entry.note,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.weight(1f))
 
                     Text(
-                        text = "Int. ${formatInterestRate(entry.interestRate)}% p.a.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Text(
-                        text = if (emiSchedules.isNotEmpty()) {
-                            "Total Int.: ${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
-                        } else {
-                            "${CurrencySettings.symbol}${formatAmount(accruedInterest)}"
-                        },
+                        text = transactionDateTimeLabel(entry),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

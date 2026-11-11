@@ -142,6 +142,42 @@ fun PartyLedgerScreen(
     var emiSchedules by remember(party.id) {
         mutableStateOf<List<EmiScheduleEntity>>(emptyList())
     }
+
+    // Same interest calculation for Balance Card and SMS.
+    val balanceCardNonEmiEntries = uiState.entries.filter { entry ->
+        emiSchedules.none { it.transactionId == entry.id }
+    }
+    val balanceCardGaveInterest = balanceCardNonEmiEntries
+        .filter { it.type == EntryType.CREDIT }
+        .sumOf { entry ->
+            calculateTransactionInterest(
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt,
+                settlements = uiState.settlements.filter {
+                    it.transactionId == entry.id
+                }
+            )
+        }
+    val balanceCardGotInterest = balanceCardNonEmiEntries
+        .filter { it.type == EntryType.DEBIT }
+        .sumOf { entry ->
+            calculateTransactionInterest(
+                amount = entry.amount,
+                annualRate = entry.interestRate,
+                transactionDate = entry.transactionDate,
+                createdAt = entry.createdAt,
+                settlements = uiState.settlements.filter {
+                    it.transactionId == entry.id
+                }
+            )
+        }
+    val balanceCardRecordedInterest = uiState.interestAccountEntries.sumOf {
+        if (it.type == "GAVE") it.amount else -it.amount
+    }
+    val balanceCardNetInterest =
+        balanceCardGaveInterest - balanceCardGotInterest + balanceCardRecordedInterest
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -349,9 +385,9 @@ var showDeletePartyDialog by remember {
                     val phone = currentParty.mobile.trim()
                     val amountText =
                         "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(uiState.balance))}"
-                    val interestText = if (headerNetInterest > 0.0) {
+                    val interestText = if (balanceCardNetInterest > 0.0) {
                         " Additional interest pending: " +
-                            "${CurrencySettings.symbol}${formatAmount(headerNetInterest)}."
+                            "${CurrencySettings.symbol}${formatAmount(kotlin.math.abs(balanceCardNetInterest))}."
                     } else {
                         ""
                     }
@@ -780,9 +816,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
             }
 
             item {
-                val nonEmiEntries = uiState.entries.filter { entry ->
-                emiSchedules.none { it.transactionId == entry.id }
-            }
+                val nonEmiEntries = balanceCardNonEmiEntries
 
             val interestPosition = calculateInterestAccountPosition(
                 nonEmiEntries,
@@ -790,40 +824,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                 settlements = uiState.settlements
             )
 
-            val gaveTransactionInterest = nonEmiEntries
-                .filter { it.type == EntryType.CREDIT }
-                .sumOf { entry ->
-                    calculateTransactionInterest(
-                        amount = entry.amount,
-                        annualRate = entry.interestRate,
-                        transactionDate = entry.transactionDate,
-                        createdAt = entry.createdAt,
-                        settlements = uiState.settlements.filter {
-                            it.transactionId == entry.id
-                        }
-                    )
-                }
-
-            val gotTransactionInterest = nonEmiEntries
-                .filter { it.type == EntryType.DEBIT }
-                .sumOf { entry ->
-                    calculateTransactionInterest(
-                        amount = entry.amount,
-                        annualRate = entry.interestRate,
-                        transactionDate = entry.transactionDate,
-                        createdAt = entry.createdAt,
-                        settlements = uiState.settlements.filter {
-                            it.transactionId == entry.id
-                        }
-                    )
-                }
-
-            val totalRecordedInterest = uiState.interestAccountEntries.sumOf {
-                if (it.type == "GAVE") it.amount else -it.amount
-            }
-            val netInterest =
-                gaveTransactionInterest - gotTransactionInterest + totalRecordedInterest
-
+            val netInterest = balanceCardNetInterest
             val emiEntryIds = remember(uiState.entries, emiSchedules) {
                 uiState.entries
                     .filter { entry -> emiSchedules.any { it.transactionId == entry.id } }

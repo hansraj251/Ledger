@@ -2580,7 +2580,7 @@ private fun PartyCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val cardBackground = Color.White
+    val cardBackground = MaterialTheme.colorScheme.surface
     val cardBorder = when {
         balance > 0.0 -> Color(0xFFEBCACA)
         balance < 0.0 -> Color(0xFFC8E5CE)

@@ -1543,7 +1543,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                             1.dp, Color(0xFFE8B64A)
                         ),
                         colors = CardDefaults.cardColors(
-                            containerColor = androidx.compose.ui.graphics.Color.White
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     ) {
                         Row(
@@ -1576,6 +1576,7 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                                         expense.category,
                                         modifier = Modifier.weight(1f),
                                         fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1
                                     )
                                     Text(

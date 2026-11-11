@@ -1565,35 +1565,53 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 12.dp),
-                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Text(
-                                    expense.category,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1
-                                )
-                                if (expense.note.isNotBlank()) {
+                                // First row: Category left, Amount right.
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        expense.note,
-                                        style = MaterialTheme.typography.bodySmall,
+                                        expense.category,
+                                        modifier = Modifier.weight(1f),
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        expenseMoney(expense.amount),
+                                        modifier = Modifier.padding(start = 8.dp),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        maxLines = 1
+                                    )
+                                }
+
+                                // Second row: Note left, Date right.
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (expense.note.isNotBlank()) {
+                                        Text(
+                                            expense.note,
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    } else {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                    Text(
+                                        expenseDateText(expense.expenseDate),
+                                        style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1
                                     )
                                 }
-                                Text(
-                                    expenseDateText(expense.expenseDate),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
-                            Text(
-                                expenseMoney(expense.amount),
-                                modifier = Modifier.padding(start = 8.dp),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.error,
-                                maxLines = 1
-                            )
                         }
                     }
                 }

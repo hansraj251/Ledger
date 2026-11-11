@@ -3,6 +3,7 @@ package com.ledger.app.ui
 import com.ledger.app.data.CurrencySettings
 
 import android.app.DatePickerDialog
+import android.widget.Toast
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,12 +18,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,9 +35,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -67,6 +73,9 @@ fun ActivityScreen(
 
     var logs by remember { mutableStateOf<List<ActivityLogRow>>(emptyList()) }
     var loadError by remember { mutableStateOf(false) }
+    var showDeleteOldActivityDialog by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableStateOf(0) }
+    val activityScope = rememberCoroutineScope()
     var selectedActivityDate by remember {
         mutableStateOf(
             Calendar.getInstance().apply {
@@ -83,7 +92,7 @@ fun ActivityScreen(
     }
 
 
-    LaunchedEffect(database, selectedActivityDate) {
+    LaunchedEffect(database, selectedActivityDate, refreshTrigger) {
         try {
             logs = withContext(Dispatchers.IO) {
                 val dayCalendar = Calendar.getInstance().apply {
@@ -173,10 +182,6 @@ fun ActivityScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "Filter by date",
-                style = MaterialTheme.typography.titleSmall
-            )
             TextButton(
                 onClick = {
                     val current = Calendar.getInstance().apply {
@@ -198,6 +203,97 @@ fun ActivityScreen(
             ) {
                 Text("📅 ${activityDayFormat.format(Date(selectedActivityDate))}  ▾")
             }
+
+            IconButton(
+                onClick = {
+                    showDeleteOldActivityDialog = true
+                }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DeleteOutline,
+                    contentDescription = "Delete activities older than one month",
+                    tint = Color(0xFFB3261E)
+                )
+            }
+        }
+
+        if (showDeleteOldActivityDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showDeleteOldActivityDialog = false
+                },
+                containerColor = Color.White,
+                titleContentColor = Color(0xFF202124),
+                textContentColor = Color(0xFF444444),
+                title = {
+                    Text(
+                        text = "Delete Old Activities",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Text(
+                        "Are you sure you want to permanently delete all " +
+                            "activity records older than one month? " +
+                            "Recent activities will remain unchanged."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val cutoff = Calendar.getInstance().apply {
+                                add(Calendar.MONTH, -1)
+                            }.timeInMillis
+
+                            showDeleteOldActivityDialog = false
+
+                            activityScope.launch {
+                                try {
+                                    val deletedCount = withContext(Dispatchers.IO) {
+                                        database.delete(
+                                            "activity_logs",
+                                            "occurredAt < ?",
+                                            arrayOf(cutoff.toString())
+                                        )
+                                    }
+
+                                    refreshTrigger++
+
+                                    Toast.makeText(
+                                        activityContext,
+                                        "$deletedCount old activit${if (deletedCount == 1) "y" else "ies"} deleted.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } catch (error: Exception) {
+                                    Toast.makeText(
+                                        activityContext,
+                                        "Unable to delete old activities: ${error.message ?: "Unknown error"}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                    ) {
+                        Text(
+                            "Delete",
+                            color = Color(0xFFB3261E),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteOldActivityDialog = false
+                        }
+                    ) {
+                        Text(
+                            "Cancel",
+                            color = Color(0xFF333333)
+                        )
+                    }
+                }
+            )
         }
 
         when {

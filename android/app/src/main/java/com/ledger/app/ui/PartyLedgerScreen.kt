@@ -98,6 +98,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ledger.app.data.EntryType
@@ -4134,32 +4135,126 @@ private fun SettlementDialog(
     var confirmDelete by remember(entry.id) { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val settlementPageScrollState = rememberScrollState()
+    val settlementPageScope = rememberCoroutineScope()
     val settled = settlements.sumOf { it.amount }
     val remaining = (entry.amount - settled).coerceAtLeast(0.0)
     val editingSettlement = settlements.firstOrNull { it.id == editingSettlementId }
+
     val dateLabel = remember(settlementDate) {
         SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(settlementDate))
     }
 
-    AlertDialog(
-        containerColor = androidx.compose.ui.graphics.Color.White,
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        title = { Text("Settlement") },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(androidx.compose.ui.graphics.Color.White)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Original principal: ${CurrencySettings.symbol}${formatAmount(entry.amount)}")
-                Text("Already settled: ${CurrencySettings.symbol}${formatAmount(settled)}")
+                androidx.compose.material3.IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Text(
+                        text = "←",
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 Text(
-                    "Remaining principal: ${CurrencySettings.symbol}${formatAmount(remaining)}",
-                    fontWeight = FontWeight.SemiBold
+                    text = "Settlement",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Scrollable page content
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(settlementPageScrollState),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = if (entry.type == EntryType.CREDIT) "Amount Receivable" else "Amount Payable",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${CurrencySettings.symbol}${formatAmount(entry.amount)}",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    "Already settled",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                Text(
+                                    "${CurrencySettings.symbol}${formatAmount(settled)}",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    "Remaining",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                Text(
+                                    "${CurrencySettings.symbol}${formatAmount(remaining)}",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Text(
+                    text = if (editingSettlementId == null) "Record Settlement" else "Edit Settlement",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
                 )
 
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it; validation = "" },
+                    onValueChange = {
+                        amountText = it
+                        validation = ""
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     label = {
                         Text(
@@ -4173,60 +4268,54 @@ private fun SettlementDialog(
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                 )
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = dateLabel,
-                            onValueChange = {},
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            readOnly = true,
-                            enabled = true,
-                            label = { Text("Date") },
-                            singleLine = true,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable {
-                                    val c = Calendar.getInstance().apply {
-                                        timeInMillis = settlementDate
-                                    }
-                                    DatePickerDialog(
-                                        context,
-                                        { _, y, m, d ->
-                                            settlementDate = Calendar.getInstance().apply {
-                                                set(Calendar.YEAR, y)
-                                                set(Calendar.MONTH, m)
-                                                set(Calendar.DAY_OF_MONTH, d)
-                                                set(Calendar.HOUR_OF_DAY, 12)
-                                                set(Calendar.MINUTE, 0)
-                                                set(Calendar.SECOND, 0)
-                                                set(Calendar.MILLISECOND, 0)
-                                            }.timeInMillis
-                                        },
-                                        c.get(Calendar.YEAR),
-                                        c.get(Calendar.MONTH),
-                                        c.get(Calendar.DAY_OF_MONTH)
-                                    ).show()
-                                }
-                        )
-                    }
+                Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
-                        value = noteText,
-                        onValueChange = { noteText = it },
-                        modifier = Modifier.weight(1f).height(56.dp),
-                        label = { Text("Note") },
+                        value = dateLabel,
+                        onValueChange = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        enabled = true,
+                        label = { Text("Settlement date") },
                         singleLine = true,
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                     )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable {
+                                val c = Calendar.getInstance().apply {
+                                    timeInMillis = settlementDate
+                                }
+                                DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        settlementDate = Calendar.getInstance().apply {
+                                            set(Calendar.YEAR, y)
+                                            set(Calendar.MONTH, m)
+                                            set(Calendar.DAY_OF_MONTH, d)
+                                            set(Calendar.HOUR_OF_DAY, 12)
+                                            set(Calendar.MINUTE, 0)
+                                            set(Calendar.SECOND, 0)
+                                            set(Calendar.MILLISECOND, 0)
+                                        }.timeInMillis
+                                        validation = ""
+                                    },
+                                    c.get(Calendar.YEAR),
+                                    c.get(Calendar.MONTH),
+                                    c.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }
+                    )
                 }
+
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Note (optional)") },
+                    singleLine = true,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                )
 
                 if (editingSettlementId != null) {
                     Text(
@@ -4247,143 +4336,162 @@ private fun SettlementDialog(
                                 settlementDate = System.currentTimeMillis()
                                 validation = ""
                             }
-                        ) { Text("Cancel edit") }
+                        ) {
+                            Text("Cancel edit")
+                        }
 
                         TextButton(
                             onClick = { confirmDelete = true },
                             colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                                 contentColor = MaterialTheme.colorScheme.error
                             )
-                        ) { Text("Delete") }
+                        ) {
+                            Text("Delete settlement")
+                        }
                     }
                 }
 
                 if (validation.isNotBlank()) {
-                    Text(validation, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        validation,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 if (settlements.isNotEmpty()) {
-                    Text("Settlement history", fontWeight = FontWeight.SemiBold)
+                    androidx.compose.material3.HorizontalDivider()
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 220.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        settlements.sortedWith(
-                            compareByDescending<TransactionSettlementEntity> { it.settlementDate }
-                                .thenByDescending { it.id }
-                        ).forEach { item ->
-                            Card(
+                    Text(
+                        "Settlement history",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    settlements.sortedWith(
+                        compareByDescending<TransactionSettlementEntity> { it.settlementDate }
+                            .thenByDescending { it.id }
+                    ).forEach { item ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    editingSettlementId = item.id
+                                    amountText = item.amount.toString()
+                                    noteText = item.note
+                                    settlementDate = item.settlementDate
+                                    validation = ""
+                                    settlementPageScope.launch {
+                                        settlementPageScrollState.animateScrollTo(0)
+                                    }
+                                },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (editingSettlementId == item.id) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        ) {
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        editingSettlementId = item.id
-                                        amountText = item.amount.toString()
-                                        noteText = item.note
-                                        settlementDate = item.settlementDate
-                                        validation = ""
-                                    },
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (editingSettlementId == item.id) {
-                                        MaterialTheme.colorScheme.primaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    }
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            SimpleDateFormat(
-                                                "dd MMM yyyy",
-                                                Locale.getDefault()
-                                            ).format(Date(item.settlementDate)),
-                                            style = MaterialTheme.typography.labelMedium
-                                        )
-                                        Text(
-                                            "${CurrencySettings.symbol}${formatAmount(item.amount)}",
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    if (item.note.isNotBlank()) {
-                                        Text(
-                                            item.note,
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
                                     Text(
-                                        if (entry.type == EntryType.CREDIT) {
-                                            "Received • Tap to edit"
-                                        } else {
-                                            "Paid • Tap to edit"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                        SimpleDateFormat(
+                                            "dd MMM yyyy",
+                                            Locale.getDefault()
+                                        ).format(Date(item.settlementDate)),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                    Text(
+                                        "${CurrencySettings.symbol}${formatAmount(item.amount)}",
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
+
+                                if (item.note.isNotBlank()) {
+                                    Text(
+                                        item.note,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+
+                                Text(
+                                    if (entry.type == EntryType.CREDIT) {
+                                        "Received • Tap to edit"
+                                    } else {
+                                        "Paid • Tap to edit"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val value = amountText.trim().toDoubleOrNull()
-                    val earliestSettlementDate =
-                        if (entry.transactionDate > 0L) entry.transactionDate else entry.createdAt
-                    val otherSettlements = settlements.filter { it.id != editingSettlementId }
-                    val amountAvailableAtDate = (
-                        entry.amount - otherSettlements
-                            .filter { it.settlementDate <= settlementDate }
-                            .sumOf { it.amount }
-                        ).coerceAtLeast(0.0)
 
-                    when {
-                        value == null || value <= 0.0 ->
-                            validation = "Enter a valid amount"
-                        settlementDate < earliestSettlementDate ->
-                            validation = "Settlement date cannot be before transaction date"
-                        value > amountAvailableAtDate + 0.000001 ->
-                            validation = "Settlement exceeds remaining principal for this date"
-                        else -> onSave(editingSettlementId, value, settlementDate, noteText.trim())
-                    }
-                },
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outline
-                )
+            // Fixed bottom actions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(if (editingSettlementId == null) "Save" else "Save Changes")
+                Button(
+                    onClick = {
+                        val value = amountText.trim().toDoubleOrNull()
+                        val earliestSettlementDate =
+                            if (entry.transactionDate > 0L) entry.transactionDate else entry.createdAt
+
+                        val otherSettlements = settlements.filter {
+                            it.id != editingSettlementId
+                        }
+
+                        val amountAvailableAtDate = (
+                            entry.amount - otherSettlements
+                                .filter { it.settlementDate <= settlementDate }
+                                .sumOf { it.amount }
+                            ).coerceAtLeast(0.0)
+
+                        when {
+                            value == null || value <= 0.0 ->
+                                validation = "Enter a valid amount"
+
+                            settlementDate < earliestSettlementDate ->
+                                validation = "Settlement date cannot be before transaction date"
+
+                            value > amountAvailableAtDate + 0.000001 ->
+                                validation = "Settlement exceeds remaining principal for this date"
+
+                            else -> onSave(
+                                editingSettlementId,
+                                value,
+                                settlementDate,
+                                noteText.trim()
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (editingSettlementId == null) "Save Settlement" else "Save Changes")
+                }
             }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                border = androidx.compose.foundation.BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outline
-                )
-            ) { Text("Cancel") }
         }
-    )
+    }
 
     if (confirmDelete && editingSettlement != null) {
         AlertDialog(
@@ -4408,10 +4516,14 @@ private fun SettlementDialog(
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text("Delete") }
+                ) {
+                    Text("Delete")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("Cancel")
+                }
             }
         )
     }

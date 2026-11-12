@@ -293,6 +293,9 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                 var selectedReportParty by remember { mutableStateOf<PartyEntity?>(null) }
                 var reportEntries by remember { mutableStateOf<List<LedgerEntryEntity>>(emptyList()) }
                 var reportRecords by remember { mutableStateOf<List<InterestAccountEntryEntity>>(emptyList()) }
+                var reportSettlements by remember {
+                    mutableStateOf<List<com.ledger.app.data.TransactionSettlementEntity>>(emptyList())
+                }
                 var reportDataLoading by remember { mutableStateOf(false) }
                 var reportParties by remember { mutableStateOf<List<PartyEntity>>(emptyList()) }
                 var reportPartiesLoading by remember { mutableStateOf(false) }
@@ -360,13 +363,17 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         reportDataLoading = true
                         try {
                             val loadedData = withContext(Dispatchers.IO) {
-                                Pair(
+                                Triple(
                                     repository.getEntries(party.id),
-                                    repository.getInterestAccountEntries(party.id)
+                                    repository.getInterestAccountEntries(party.id),
+                                    LedgerDatabaseProvider.get(this@MainActivity)
+                                        .transactionSettlementDao()
+                                        .getByPartyId(party.id)
                                 )
                             }
                             reportEntries = loadedData.first
                             reportRecords = loadedData.second
+                            reportSettlements = loadedData.third
                         } finally {
                             reportDataLoading = false
                         }
@@ -491,6 +498,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             party = reportParty,
                             entries = reportEntries,
                             records = reportRecords,
+                            settlements = reportSettlements,
                             onBack = {
                                 showOnePartyReport = false
                                 showPartyReportSelection = true

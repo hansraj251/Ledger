@@ -1315,7 +1315,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                         emiPageEntry = entry
                                         showEmiPage = true
                                     } else {
-                                        editingEntry = entry
+                                        settlingEntry = entry
                                     }
                                 },
                                 onLongClick = {
@@ -1323,7 +1323,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                         deleteTargetEntry = entry
                                         showDeleteEntryDialog = true
                                     } else {
-                                        settlingEntry = entry
+                                        editingEntry = entry
                                     }
                                 }
                             )
@@ -2130,56 +2130,8 @@ FilterChip(
                     }
 
 
-                } else {
-
-
-                    OutlinedButton(
-
-
-                        onClick = onSettle,
-
-
-                        modifier = Modifier.fillMaxWidth(),
-
-
-                        shape = RoundedCornerShape(14.dp),
-
-
-                        border = androidx.compose.foundation.BorderStroke(
-
-
-                            1.dp,
-
-
-                            MaterialTheme.colorScheme.primary
-
-
-                        )
-
-
-                    ) {
-
-
-                        Text(
-
-
-                            text = "Settle",
-
-
-                            color = MaterialTheme.colorScheme.primary,
-
-
-                            fontWeight = FontWeight.SemiBold
-
-
-                        )
-
-
-                    }
-
 
                 }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)

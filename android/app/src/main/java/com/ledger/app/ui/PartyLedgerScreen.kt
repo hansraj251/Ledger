@@ -4249,63 +4249,68 @@ private fun SettlementDialog(
                     fontWeight = FontWeight.Bold
                 )
 
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = {
-                        amountText = it
-                        validation = ""
-                    },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    label = {
-                        Text(
-                            if (entry.type == EntryType.CREDIT) "Received amount" else "Paid amount"
-                        )
-                    },
-                    singleLine = true,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    ),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                )
-
-                Box(modifier = Modifier.fillMaxWidth()) {
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     OutlinedTextField(
-                        value = dateLabel,
-                        onValueChange = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        readOnly = true,
-                        enabled = true,
-                        label = { Text("Settlement date") },
+                        value = amountText,
+                        onValueChange = {
+                            amountText = it
+                            validation = ""
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = {
+                            Text(
+                                if (entry.type == EntryType.CREDIT) "Received" else "Paid"
+                            )
+                        },
                         singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        ),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .clickable {
-                                val c = Calendar.getInstance().apply {
-                                    timeInMillis = settlementDate
+                    Box(modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(
+                            value = dateLabel,
+                            onValueChange = {},
+                            modifier = Modifier.fillMaxWidth(),
+                            readOnly = true,
+                            enabled = true,
+                            label = { Text("Settlement date") },
+                            singleLine = true,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable {
+                                    val c = Calendar.getInstance().apply {
+                                        timeInMillis = settlementDate
+                                    }
+                                    DatePickerDialog(
+                                        context,
+                                        { _, y, m, d ->
+                                            settlementDate = Calendar.getInstance().apply {
+                                                set(Calendar.YEAR, y)
+                                                set(Calendar.MONTH, m)
+                                                set(Calendar.DAY_OF_MONTH, d)
+                                                set(Calendar.HOUR_OF_DAY, 12)
+                                                set(Calendar.MINUTE, 0)
+                                                set(Calendar.SECOND, 0)
+                                                set(Calendar.MILLISECOND, 0)
+                                            }.timeInMillis
+                                            validation = ""
+                                        },
+                                        c.get(Calendar.YEAR),
+                                        c.get(Calendar.MONTH),
+                                        c.get(Calendar.DAY_OF_MONTH)
+                                    ).show()
                                 }
-                                DatePickerDialog(
-                                    context,
-                                    { _, y, m, d ->
-                                        settlementDate = Calendar.getInstance().apply {
-                                            set(Calendar.YEAR, y)
-                                            set(Calendar.MONTH, m)
-                                            set(Calendar.DAY_OF_MONTH, d)
-                                            set(Calendar.HOUR_OF_DAY, 12)
-                                            set(Calendar.MINUTE, 0)
-                                            set(Calendar.SECOND, 0)
-                                            set(Calendar.MILLISECOND, 0)
-                                        }.timeInMillis
-                                        validation = ""
-                                    },
-                                    c.get(Calendar.YEAR),
-                                    c.get(Calendar.MONTH),
-                                    c.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            }
-                    )
+                        )
+                    }
                 }
 
                 OutlinedTextField(

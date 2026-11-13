@@ -778,7 +778,7 @@ if (showTipsDialog) {
                                 After adding a Party, you can record new transactions using You Gave and You Got. The app automatically calculates the balance and displays it in the Party Balance Card.
 
                                 Transaction Management:
-                                Tap a transaction to edit, delete, or settle it. You can also settle a transaction directly by holding it. Normal transactions can be adjusted against each other, such as adjusting a You Gave transaction against a You Got transaction.
+                                Tap a transaction to settle it. Long-press a transaction to edit or delete it. Normal transactions can be adjusted against each other, such as adjusting a You Gave transaction against a You Got transaction.
 
                                 Interest Transactions:
                                 For transactions carrying interest, it is better to use the settlement system instead of adjusting them through another transaction. This ensures that, after settlement, interest is calculated only on the remaining balance from the settlement date. You can settle outstanding interest using the Int. button in the Party Balance Card, where the remaining interest is calculated automatically.

@@ -360,6 +360,10 @@ fun DailyExpenseScreen(
     var showMonthPicker by remember { mutableStateOf(false) }
     var showYearPicker by remember { mutableStateOf(false) }
     var yearPickerValue by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var showExpenseYearPicker by remember { mutableStateOf(false) }
+    var expenseYearPickerValue by remember {
+        mutableStateOf(Calendar.getInstance().get(Calendar.YEAR))
+    }
     var pickerYear by remember {
         mutableStateOf(Calendar.getInstance().get(Calendar.YEAR))
     }
@@ -1063,6 +1067,95 @@ var isReportLimitReached by remember { mutableStateOf(false) }
         )
     }
 
+    if (showExpenseYearPicker) {
+
+        AlertDialog(
+
+            onDismissRequest = { showExpenseYearPicker = false },
+
+            containerColor = androidx.compose.ui.graphics.Color.White,
+
+            title = { Text("Select year") },
+
+            text = {
+
+                Row(
+
+                    modifier = Modifier.fillMaxWidth(),
+
+                    horizontalArrangement = Arrangement.SpaceBetween,
+
+                    verticalAlignment = Alignment.CenterVertically
+
+                ) {
+
+                    TextButton(onClick = { expenseYearPickerValue-- }) {
+
+                        Text("‹")
+
+                    }
+
+                    Text(
+
+                        expenseYearPickerValue.toString(),
+
+                        style = MaterialTheme.typography.titleLarge
+
+                    )
+
+                    TextButton(onClick = { expenseYearPickerValue++ }) {
+
+                        Text("›")
+
+                    }
+
+                }
+
+            },
+
+            confirmButton = {
+
+                TextButton(
+
+                    onClick = {
+
+                        selectedExpenseYear = expenseYearPickerValue
+
+                        showAllTimeRecords = false
+
+                        showSelectedDayRecords = false
+
+                        showYearRecords = true
+
+                        showMonthRecords = false
+
+                        showExpenseYearPicker = false
+
+                    }
+
+                ) {
+
+                    Text("Select")
+
+                }
+
+            },
+
+            dismissButton = {
+
+                TextButton(onClick = { showExpenseYearPicker = false }) {
+
+                    Text("Cancel")
+
+                }
+
+            }
+
+        )
+
+    }
+
+
     if (showMonthPicker) {
         val monthNames = listOf(
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -1455,8 +1548,8 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                         Button(
                             shape = RoundedCornerShape(12.dp),
                             onClick = {
-                                yearPickerValue = selectedExpenseYear
-                                showYearPicker = true
+                                expenseYearPickerValue = selectedExpenseYear
+                                showExpenseYearPicker = true
                             },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 4.dp),

@@ -151,7 +151,8 @@ fun ReportTypeSelectionScreen(
     onBack: () -> Unit,
     onAllPartiesClick: () -> Unit,
     onOnePartyClick: () -> Unit,
-    onGroupReportsClick: () -> Unit
+    onGroupReportsClick: () -> Unit,
+    onDailyExpensesClick: () -> Unit
 ) {
     BackHandler { onBack() }
 
@@ -192,6 +193,15 @@ fun ReportTypeSelectionScreen(
                     title = "Group Reports",
                     subtitle = "View expenses for a group or an individual member.",
                     onClick = onGroupReportsClick
+                )
+            }
+
+            item {
+                ReportOptionCard(
+                    letter = "D",
+                    title = "Daily Expenses Report",
+                    subtitle = "View and export your daily expense records.",
+                    onClick = onDailyExpensesClick
                 )
             }
         }

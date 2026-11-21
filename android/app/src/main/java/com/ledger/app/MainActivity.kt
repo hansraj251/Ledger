@@ -421,6 +421,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         onGroupReportsClick = {
                             showReportTypeSelection = false
                             showGroupReportSelection = true
+                        },
+                        onDailyExpensesClick = {
+                            showReportTypeSelection = false
+                            openDailyExpenseReportOnLaunch = true
+                            setDailyExpenseScreenVisible(true)
                         }
                     )
                 } else if (showGroupReportSelection) {

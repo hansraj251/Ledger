@@ -1139,34 +1139,6 @@ if (showTipsDialog) {
                                                         .fillMaxWidth()
                                                         .clickable {
                                                             showMenu = false
-                                                            onDailyExpenseReportClick()
-                                                        },
-                                                    shape = RoundedCornerShape(13.dp),
-                                                    color = Color.Transparent
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.ReceiptLong,
-                                                            contentDescription = null,
-                                                            tint = Color(0xFF6D6557)
-                                                        )
-                                                        Text(
-                                                            text = "Daily Expenses Report",
-                                                            modifier = Modifier.padding(start = 12.dp),
-                                                            style = MaterialTheme.typography.titleSmall,
-                                                            color = Color(0xFF303030)
-                                                        )
-                                                    }
-                                                }
-
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            showMenu = false
                                                             requestAddParty()
                                                         },
                                                     shape = RoundedCornerShape(13.dp),
@@ -1289,6 +1261,7 @@ Surface(
                                                     }
                                                 }
 
+                                    
 
                                     Surface(
                                         modifier = Modifier
@@ -1334,7 +1307,7 @@ Surface(
                                         }
                                     }
 
-                                    Spacer(Modifier.height(8.dp))
+                                    
 Surface(
     modifier = Modifier
         .fillMaxWidth()
@@ -1360,7 +1333,7 @@ Surface(
     }
 }
 
-Spacer(Modifier.height(8.dp))
+
 Surface(
     modifier = Modifier
         .fillMaxWidth()

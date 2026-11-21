@@ -641,6 +641,7 @@ var showDeletePartyDialog by remember {
                         }
                     }
                 },
+                onDataChanged = onDataChanged,
                 onBack = {
                     showEmiPage = false
                     emiPageEntry = null
@@ -4833,6 +4834,7 @@ private fun EmiInstallmentsScreen(
     entry: LedgerEntryEntity,
     schedules: List<EmiScheduleEntity>,
     onPayment: (EmiScheduleEntity, Double) -> Unit,
+    onDataChanged: () -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler(onBack = onBack)
@@ -5310,6 +5312,7 @@ private fun EmiInstallmentsScreen(
                 emiDelayInterest = emiDelayInterest,
                 partialRemainingTotal = partialRemainingTotal,
                 overdueInterestTotal = overdueInterestTotal,
+                onDataChanged = onDataChanged,
                 onDismiss = { showEmiChargeSettlement = false }
             )
         }
@@ -5456,6 +5459,7 @@ private fun EmiChargeSettlementDialog(
     emiDelayInterest: Double,
     partialRemainingTotal: Double,
     overdueInterestTotal: Double,
+    onDataChanged: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -5795,6 +5799,11 @@ Row(
                                 validation = ""
                                 settlementAmountsEdited = false
                                 refreshHistory()
+                                android.util.Log.d(
+                                    "LedgerSyncDebug",
+                                    "EMI settlement SAVE succeeded; invoking onDataChanged"
+                                )
+                                onDataChanged()
                             } catch (e: Exception) {
                                 validation = e.message ?: "Unable to save settlement"
                             }
@@ -5835,6 +5844,11 @@ Row(
                                 deleteTarget = null
                                 settlementAmountsEdited = false
                                 refreshHistory()
+                                android.util.Log.d(
+                                    "LedgerSyncDebug",
+                                    "EMI settlement DELETE succeeded; invoking onDataChanged"
+                                )
+                                onDataChanged()
                             } catch (e: Exception) {
                                 validation = e.message ?: "Unable to delete settlement"
                                 deleteTarget = null

@@ -11,6 +11,11 @@ import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
 
+data class GoogleDriveBackupResult(
+    val fileId: String,
+    val modifiedTime: String
+)
+
 class GoogleDriveBackup(
     context: Context
 ) {
@@ -37,7 +42,7 @@ class GoogleDriveBackup(
     fun sync(
         database: SupportSQLiteDatabase,
         accessToken: String,
-        callback: (Result<Unit>) -> Unit
+        callback: (Result<GoogleDriveBackupResult>) -> Unit
     ) {
         Thread {
             var snapshot: File? = null
@@ -45,18 +50,14 @@ class GoogleDriveBackup(
             try {
                 snapshot = createDatabaseSnapshot(database)
 
-                val storedFileId =
-                    preferences.getString(
-                        FILE_ID_KEY,
-                        null
-                    )
+                val storedFileId = preferences.getString(
+                    FILE_ID_KEY,
+                    null
+                )
 
-                val fileId =
+                val backupResult =
                     if (storedFileId.isNullOrBlank()) {
-                        uploadNewFile(
-                            snapshot,
-                            accessToken
-                        )
+                        uploadNewFile(snapshot, accessToken)
                     } else {
                         try {
                             updateExistingFile(
@@ -64,40 +65,41 @@ class GoogleDriveBackup(
                                 snapshot,
                                 accessToken
                             )
-                            storedFileId
                         } catch (error: Exception) {
                             if (error.message?.contains("HTTP 404") == true) {
-                                preferences.edit()
+                                val removed = preferences.edit()
                                     .remove(FILE_ID_KEY)
-                                    .apply()
+                                    .commit()
 
-                                uploadNewFile(
-                                    snapshot,
-                                    accessToken
-                                )
+                                if (!removed) {
+                                    throw IllegalStateException(
+                                        "Old backup file ID could not be cleared."
+                                    )
+                                }
+
+                                uploadNewFile(snapshot, accessToken)
                             } else {
                                 throw error
                             }
                         }
                     }
 
-                preferences.edit()
-                    .putString(
-                        FILE_ID_KEY,
-                        fileId
+                val fileIdSaved = preferences.edit()
+                    .putString(FILE_ID_KEY, backupResult.fileId)
+                    .commit()
+
+                if (!fileIdSaved) {
+                    throw IllegalStateException(
+                        "Google Drive backup file ID could not be saved locally."
                     )
-                    .apply()
+                }
 
                 mainHandler.post {
-                    callback(
-                        Result.success(Unit)
-                    )
+                    callback(Result.success(backupResult))
                 }
             } catch (error: Exception) {
                 mainHandler.post {
-                    callback(
-                        Result.failure(error)
-                    )
+                    callback(Result.failure(error))
                 }
             } finally {
                 snapshot?.delete()
@@ -140,7 +142,7 @@ class GoogleDriveBackup(
     private fun uploadNewFile(
         snapshot: File,
         accessToken: String
-    ): String {
+    ): GoogleDriveBackupResult {
         val boundary =
             "LedgerBackupBoundary${System.currentTimeMillis()}"
 
@@ -155,7 +157,7 @@ class GoogleDriveBackup(
 
         val connection =
             URL(
-                "$DRIVE_UPLOAD_URL?uploadType=multipart"
+                "$DRIVE_UPLOAD_URL?uploadType=multipart&fields=id,modifiedTime"
             ).openConnection() as HttpURLConnection
 
         try {
@@ -245,8 +247,12 @@ class GoogleDriveBackup(
                     .bufferedReader()
                     .use { it.readText() }
 
-            return JSONObject(response)
-                .getString("id")
+            val json = JSONObject(response)
+
+            return GoogleDriveBackupResult(
+                fileId = json.getString("id"),
+                modifiedTime = json.getString("modifiedTime")
+            )
         } finally {
             connection.disconnect()
         }
@@ -256,17 +262,15 @@ class GoogleDriveBackup(
         fileId: String,
         snapshot: File,
         accessToken: String
-    ) {
-        val encodedFileId =
-            URLEncoder.encode(
-                fileId,
-                "UTF-8"
-            )
+    ): GoogleDriveBackupResult {
+        val encodedFileId = URLEncoder.encode(
+            fileId,
+            "UTF-8"
+        )
 
-        val connection =
-            URL(
-                "$DRIVE_UPLOAD_URL/$encodedFileId?uploadType=media"
-            ).openConnection() as HttpURLConnection
+        val connection = URL(
+            "$DRIVE_UPLOAD_URL/$encodedFileId?uploadType=media&fields=id,modifiedTime"
+        ).openConnection() as HttpURLConnection
 
         try {
             connection.requestMethod = "PATCH"
@@ -286,28 +290,21 @@ class GoogleDriveBackup(
 
             snapshot.inputStream().use { input ->
                 connection.outputStream.use { output ->
-                    val buffer =
-                        ByteArray(16 * 1024)
+                    val buffer = ByteArray(16 * 1024)
 
                     while (true) {
-                        val count =
-                            input.read(buffer)
+                        val count = input.read(buffer)
 
                         if (count <= 0) {
                             break
                         }
 
-                        output.write(
-                            buffer,
-                            0,
-                            count
-                        )
+                        output.write(buffer, 0, count)
                     }
                 }
             }
 
-            val responseCode =
-                connection.responseCode
+            val responseCode = connection.responseCode
 
             if (responseCode !in 200..299) {
                 val errorBody = readError(connection)
@@ -322,6 +319,17 @@ class GoogleDriveBackup(
                     errorBody
                 )
             }
+
+            val response = connection.inputStream
+                .bufferedReader()
+                .use { it.readText() }
+
+            val json = JSONObject(response)
+
+            return GoogleDriveBackupResult(
+                fileId = json.getString("id"),
+                modifiedTime = json.getString("modifiedTime")
+            )
         } finally {
             connection.disconnect()
         }

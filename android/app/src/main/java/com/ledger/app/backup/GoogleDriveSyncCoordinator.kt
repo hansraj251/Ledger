@@ -170,6 +170,21 @@ class GoogleDriveSyncCoordinator(
                                     }.getOrNull()
                                 }
 
+                            // Pending local changes always take priority over
+                            // a newer remote backup after an interrupted sync.
+                            val hasPendingLocalChanges = synchronized(lock) {
+                                generation.get() > completedGeneration
+                            }
+
+                            if (hasPendingLocalChanges) {
+                                android.util.Log.w(
+                                    "LedgerSyncDebug",
+                                    "Pending local changes found. Prioritizing local backup over remote restore."
+                                )
+                                finishStartupCheck(startPendingSync = true)
+                                return@onSuccess
+                            }
+
                             if (
                                 local != null &&
                                 remote.isAfter(local)
@@ -335,7 +350,7 @@ class GoogleDriveSyncCoordinator(
                 if (accessToken.isNullOrBlank()) {
                     finishSync(
                         syncGeneration,
-                        success = false,
+                        backupResult = null,
                         error = IllegalStateException(
                             "Google Drive access token is unavailable."
                         )
@@ -349,17 +364,17 @@ class GoogleDriveSyncCoordinator(
                 ) { syncResult ->
 
                     syncResult
-                        .onSuccess {
+                        .onSuccess { backupResult ->
                             finishSync(
                                 syncGeneration,
-                                success = true,
+                                backupResult = backupResult,
                                 error = null
                             )
                         }
                         .onFailure { error ->
                             finishSync(
                                 syncGeneration,
-                                success = false,
+                                backupResult = null,
                                 error = error
                             )
                         }
@@ -368,7 +383,7 @@ class GoogleDriveSyncCoordinator(
             .addOnFailureListener { error ->
                 finishSync(
                     syncGeneration,
-                    success = false,
+                    backupResult = null,
                     error = error
                 )
             }
@@ -376,41 +391,61 @@ class GoogleDriveSyncCoordinator(
 
     private fun finishSync(
         syncGeneration: Long,
-        success: Boolean,
+        backupResult: GoogleDriveBackupResult?,
         error: Throwable?
     ) {
-        var startNext = false
-
-        synchronized(lock) {
-            running = false
-
-            if (success) {
-                if (generation.get() == syncGeneration) {
-                    completedGeneration = syncGeneration
-                    persistCompletedGeneration()
-                } else if (!paused) {
-                    /*
-                     * Changes happened while this upload was running.
-                     * Do not start another upload in parallel; start it
-                     * only after this upload has completely finished.
-                     */
-                    running = true
-                    startNext = true
-                }
+        if (backupResult == null) {
+            synchronized(lock) {
+                running = false
             }
-        }
 
-        if (!success) {
             error?.let {
                 onSyncFailure?.invoke(it)
             }
             return
         }
 
-        if (success) {
-            refreshLastSyncedDriveModifiedTime()
+        var startNext = false
+        var persistenceError: Throwable? = null
+
+        synchronized(lock) {
+            val saved = prefs.edit()
+                .putString(
+                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
+                    backupResult.modifiedTime
+                )
+                .putLong(
+                    COMPLETED_GENERATION,
+                    syncGeneration
+                )
+                .commit()
+
+            if (!saved) {
+                running = false
+                persistenceError = IllegalStateException(
+                    "Backup uploaded, but local sync status could not be saved."
+                )
+            } else {
+                completedGeneration = syncGeneration
+
+                if (
+                    generation.get() > syncGeneration &&
+                    !paused
+                ) {
+                    running = true
+                    startNext = true
+                } else {
+                    running = false
+                }
+            }
         }
 
+        if (persistenceError != null) {
+            onSyncFailure?.invoke(persistenceError!!)
+            return
+        }
+
+        // Local timestamp and completed generation are saved before success.
         onSyncSuccess?.invoke()
 
         if (startNext) {
@@ -418,51 +453,20 @@ class GoogleDriveSyncCoordinator(
         }
     }
 
-    private fun refreshLastSyncedDriveModifiedTime() {
-        authorization
-            .authorize()
-            .addOnSuccessListener { result ->
-                if (result.hasResolution()) {
-                    return@addOnSuccessListener
-                }
-
-                val token =
-                    result.accessToken
-                        ?: return@addOnSuccessListener
-
-                val restore =
-                    GoogleDriveRestore(applicationContext)
-
-                restore.findBackupMetadata(token) { result ->
-                    result.onSuccess { metadata ->
-                        metadata?.modifiedTime?.let {
-                            prefs.edit()
-                                .putString(
-                                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
-                                    it
-                                )
-                                .apply()
-                        }
-                    }
-                }
-            }
-    }
-
     private fun persistPendingGeneration() {
-        prefs.edit()
+        val saved = prefs.edit()
             .putLong(
                 PENDING_GENERATION,
                 generation.get()
             )
-            .apply()
+            .commit()
+
+        if (!saved) {
+            android.util.Log.e(
+                "LedgerSyncDebug",
+                "Failed to persist pending generation."
+            )
+        }
     }
 
-    private fun persistCompletedGeneration() {
-        prefs.edit()
-            .putLong(
-                COMPLETED_GENERATION,
-                completedGeneration
-            )
-            .apply()
-    }
 }

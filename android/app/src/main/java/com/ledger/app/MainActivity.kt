@@ -80,6 +80,7 @@ import com.ledger.app.ui.HelpScreen
 import com.ledger.app.ui.ActivityScreen
 import com.ledger.app.ui.DailyExpenseScreen
 import com.ledger.app.ui.GroupSharingScreen
+import com.ledger.app.ui.OnlineGroupDetailScreen
 import com.ledger.app.ui.GroupExpenseReportScreen
 import com.ledger.app.ui.GroupMemberReportSelectionScreen
 import com.ledger.app.ui.GroupReportModeSelectionScreen
@@ -298,6 +299,7 @@ class MainActivity : ComponentActivity() {
 
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
+                var selectedOnlineGroupId by remember { mutableStateOf<String?>(null) }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
                 var openGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
@@ -726,6 +728,12 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
             launchPremiumPurchase()
         }
     )
+                } else if (selectedOnlineGroupId != null) {
+                    OnlineGroupDetailScreen(
+                        groupId = selectedOnlineGroupId!!,
+                        isPremium = premiumBillingState.isPremium,
+                        onBack = { selectedOnlineGroupId = null }
+                    )
                 } else if (showGroupSharingScreen) {
                     GroupSharingScreen(
                         initialGroupId = selectedSharingGroupId,
@@ -827,6 +835,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             selectedSharingGroupId = groupId
                             openGroupEditorOnOpen = false
                             showGroupSharingScreen = true
+                        },
+                        onOnlineGroupClick = { groupId ->
+                            selectedOnlineGroupId = groupId
                         },
                         onGroupLongClick = { groupId ->
                             selectedSharingGroupId = groupId

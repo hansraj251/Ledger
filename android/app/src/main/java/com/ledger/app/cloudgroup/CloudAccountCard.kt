@@ -24,13 +24,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.ComponentActivity
+import android.content.Context
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 @Composable
 fun CloudAccountCard() {
     val context = LocalContext.current
-    val authManager = remember(context) { CloudAuthManager(context) }
+    val activity = remember(context) {
+        var current: Context? = context
+        while (current is android.content.ContextWrapper &&
+            current !is ComponentActivity
+        ) {
+            current = current.baseContext
+        }
+        current as? ComponentActivity
+    }
+    val authManager = remember(activity) {
+        activity?.let { CloudAuthManager(it) }
+    }
     val scope = rememberCoroutineScope()
 
     var user by remember { mutableStateOf<CloudAuthenticatedUser?>(null) }
@@ -41,7 +54,9 @@ fun CloudAccountCard() {
     LaunchedEffect(authManager) {
         loading = true
         try {
-            user = authManager.restoreSession()
+            if (authManager != null) {
+                user = authManager.restoreSession()
+            }
         } catch (error: Exception) {
             errorMessage = error.message ?: "Could not restore account session."
         } finally {
@@ -102,7 +117,9 @@ fun CloudAccountCard() {
                                 working = true
                                 errorMessage = null
                                 try {
-                                    authManager.signOut()
+                                    val manager = authManager
+                                        ?: error("Activity context is unavailable.")
+                                    manager.signOut()
                                     user = null
                                 } catch (error: Exception) {
                                     errorMessage = error.message ?: "Sign-out failed."
@@ -125,7 +142,9 @@ fun CloudAccountCard() {
                                 working = true
                                 errorMessage = null
                                 try {
-                                    user = authManager.signInWithGoogle()
+                                    val manager = authManager
+                                        ?: error("Activity context is unavailable.")
+                                    user = manager.signInWithGoogle()
                                 } catch (error: Exception) {
                                     errorMessage = error.message
                                         ?: "Google sign-in failed."

@@ -2,6 +2,7 @@ package com.ledger.app.cloudgroup
 
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.postgrest.Postgrest
 
 object CloudSupabaseClient {
 
@@ -16,5 +17,6 @@ object CloudSupabaseClient {
         supabaseKey = SUPABASE_PUBLISHABLE_KEY
     ) {
         install(Auth)
+        install(Postgrest)
     }
 }

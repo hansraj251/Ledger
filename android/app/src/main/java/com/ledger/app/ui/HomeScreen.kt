@@ -1,5 +1,14 @@
 package com.ledger.app.ui
 
+import com.ledger.app.cloudgroup.CloudAuthManager
+import com.ledger.app.cloudgroup.CloudAuthenticatedUser
+import com.ledger.app.cloudgroup.CloudGroup
+import com.ledger.app.cloudgroup.CloudGroupRepository
+import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 import com.ledger.app.data.CurrencySettings
 import androidx.compose.runtime.saveable.rememberSaveable
 
@@ -91,6 +100,7 @@ fun HomeScreen(
     onDailyExpenseReportClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
     onGroupClick: (Long) -> Unit,
+    onOnlineGroupClick: (String) -> Unit = {},
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit,
@@ -135,6 +145,29 @@ fun HomeScreen(
     var newStaffJoiningDate by rememberSaveable { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) }
     var isSavingStaff by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val cloudAuthManager = remember(context) {
+        CloudAuthManager(context.applicationContext)
+    }
+    val cloudGroupRepository = remember {
+        CloudGroupRepository(CloudSupabaseRemoteDataSource())
+    }
+
+    var cloudUser by remember {
+        mutableStateOf<CloudAuthenticatedUser?>(null)
+    }
+    var onlineGroups by remember {
+        mutableStateOf<List<CloudGroup>>(emptyList())
+    }
+    var isOnlineGroupsLoading by remember { mutableStateOf(true) }
+    var onlineGroupsError by remember { mutableStateOf<String?>(null) }
+    var showCreateOnlineGroupDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var newOnlineGroupName by rememberSaveable { mutableStateOf("") }
+    var isCreatingOnlineGroup by remember { mutableStateOf(false) }
+    var createOnlineGroupError by remember { mutableStateOf<String?>(null) }
+
     val homeFilterPrefs = remember(context) {
         context.getSharedPreferences(
             "ledger_home_filter_preferences",
@@ -154,7 +187,7 @@ fun HomeScreen(
 
     val availableHomeFilters = buildList {
             if (uiState.parties.isNotEmpty()) add("Parties")
-            if (sharingGroups.isNotEmpty()) add("Groups")
+            add("Groups")
             if (staffMembers.isNotEmpty()) add("Staff")
         }
         val activeHomeFilter =
@@ -164,6 +197,10 @@ fun HomeScreen(
         val visibleGroups = if (
             activeHomeFilter == "All" || activeHomeFilter == "Groups"
         ) sharingGroups else emptyList()
+
+        val visibleOnlineGroups = if (
+            activeHomeFilter == "All" || activeHomeFilter == "Groups"
+        ) onlineGroups else emptyList()
 
         val visibleStaff = if (
             activeHomeFilter == "All" || activeHomeFilter == "Staff"
@@ -256,6 +293,30 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         sharingGroups = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             sharingGroupDao.getAll()
+        }
+    }
+
+    LaunchedEffect(cloudAuthManager) {
+        isOnlineGroupsLoading = true
+        onlineGroupsError = null
+        try {
+            cloudUser = withContext(Dispatchers.IO) {
+                cloudAuthManager.restoreSession()
+            }
+            onlineGroups = if (cloudUser != null) {
+                withContext(Dispatchers.IO) {
+                    cloudGroupRepository.loadGroups()
+                }
+            } else {
+                emptyList()
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            onlineGroupsError = error.message
+                ?: "Could not load Online Groups."
+        } finally {
+            isOnlineGroupsLoading = false
         }
     }
 
@@ -1607,6 +1668,228 @@ item {
                 }
             }
 
+            if (activeHomeFilter == "All" || activeHomeFilter == "Groups") {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Online Groups",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Cloud synced groups",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                if (cloudUser == null) {
+                                    onProfileClick()
+                                } else {
+                                    createOnlineGroupError = null
+                                    newOnlineGroupName = ""
+                                    showCreateOnlineGroupDialog = true
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Add,
+                                contentDescription = "Create Online Group"
+                            )
+                        }
+                    }
+                }
+
+                if (isOnlineGroupsLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text("Loading Online Groups...")
+                        }
+                    }
+                } else if (onlineGroupsError != null) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = onlineGroupsError.orEmpty(),
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            isOnlineGroupsLoading = true
+                                            onlineGroupsError = null
+                                            try {
+                                                cloudUser = withContext(Dispatchers.IO) {
+                                                    cloudAuthManager.restoreSession()
+                                                }
+                                                onlineGroups = if (cloudUser != null) {
+                                                    withContext(Dispatchers.IO) {
+                                                        cloudGroupRepository.loadGroups()
+                                                    }
+                                                } else {
+                                                    emptyList()
+                                                }
+                                            } catch (error: CancellationException) {
+                                                throw error
+                                            } catch (error: Exception) {
+                                                onlineGroupsError = error.message
+                                                    ?: "Could not load Online Groups."
+                                            } finally {
+                                                isOnlineGroupsLoading = false
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                    }
+                } else if (cloudUser == null) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Connect your Google account to use Online Groups.",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Button(
+                                    onClick = onProfileClick,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Connect Google Account")
+                                }
+                            }
+                        }
+                    }
+                } else if (visibleOnlineGroups.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "No Online Groups yet.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        newOnlineGroupName = ""
+                                        createOnlineGroupError = null
+                                        showCreateOnlineGroupDialog = true
+                                    }
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Add,
+                                        contentDescription = null
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Create Online Group")
+                                }
+                            }
+                        }
+                    }
+                }
+
+                items(
+                    items = visibleOnlineGroups,
+                    key = { "online-group-${it.id}" }
+                ) { group ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOnlineGroupClick(group.id) },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 15.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(46.dp),
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CloudDone,
+                                        contentDescription = "Online Group",
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = group.name,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (group.ownerId == cloudUser?.userId) {
+                                        "Online • Owner"
+                                    } else {
+                                        "Online • Member"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (staffMembers.isNotEmpty()) {
                 items(items = visibleStaff, key = { "staff-${it.id}" }) { staff ->
                     Card(
@@ -1660,7 +1943,13 @@ item {
                 item {
                     LoadingState()
                 }
-            } else if (visibleParties.isEmpty() && visibleGroups.isEmpty() && visibleStaff.isEmpty()) {
+            } else if (
+                visibleParties.isEmpty() &&
+                visibleGroups.isEmpty() &&
+                visibleOnlineGroups.isEmpty() &&
+                visibleStaff.isEmpty() &&
+                !isOnlineGroupsLoading
+            ) {
                 item {
                     EmptyPartyState(
                         hasSearch = uiState.searchQuery.isNotBlank(),
@@ -2295,6 +2584,108 @@ title = { Text("Delete Party?") },
                 }
             },
             dismissButton = {}
+        )
+    }
+
+    if (showCreateOnlineGroupDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isCreatingOnlineGroup) {
+                    showCreateOnlineGroupDialog = false
+                }
+            },
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    text = "Create Online Group",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "This group will be stored in the cloud and shared with its members.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = newOnlineGroupName,
+                        onValueChange = {
+                            newOnlineGroupName = it.take(120)
+                            createOnlineGroupError = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isCreatingOnlineGroup,
+                        singleLine = true,
+                        label = { Text("Group name") },
+                        placeholder = { Text("e.g. Trip, Flatmates") },
+                        leadingIcon = {
+                            Icon(Icons.Outlined.CloudDone, contentDescription = null)
+                        },
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    createOnlineGroupError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = newOnlineGroupName.isNotBlank() &&
+                        newOnlineGroupName.trim().length <= 120 &&
+                        !isCreatingOnlineGroup,
+                    onClick = {
+                        scope.launch {
+                            isCreatingOnlineGroup = true
+                            createOnlineGroupError = null
+                            try {
+                                val created = withContext(Dispatchers.IO) {
+                                    cloudGroupRepository.createGroup(newOnlineGroupName)
+                                }
+                                onlineGroups = listOf(created) + onlineGroups
+                                newOnlineGroupName = ""
+                                showCreateOnlineGroupDialog = false
+                            } catch (error: CancellationException) {
+                                throw error
+                            } catch (error: Exception) {
+                                android.util.Log.e(
+                                    "CloudGroupDebug",
+                                    "Create Online Group failed",
+                                    error
+                                )
+                                createOnlineGroupError = error.message
+                                    ?: "Could not create Online Group."
+                            } finally {
+                                isCreatingOnlineGroup = false
+                            }
+                        }
+                    }
+                ) {
+                    if (isCreatingOnlineGroup) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Create")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isCreatingOnlineGroup,
+                    onClick = { showCreateOnlineGroupDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
         )
     }
 

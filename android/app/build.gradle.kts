@@ -1,6 +1,7 @@
 plugins {
     id("com.android.legacy-kapt")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("com.android.application")
 }
 
@@ -55,6 +56,17 @@ dependencies {
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
+    // Supabase Auth
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.5.0"))
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+
+    // Ktor Android engine
+    implementation("io.ktor:ktor-client-android:3.0.3")
+
+    // Google Credential Manager
+    implementation("androidx.credentials:credentials:1.6.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     kapt("androidx.room:room-compiler:2.8.5")

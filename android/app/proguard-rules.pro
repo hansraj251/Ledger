@@ -4,3 +4,8 @@
 # Preserve source line information for release crash diagnostics.
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** {
+    *;
+}

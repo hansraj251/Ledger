@@ -2783,6 +2783,10 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
 
 
             item {
+                com.ledger.app.cloudgroup.CloudAccountCard()
+            }
+
+            item {
                 androidx.compose.material3.Card(
                     modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
                     shape = androidx.compose.material3.MaterialTheme.shapes.large,

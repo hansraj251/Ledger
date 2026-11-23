@@ -77,6 +77,11 @@ class CloudAuthManager(
         )
     }
 
+    suspend fun restoreSession(): CloudAuthenticatedUser? {
+        supabase.auth.loadFromStorage()
+        return currentUser()
+    }
+
     fun currentUser(): CloudAuthenticatedUser? {
         val user = supabase.auth.currentUserOrNull() ?: return null
         val email = user.email?.trim()?.lowercase()

@@ -4544,6 +4544,9 @@ private fun TransactionCard(
     modifier: Modifier = Modifier
 ) {
     val isCredit = entry.type == EntryType.CREDIT
+    val remainingAmount =
+        (entry.amount - settlements.sumOf { it.amount }).coerceAtLeast(0.0)
+    val isFullySettled = remainingAmount <= 0.000001
 
     val accent = if (isCredit) {
         MaterialTheme.colorScheme.error
@@ -4556,7 +4559,9 @@ private fun TransactionCard(
         shape = androidx.compose.foundation.shape.RoundedCornerShape(19.dp),
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isCredit) {
+            if (isFullySettled) {
+                androidx.compose.ui.graphics.Color(0xFFFFC107)
+            } else if (isCredit) {
                 androidx.compose.ui.graphics.Color(0xFFE57373)
             } else {
                 androidx.compose.ui.graphics.Color(0xFF43A047)
@@ -4782,7 +4787,7 @@ val accruedInterest = if (emiSchedules.isEmpty()) {
                     ) {
                         if (settlements.isNotEmpty()) {
                             Text(
-                                text = "Remaining ${CurrencySettings.symbol}${formatAmount((entry.amount - settlements.sumOf { it.amount }).coerceAtLeast(0.0))}",
+                                text = "Remaining ${CurrencySettings.symbol}${formatAmount(remainingAmount)}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

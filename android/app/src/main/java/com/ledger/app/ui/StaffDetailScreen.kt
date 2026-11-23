@@ -1,5 +1,8 @@
 package com.ledger.app.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -1386,7 +1389,7 @@ fun StaffDetailScreen(
                                 onClick = {
                                     selectedSalaryMonth = displayedMonth.plusMonths(1).toString()
                                 },
-                                enabled = displayedMonth < currentMonth
+                                enabled = displayedMonth < java.time.YearMonth.of(9999, 12)
                             ) {
                                 Text(
                                     text = "›",
@@ -2399,44 +2402,43 @@ fun StaffDetailScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "Year",
+                        "Select Year",
                         style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF64748B)
                     )
 
-                    Box {
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = { showYearDropdown = true },
-                            modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.IconButton(
+                            onClick = { if (pickerYear > 1) pickerYear-- },
+                            enabled = pickerYear > 1
                         ) {
                             Text(
-                                pickerYear.toString(),
-                                modifier = Modifier.weight(1f)
+                                "‹",
+                                style = MaterialTheme.typography.headlineMedium
                             )
-                            Text("⌄")
                         }
 
-                        DropdownMenu(
-                            expanded = showYearDropdown,
-                            onDismissRequest = { showYearDropdown = false },
-                            modifier = Modifier.heightIn(max = 280.dp),
-                            containerColor = Color.White,
-                            tonalElevation = 0.dp,
-                            shadowElevation = 8.dp
+                        Text(
+                            text = pickerYear.toString(),
+                            modifier = Modifier.padding(horizontal = 24.dp),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF111827)
+                        )
+
+                        androidx.compose.material3.IconButton(
+                            onClick = { if (pickerYear < 9999) pickerYear++ },
+                            enabled = pickerYear < 9999
                         ) {
-                            val thisYear = java.time.YearMonth.now().year
-                            (thisYear - 24..thisYear + 24)
-                                .toList()
-                                .sortedDescending()
-                                .forEach { year ->
-                                    DropdownMenuItem(
-                                        text = { Text(year.toString()) },
-                                        onClick = {
-                                            pickerYear = year
-                                            showYearDropdown = false
-                                        }
-                                    )
-                                }
+                            Text(
+                                "›",
+                                style = MaterialTheme.typography.headlineMedium
+                            )
                         }
                     }
 

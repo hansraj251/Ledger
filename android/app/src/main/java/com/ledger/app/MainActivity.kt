@@ -1,5 +1,15 @@
 package com.ledger.app
 
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.InstallStateUpdatedListener
+
 import com.ledger.app.data.LedgerEntryEntity
 import com.ledger.app.data.InterestAccountEntryEntity
 import kotlinx.coroutines.withContext
@@ -88,6 +98,25 @@ class MainActivity : ComponentActivity() {
     private lateinit var googleDriveRestore: GoogleDriveRestore
     private lateinit var googleDriveSyncCoordinator: GoogleDriveSyncCoordinator
     private lateinit var premiumBillingManager: PremiumBillingManager
+
+    private lateinit var appUpdateManager: AppUpdateManager
+    private lateinit var updateFlowLauncher: ActivityResultLauncher<IntentSenderRequest>
+
+    private var isCheckingForAppUpdate = false
+    private var isUpdateFlowInProgress = false
+    private var isFlexibleUpdateAccepted = false
+    private var lastPromptedUpdateVersionCode: Int? = null
+    private var isUpdateCompletionDialogShowing = false
+
+    private val appUpdateInstallListener = InstallStateUpdatedListener { state ->
+        if (state.installStatus() == InstallStatus.DOWNLOADED) {
+            isFlexibleUpdateAccepted = false
+            runOnUiThread {
+                showUpdateDownloadedDialog()
+            }
+        }
+    }
+
     private lateinit var ledgerSqliteDatabase: SupportSQLiteDatabase
 
     private var initialDriveSetupCompletion: (() -> Unit)? = null
@@ -101,6 +130,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(
             savedInstanceState
         )
+
+        updateFlowLauncher = registerForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult()
+        ) { result ->
+            isUpdateFlowInProgress = false
+
+            if (result.resultCode == RESULT_OK) {
+                isFlexibleUpdateAccepted = true
+            } else {
+                Toast.makeText(
+                    this,
+                    "Update was not completed. You can update later.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+
+        appUpdateManager = AppUpdateManagerFactory.create(this)
+        appUpdateManager.registerListener(appUpdateInstallListener)
 
         CurrencySettings.load(this)
 
@@ -836,14 +884,110 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
     override fun onResume() {
         super.onResume()
+
         if (::premiumBillingManager.isInitialized) {
             premiumBillingManager.refreshOwnership()
+        }
+
+        if (::appUpdateManager.isInitialized) {
+            checkForAppUpdate()
         }
     }
 
     override fun onDestroy() {
+        if (::appUpdateManager.isInitialized) {
+            appUpdateManager.unregisterListener(appUpdateInstallListener)
+        }
         if (::premiumBillingManager.isInitialized) premiumBillingManager.close()
         super.onDestroy()
+    }
+
+    private fun checkForAppUpdate() {
+        if (isCheckingForAppUpdate ||
+            isUpdateFlowInProgress ||
+            isFlexibleUpdateAccepted
+        ) return
+
+        isCheckingForAppUpdate = true
+
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                isCheckingForAppUpdate = false
+
+                if (isFinishing || isDestroyed) return@addOnSuccessListener
+
+                if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                    showUpdateDownloadedDialog()
+                    return@addOnSuccessListener
+                }
+
+                if (
+                    info.updateAvailability() == com.google.android.play.core.install.model.UpdateAvailability.UPDATE_AVAILABLE &&
+                    info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)
+                ) {
+                    val availableVersion = info.availableVersionCode()
+
+                    if (lastPromptedUpdateVersionCode == availableVersion) {
+                        return@addOnSuccessListener
+                    }
+
+                    lastPromptedUpdateVersionCode = availableVersion
+
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Update Available")
+                        .setMessage(
+                            "A new version of Ledger is available. " +
+                                "Update now to get the latest features and improvements."
+                        )
+                        .setPositiveButton("Update Now") { _, _ ->
+                            try {
+                                isUpdateFlowInProgress = true
+
+                                appUpdateManager.startUpdateFlowForResult(
+                                    info,
+                                    updateFlowLauncher,
+                                    AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build()
+                                )
+                            } catch (error: Exception) {
+                                isUpdateFlowInProgress = false
+                                Toast.makeText(
+                                    this,
+                                    "Unable to start update. Please try again later.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                        .setNegativeButton("Later", null)
+                        .show()
+                }
+            }
+            .addOnFailureListener {
+                isCheckingForAppUpdate = false
+            }
+    }
+
+    private fun showUpdateDownloadedDialog() {
+        if (isFinishing || isDestroyed || isUpdateCompletionDialogShowing) return
+
+        isUpdateCompletionDialogShowing = true
+
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("Update Ready")
+            .setMessage(
+                "The Ledger update has been downloaded. " +
+                    "Restart the app now to install the update."
+            )
+            .setPositiveButton("Restart Now") { _, _ ->
+                appUpdateManager.completeUpdate()
+            }
+            .setNegativeButton("Later", null)
+            .create()
+
+        dialog.setOnDismissListener {
+            isUpdateCompletionDialogShowing = false
+        }
+
+        dialog.show()
     }
 
     private fun launchPremiumPurchase() {

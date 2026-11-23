@@ -12,8 +12,8 @@ android {
         applicationId = "in.alignos.ledger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 34
-        versionName = "0.7.8"
+        versionCode = 35
+        versionName = "0.7.9"
     }
 
     signingConfigs {
@@ -52,6 +52,7 @@ android {
 
 dependencies {
     implementation("com.android.billingclient:billing:9.1.0")
+    implementation("com.google.android.play:app-update:2.1.0")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")

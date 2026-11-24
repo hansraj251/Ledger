@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -42,14 +43,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.rememberDatePickerState
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneOffset
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -102,6 +104,26 @@ fun OnlineGroupExpensesSection(
     }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var selectedMonth by remember(groupId) { mutableStateOf(YearMonth.now()) }
+    var monthMenuExpanded by remember { mutableStateOf(false) }
+
+    val monthFormatter = remember {
+        DateTimeFormatter.ofPattern("MMMM yyyy")
+    }
+    val availableMonths = remember(data.expenses, selectedMonth) {
+        (data.expenses.map {
+            YearMonth.from(
+                Instant.ofEpochMilli(it.expenseDateMs).atZone(ZoneOffset.UTC)
+            )
+        } + selectedMonth).distinct().sortedDescending()
+    }
+    val filteredExpenses = remember(data.expenses, selectedMonth) {
+        data.expenses.filter {
+            YearMonth.from(
+                Instant.ofEpochMilli(it.expenseDateMs).atZone(ZoneOffset.UTC)
+            ) == selectedMonth
+        }.sortedByDescending { it.expenseDateMs }
+    }
 
     var showEditor by remember { mutableStateOf(false) }
     var settlementMode by remember { mutableStateOf(false) }
@@ -237,6 +259,88 @@ fun OnlineGroupExpensesSection(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Expenses",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Box {
+                OutlinedButton(
+                    onClick = { monthMenuExpanded = true },
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = Color(0xFF263449)
+                    )
+                ) {
+                    Text(
+                        "▦",
+                        color = Color(0xFF3975C6),
+                        fontSize = 17.sp
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        selectedMonth.format(monthFormatter),
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Text("⌄", color = Color(0xFF64748B))
+                }
+
+                DropdownMenu(
+                    expanded = monthMenuExpanded,
+                    onDismissRequest = { monthMenuExpanded = false },
+                    modifier = Modifier.background(Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = Color.White,
+                    tonalElevation = 5.dp,
+                    shadowElevation = 8.dp
+                ) {
+                    availableMonths.forEach { month ->
+                        val isSelected = month == selectedMonth
+
+                        DropdownMenuItem(
+                            modifier = Modifier
+                                .padding(horizontal = 6.dp)
+                                .background(
+                                    color = if (isSelected) Color(0xFFEAF2FF)
+                                    else Color.Transparent,
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            text = {
+                                Text(
+                                    month.format(monthFormatter),
+                                    color = if (isSelected) Color(0xFF245DA8)
+                                    else Color(0xFF263449),
+                                    fontWeight = if (isSelected) FontWeight.Bold
+                                    else FontWeight.Normal
+                                )
+                            },
+                            leadingIcon = {
+                                Text(
+                                    if (isSelected) "✓" else " ",
+                                    color = Color(0xFF2872C8),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            },
+                            onClick = {
+                                selectedMonth = month
+                                monthMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
         if (loading) {
             CircularProgressIndicator()
         }
@@ -252,7 +356,14 @@ fun OnlineGroupExpensesSection(
             )
         }
 
-        if (data.expenses.isNotEmpty()) {
+        if (!loading && data.expenses.isNotEmpty() && filteredExpenses.isEmpty()) {
+            Text(
+                "No expenses for ${selectedMonth.format(monthFormatter)}.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (filteredExpenses.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -260,7 +371,7 @@ fun OnlineGroupExpensesSection(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(
-                    data.expenses.sortedByDescending { it.expenseDateMs },
+                    filteredExpenses,
                     key = { it.id }
                 ) { expense ->
                     Card(
@@ -983,32 +1094,26 @@ fun OnlineGroupExpensesSection(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = expenseDateMs
-        )
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val selectedDate = Instant.ofEpochMilli(expenseDateMs)
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
 
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let {
-                            expenseDateMs = it
-                        }
-                        showDatePicker = false
-                    }
-                ) {
-                    Text("OK")
-                }
+        android.app.DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                expenseDateMs = LocalDate.of(year, month + 1, day)
+                    .atStartOfDay(ZoneOffset.UTC)
+                    .toInstant()
+                    .toEpochMilli()
+                showDatePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
+            selectedDate.year,
+            selectedDate.monthValue - 1,
+            selectedDate.dayOfMonth
+        ).apply {
+            setOnCancelListener { showDatePicker = false }
+        }.show()
     }
 
     deletingExpense?.let { expense ->

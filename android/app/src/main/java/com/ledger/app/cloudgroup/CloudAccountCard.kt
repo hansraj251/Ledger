@@ -79,7 +79,7 @@ fun CloudAccountCard() {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Online Groups Account",
+                text = "Ledger Online",
                 style = MaterialTheme.typography.titleMedium
             )
             Text(

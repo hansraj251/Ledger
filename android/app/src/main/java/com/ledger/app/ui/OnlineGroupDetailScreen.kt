@@ -107,6 +107,9 @@ fun OnlineGroupDetailScreen(
     }
     var addExpenseRequest by remember { mutableStateOf(0) }
     var selectedMemberDetail by remember { mutableStateOf<CloudGroupMember?>(null) }
+    var showSettledOnly by remember(selectedMemberDetail?.id) {
+        mutableStateOf(false)
+    }
     var memberExpenseData by remember {
         mutableStateOf(CloudGroupExpenseData(emptyList(), emptyList(), emptyList()))
     }
@@ -801,6 +804,14 @@ Column(
                     .filter { it.id in memberExpenseIds }
                     .sortedByDescending { it.expenseDateMs }
 
+                val visibleDetailExpenses = if (showSettledOnly) {
+                    detailExpenses.filter {
+                        it.title.trim().equals("Settled", ignoreCase = true)
+                    }
+                } else {
+                    detailExpenses
+                }
+
                 Column(Modifier.fillMaxSize()) {
                     Row(
                         modifier = Modifier
@@ -919,7 +930,11 @@ Column(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Card(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    showSettledOnly = !showSettledOnly
+                                },
                             shape = RoundedCornerShape(16.dp),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
                                 containerColor = Color.White
@@ -1017,20 +1032,15 @@ Column(
                         }
                     }
                     }
-                    Text(
-                        "Expense History",
-                        modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
 
-                    if (detailExpenses.isEmpty()) {
+                    if (visibleDetailExpenses.isEmpty()) {
                         Box(
                             Modifier.fillMaxSize().padding(24.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                "No expenses recorded for this member.",
+                                if (showSettledOnly) "No settled entries found."
+                                else "No expenses recorded for this member.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1042,7 +1052,7 @@ Column(
                             ),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(detailExpenses, key = { it.id }) { expense ->
+                            items(visibleDetailExpenses, key = { it.id }) { expense ->
                                 val isSettlement = expense.title.trim()
                                     .equals("Settled", ignoreCase = true)
 

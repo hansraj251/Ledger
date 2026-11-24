@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -278,9 +279,10 @@ fun OnlineGroupExpensesSection(
         ) {
             Row(
                 modifier = Modifier
-                    .background(Color(0xFFF1F5F9), RoundedCornerShape(13.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    .height(36.dp)
+                    .background(Color(0xFFF1F5F9), RoundedCornerShape(11.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 listOf("Expenses", "Settlement").forEach { tab ->
@@ -293,7 +295,7 @@ fun OnlineGroupExpensesSection(
                                 RoundedCornerShape(10.dp)
                             )
                             .clickable { selectedTransactionTab = tab }
-                            .padding(horizontal = 11.dp, vertical = 9.dp),
+                            .padding(horizontal = 9.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -302,7 +304,7 @@ fun OnlineGroupExpensesSection(
                             else Color(0xFF64748B),
                             fontWeight = if (selected) FontWeight.Bold
                             else FontWeight.Medium,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     }
                 }
@@ -311,7 +313,9 @@ fun OnlineGroupExpensesSection(
             Box {
                 OutlinedButton(
                     onClick = { monthMenuExpanded = true },
-                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(11.dp),
                     border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = Color.White,
@@ -321,15 +325,15 @@ fun OnlineGroupExpensesSection(
                     Text(
                         "▦",
                         color = Color(0xFF3975C6),
-                        fontSize = 17.sp
+                        fontSize = 14.sp
                     )
-                    Spacer(Modifier.width(7.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         selectedMonth.format(monthFormatter),
                         fontWeight = FontWeight.SemiBold,
-                        fontSize = 13.sp
+                        fontSize = 11.sp
                     )
-                    Spacer(Modifier.width(7.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text("⌄", color = Color(0xFF64748B))
                 }
 

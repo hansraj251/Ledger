@@ -136,7 +136,7 @@ fun OnlineGroupExpensesSection(
     }
 
     suspend fun refreshExpenses() {
-        loading = true
+        loading = data.expenses.isEmpty() && !expenseDataLoaded
         error = null
         try {
             val loadedData = withContext(Dispatchers.IO) {

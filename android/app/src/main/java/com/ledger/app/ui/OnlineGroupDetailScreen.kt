@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ledger.app.cloudgroup.CloudGroup
+import com.ledger.app.cloudgroup.CloudGroupCache
 import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
 import com.ledger.app.cloudgroup.CloudGroupMemberBalance
 import com.ledger.app.cloudgroup.CloudGroupMember
@@ -70,15 +71,31 @@ fun OnlineGroupDetailScreen(
     isPremium: Boolean,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val cloudGroupCache = remember(context) {
+        CloudGroupCache(context.applicationContext)
+    }
+    val cachedGroupDetail = remember(groupId, cloudGroupCache) {
+        cloudGroupCache.loadDetail(groupId)
+    }
+
     val repository = remember {
         CloudGroupRepository(CloudSupabaseRemoteDataSource())
     }
     val scope = rememberCoroutineScope()
 
-    var group by remember(groupId) { mutableStateOf<CloudGroup?>(null) }
-    var members by remember(groupId) { mutableStateOf<List<CloudGroupMember>>(emptyList()) }
-    var currentUserId by remember(groupId) { mutableStateOf<String?>(null) }
-    var isLoading by remember(groupId) { mutableStateOf(true) }
+    var group by remember(groupId) {
+        mutableStateOf(cachedGroupDetail?.group)
+    }
+    var members by remember(groupId) {
+        mutableStateOf(cachedGroupDetail?.members.orEmpty())
+    }
+    var currentUserId by remember(groupId) {
+        mutableStateOf(cachedGroupDetail?.currentUserId)
+    }
+    var isLoading by remember(groupId) {
+        mutableStateOf(cachedGroupDetail == null)
+    }
     var isBusy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -113,10 +130,13 @@ fun OnlineGroupDetailScreen(
         mutableStateOf("all")
     }
     var memberExpenseData by remember(groupId) {
-        mutableStateOf(CloudGroupExpenseData(emptyList(), emptyList(), emptyList()))
+        mutableStateOf(
+            cachedGroupDetail?.expenseData
+                ?: CloudGroupExpenseData(emptyList(), emptyList(), emptyList())
+        )
     }
     var memberExpenseDataLoaded by remember(groupId) {
-        mutableStateOf(false)
+        mutableStateOf(cachedGroupDetail?.expenseData != null)
     }
     var memberExpenseLoading by remember { mutableStateOf(false) }
     var memberExpenseError by remember { mutableStateOf<String?>(null) }
@@ -132,7 +152,9 @@ fun OnlineGroupDetailScreen(
         group!!.ownerId == currentUserId
 
     suspend fun refresh() {
-        isLoading = true
+        if (group == null) {
+            isLoading = true
+        }
         errorMessage = null
         try {
             val result: Triple<CloudGroup?, List<CloudGroupMember>, String?> =
@@ -153,6 +175,14 @@ fun OnlineGroupDetailScreen(
             }
 
             currentUserId = result.third
+
+            cloudGroupCache.saveDetail(
+                groupId = groupId,
+                group = result.first,
+                members = result.second,
+                currentUserId = result.third,
+                expenseData = if (memberExpenseDataLoaded) memberExpenseData else null
+            )
 
             if (group == null) {
                 errorMessage = "This group could not be found or you do not have access."
@@ -203,6 +233,13 @@ fun OnlineGroupDetailScreen(
                 }
                 memberExpenseData = result.first
                 memberExpenseDataLoaded = true
+                cloudGroupCache.saveDetail(
+                    groupId = groupId,
+                    group = group,
+                    members = members,
+                    currentUserId = currentUserId,
+                    expenseData = result.first
+                )
                 deleteBalances = result.second
             } catch (error: CancellationException) {
                 throw error
@@ -241,8 +278,8 @@ fun OnlineGroupDetailScreen(
     }
 
     LaunchedEffect(groupId, selectedGroupSection) {
-        if (selectedGroupSection == "Members" && !memberExpenseDataLoaded) {
-            memberExpenseLoading = true
+        if (selectedGroupSection == "Members") {
+            memberExpenseLoading = !memberExpenseDataLoaded
             memberExpenseError = null
             try {
                 val loadedData = withContext(Dispatchers.IO) {
@@ -250,10 +287,19 @@ fun OnlineGroupDetailScreen(
                 }
                 memberExpenseData = loadedData
                 memberExpenseDataLoaded = true
+
+                cloudGroupCache.saveDetail(
+                    groupId = groupId,
+                    group = group,
+                    members = members,
+                    currentUserId = currentUserId,
+                    expenseData = loadedData
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                memberExpenseError = error.message ?: "Could not load member expense details."
+                memberExpenseError = error.message
+                    ?: "Could not load member expense details."
             } finally {
                 memberExpenseLoading = false
             }
@@ -508,6 +554,13 @@ fun OnlineGroupDetailScreen(
                                 memberExpenseData = loadedData
                                 memberExpenseDataLoaded = true
                                 memberExpenseError = null
+                                cloudGroupCache.saveDetail(
+                                    groupId = groupId,
+                                    group = group,
+                                    members = members,
+                                    currentUserId = currentUserId,
+                                    expenseData = loadedData
+                                )
                             },
                             onAddExpenseRequestConsumed = {
                                 addExpenseRequest = 0

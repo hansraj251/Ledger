@@ -88,6 +88,7 @@ data class CloudGroupMemberAddResult(
 )
 
 
+@Serializable
 data class CloudGroupExpenseData(
     val expenses: List<CloudGroupExpense>,
     val splits: List<CloudGroupExpenseSplit>,

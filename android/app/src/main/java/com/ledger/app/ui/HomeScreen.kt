@@ -4,6 +4,7 @@ import com.ledger.app.cloudgroup.CloudAuthManager
 import com.ledger.app.cloudgroup.CloudAuthenticatedUser
 import com.ledger.app.cloudgroup.CloudGroup
 import com.ledger.app.cloudgroup.CloudGroupRepository
+import com.ledger.app.cloudgroup.CloudGroupCache
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -153,13 +154,22 @@ fun HomeScreen(
         CloudGroupRepository(CloudSupabaseRemoteDataSource())
     }
 
+    val cloudGroupCache = remember(context) {
+        CloudGroupCache(context.applicationContext)
+    }
+    val cachedOnlineGroups = remember(cloudGroupCache) {
+        cloudGroupCache.loadLastGroups()
+    }
+
     var cloudUser by remember {
         mutableStateOf<CloudAuthenticatedUser?>(null)
     }
     var onlineGroups by remember {
-        mutableStateOf<List<CloudGroup>>(emptyList())
+        mutableStateOf(cachedOnlineGroups.orEmpty())
     }
-    var isOnlineGroupsLoading by remember { mutableStateOf(true) }
+    var isOnlineGroupsLoading by remember {
+        mutableStateOf(cachedOnlineGroups == null)
+    }
     var onlineGroupsError by remember { mutableStateOf<String?>(null) }
     var showCreateOnlineGroupDialog by rememberSaveable {
         mutableStateOf(false)
@@ -297,18 +307,27 @@ fun HomeScreen(
     }
 
     LaunchedEffect(cloudAuthManager) {
-        isOnlineGroupsLoading = true
+        if (onlineGroups.isEmpty()) {
+            isOnlineGroupsLoading = true
+        }
         onlineGroupsError = null
         try {
-            cloudUser = withContext(Dispatchers.IO) {
+            val restoredUser = withContext(Dispatchers.IO) {
                 cloudAuthManager.restoreSession()
             }
-            onlineGroups = if (cloudUser != null) {
+            cloudUser = restoredUser
+
+            val latestGroups = if (restoredUser != null) {
                 withContext(Dispatchers.IO) {
                     cloudGroupRepository.loadGroups()
                 }
             } else {
                 emptyList()
+            }
+
+            onlineGroups = latestGroups
+            if (restoredUser != null) {
+                cloudGroupCache.saveGroups(restoredUser.userId, latestGroups)
             }
         } catch (error: CancellationException) {
             throw error
@@ -1669,29 +1688,6 @@ item {
             }
 
             if (activeHomeFilter == "All" || activeHomeFilter == "Groups") {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp, bottom = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Online Groups",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Cloud synced groups",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                    }
-                }
-
                 if (isOnlineGroupsLoading) {
                     item {
                         Row(
@@ -1728,18 +1724,30 @@ item {
                                 TextButton(
                                     onClick = {
                                         scope.launch {
-                                            isOnlineGroupsLoading = true
+                                            if (onlineGroups.isEmpty()) {
+                                                isOnlineGroupsLoading = true
+                                            }
                                             onlineGroupsError = null
                                             try {
-                                                cloudUser = withContext(Dispatchers.IO) {
+                                                val restoredUser = withContext(Dispatchers.IO) {
                                                     cloudAuthManager.restoreSession()
                                                 }
-                                                onlineGroups = if (cloudUser != null) {
+                                                cloudUser = restoredUser
+
+                                                val latestGroups = if (restoredUser != null) {
                                                     withContext(Dispatchers.IO) {
                                                         cloudGroupRepository.loadGroups()
                                                     }
                                                 } else {
                                                     emptyList()
+                                                }
+
+                                                onlineGroups = latestGroups
+                                                if (restoredUser != null) {
+                                                    cloudGroupCache.saveGroups(
+                                                        restoredUser.userId,
+                                                        latestGroups
+                                                    )
                                                 }
                                             } catch (error: CancellationException) {
                                                 throw error
@@ -1753,31 +1761,6 @@ item {
                                     }
                                 ) {
                                     Text("Retry")
-                                }
-                            }
-                        }
-                    }
-                } else if (cloudUser == null) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "Connect your Google account to use Online Groups.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Button(
-                                    onClick = onProfileClick,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Connect Google Account")
                                 }
                             }
                         }
@@ -1846,15 +1829,6 @@ item {
                                     text = group.name,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = if (group.ownerId == cloudUser?.userId) {
-                                        "Online • Owner"
-                                    } else {
-                                        "Online • Member"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -2667,6 +2641,9 @@ title = { Text("Delete Party?") },
                                         cloudGroupRepository.createGroup(newOnlineGroupName)
                                     }
                                     onlineGroups = listOf(created) + onlineGroups
+                                    cloudUser?.userId?.let { userId ->
+                                        cloudGroupCache.saveGroups(userId, onlineGroups)
+                                    }
                                     newOnlineGroupName = ""
                                     showCreateOnlineGroupDialog = false
                                 } catch (error: CancellationException) {

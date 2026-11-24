@@ -684,15 +684,9 @@ fun OnlineGroupExpensesSection(
                             },
                             label = { Text("Title") },
                             singleLine = true,
-                            isError = hasReservedSettlementTitle,
-                            supportingText = {
-                                if (hasReservedSettlementTitle) {
-                                    Text("Settlement-related titles are reserved.")
-                                }
-                            },
                             readOnly = settlementMode,
                             enabled = !busy,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
@@ -701,7 +695,7 @@ fun OnlineGroupExpensesSection(
                             label = { Text("Amount") },
                             singleLine = true,
                             enabled = !busy,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = RoundedCornerShape(15.dp)
                         )

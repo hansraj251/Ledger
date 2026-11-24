@@ -107,8 +107,10 @@ fun OnlineGroupDetailScreen(
     }
     var addExpenseRequest by remember { mutableStateOf(0) }
     var selectedMemberDetail by remember { mutableStateOf<CloudGroupMember?>(null) }
-    var showSettledOnly by remember(selectedMemberDetail?.id) {
-        mutableStateOf(false)
+    // all = normal history, member = selected member paid,
+    // others = another member paid in a settlement involving this member.
+    var settlementHistoryFilter by remember(selectedMemberDetail?.id) {
+        mutableStateOf("all")
     }
     var memberExpenseData by remember {
         mutableStateOf(CloudGroupExpenseData(emptyList(), emptyList(), emptyList()))
@@ -821,19 +823,43 @@ Column(
                     memberShare - memberPaid
                 }
                 val memberExpenseIds = (
-                    memberExpenseData.splits.filter { it.memberId == detailMember.id }.map { it.expenseId } +
-                    memberExpenseData.payments.filter { it.memberId == detailMember.id }.map { it.expenseId }
+                    memberExpenseData.splits
+                        .filter { it.memberId == detailMember.id }
+                        .map { it.expenseId } +
+                    memberExpenseData.payments
+                        .filter { it.memberId == detailMember.id }
+                        .map { it.expenseId }
                 ).toSet()
+
+                // A settlement can involve this member even when another member
+                // is the only payer recorded on that settlement transaction.
+
+
                 val detailExpenses = memberExpenseData.expenses
-                    .filter { it.id in memberExpenseIds }
+                    .filter {
+                        it.id in memberExpenseIds ||
+                            it.id in memberSettlementExpenseIds
+                    }
                     .sortedByDescending { it.expenseDateMs }
 
-                val visibleDetailExpenses = if (showSettledOnly) {
-                    detailExpenses.filter {
-                        it.title.trim().equals("Settled", ignoreCase = true)
+                val visibleDetailExpenses = when (settlementHistoryFilter) {
+                    "member" -> detailExpenses.filter { expense ->
+                        expense.id in memberSettlementExpenseIds &&
+                            memberExpenseData.payments.any {
+                                it.expenseId == expense.id &&
+                                    it.memberId == detailMember.id
+                            }
                     }
-                } else {
-                    detailExpenses
+
+                    "others" -> detailExpenses.filter { expense ->
+                        expense.id in memberSettlementExpenseIds &&
+                            memberExpenseData.payments.any {
+                                it.expenseId == expense.id &&
+                                    it.memberId != detailMember.id
+                            }
+                    }
+
+                    else -> detailExpenses
                 }
 
                 Column(Modifier.fillMaxSize()) {
@@ -957,7 +983,9 @@ Column(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    showSettledOnly = !showSettledOnly
+                                    settlementHistoryFilter =
+                                        if (settlementHistoryFilter == "member") "all"
+                                        else "member"
                                 },
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color(0xFFE8D8A8)),
@@ -985,7 +1013,13 @@ Column(
                             }
                         }
                     Card(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                settlementHistoryFilter =
+                                    if (settlementHistoryFilter == "others") "all"
+                                    else "others"
+                            },
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, Color(0xFFE8D8A8)),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
@@ -1114,8 +1148,11 @@ Column(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                if (showSettledOnly) "No settled entries found."
-                                else "No expenses recorded for this member.",
+                                when (settlementHistoryFilter) {
+                                    "member" -> "No settlements paid by ${detailMember.memberName} found."
+                                    "others" -> "No settlements paid by other members found."
+                                    else -> "No expenses recorded for this member."
+                                },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }

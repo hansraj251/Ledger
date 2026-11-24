@@ -760,10 +760,34 @@ Column(
                             it.expenseId in nonSettlementExpenseIds
                     }
                     .sumOf { it.amount }
+                val memberSettlementExpenseIds = memberExpenseData.expenses
+                    .filter { expense ->
+                        expense.title.trim().equals("Settled", ignoreCase = true) &&
+                            (
+                                memberExpenseData.splits.any {
+                                    it.expenseId == expense.id &&
+                                        it.memberId == detailMember.id
+                                } ||
+                                memberExpenseData.payments.any {
+                                    it.expenseId == expense.id &&
+                                        it.memberId == detailMember.id
+                                }
+                            )
+                    }
+                    .map { it.id }
+                    .toSet()
+
                 val memberSettled = memberExpenseData.payments
                     .filter {
                         it.memberId == detailMember.id &&
-                            it.expenseId !in nonSettlementExpenseIds
+                            it.expenseId in memberSettlementExpenseIds
+                    }
+                    .sumOf { it.amount }
+
+                val memberSettledByOthers = memberExpenseData.payments
+                    .filter {
+                        it.memberId != detailMember.id &&
+                            it.expenseId in memberSettlementExpenseIds
                     }
                     .sumOf { it.amount }
                 val memberPairwiseResult = remember(
@@ -942,7 +966,7 @@ Column(
                         ) {
                             Column(Modifier.padding(14.dp)) {
                                 Text(
-                                    "Settled",
+                                    "Settled by ${detailMember.memberName}",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFF77500A)
@@ -959,6 +983,42 @@ Column(
                                 )
                             }
                         }
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = Color.White
+                        )
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text(
+                                "Settled by others",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF77500A)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "₹" + String.format(
+                                    java.util.Locale.getDefault(),
+                                    "%,.2f",
+                                    memberSettledByOthers
+                                ),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF2E7D32),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    }
+ 
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                     Card(
                         modifier = Modifier
                             .weight(1f)
@@ -1032,6 +1092,7 @@ Column(
                         }
                     }
                     }
+
 
                     if (visibleDetailExpenses.isEmpty()) {
                         Box(
@@ -1146,6 +1207,30 @@ Column(
                                                         }
                                                     }
                                                 }
+                                            val otherMembersPaid = settlementPayments
+                                                .filter { it.memberId != detailMember.id }
+                                                .sumOf { it.amount }
+
+                                            if (otherMembersPaid > 0.009) {
+                                                Spacer(Modifier.height(8.dp))
+                                                Row {
+                                                    Text(
+                                                        "Other Members Paid",
+                                                        color = Color(0xFF16804A),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Spacer(Modifier.weight(1f))
+                                                    Text(
+                                                        "₹" + String.format(
+                                                            java.util.Locale.getDefault(),
+                                                            "%,.2f",
+                                                            otherMembersPaid
+                                                        ),
+                                                        color = Color(0xFF16804A),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+}
                                         } else {
                                             split?.let {
                                                 Spacer(Modifier.height(8.dp))

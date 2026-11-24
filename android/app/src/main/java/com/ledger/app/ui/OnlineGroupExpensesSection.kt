@@ -818,15 +818,27 @@ fun OnlineGroupExpensesSection(
                                             value.toDoubleOrNull()?.let { id to it }
                                         }.toMap()
                                     )
-                                    val paymentDrafts = CloudGroupExpenseDraftCalculator.buildPayments(
-                                        totalAmount = total,
-                                        members = joinedMembers,
-                                        youMemberId = youMember!!.id,
-                                        otherMemberAmounts = paidAmounts.mapValues { (_, value) ->
-                                            value.toDoubleOrNull() ?: 0.0
-                                        },
-                                        paymentType = category
-                                    )
+                                    val paymentDrafts = if (settlementMode) {
+                                        CloudGroupExpenseDraftCalculator.buildManualPayments(
+                                            totalAmount = total,
+                                            members = joinedMembers,
+                                            payerAmounts = paidAmounts.mapValues { (_, value) ->
+                                                value.toDoubleOrNull() ?: 0.0
+                                            },
+                                            excludedMemberIds = selectedIds,
+                                            paymentType = category
+                                        )
+                                    } else {
+                                        CloudGroupExpenseDraftCalculator.buildPayments(
+                                            totalAmount = total,
+                                            members = joinedMembers,
+                                            youMemberId = youMember!!.id,
+                                            otherMemberAmounts = paidAmounts.mapValues { (_, value) ->
+                                                value.toDoubleOrNull() ?: 0.0
+                                            },
+                                            paymentType = category
+                                        )
+                                    }
                                     val existing = editingExpense
                                     showEditor = false
                                     runAction {
@@ -956,6 +968,7 @@ fun OnlineGroupExpensesSection(
     deletingExpense?.let { expense ->
         AlertDialog(
             onDismissRequest = { if (!busy) deletingExpense = null },
+            containerColor = androidx.compose.ui.graphics.Color.White,
             title = { Text("Delete Expense?") },
             text = { Text("Delete '${expense.title}' and its split/payment records?") },
             confirmButton = {

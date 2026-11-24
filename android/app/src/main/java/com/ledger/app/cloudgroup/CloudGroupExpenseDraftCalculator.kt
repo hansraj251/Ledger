@@ -180,6 +180,57 @@ object CloudGroupExpenseDraftCalculator {
         return result
     }
 
+    fun buildManualPayments(
+        totalAmount: Double,
+        members: List<CloudGroupMember>,
+        payerAmounts: Map<String, Double>,
+        excludedMemberIds: Set<String> = emptySet(),
+        paymentType: String = "Cash"
+    ): List<CloudGroupExpensePaymentDraft> {
+        val totalPaise = toPaise(totalAmount)
+        require(totalPaise > 0L) {
+            "Expense amount must be greater than zero."
+        }
+        require(paymentType in setOf("Cash", "Online")) {
+            "Unsupported payment type."
+        }
+
+        val joinedMembers = members.filter { it.status == "joined" }
+        val memberById = joinedMembers.associateBy { it.id }
+        require(memberById.size == joinedMembers.size) {
+            "Duplicate member IDs are not allowed."
+        }
+        require(excludedMemberIds.all { it in memberById }) {
+            "Excluded member is unknown or unjoined."
+        }
+        require(payerAmounts.keys.all { it in memberById }) {
+            "Payment references an unknown or unjoined member."
+        }
+        require(payerAmounts.keys.none { it in excludedMemberIds }) {
+            "A receiving member cannot also be entered as a payer."
+        }
+
+        val payments = payerAmounts.mapNotNull { (memberId, amount) ->
+            val paise = toPaise(amount)
+            if (paise == 0L) null else memberById.getValue(memberId) to paise
+        }
+        require(payments.isNotEmpty()) {
+            "Enter the amount paid by at least one member."
+        }
+        require(payments.sumOf { it.second } == totalPaise) {
+            "Payer amounts must add up exactly to the expense amount."
+        }
+
+        return payments.map { (member, paise) ->
+            CloudGroupExpensePaymentDraft(
+                memberId = member.id,
+                memberName = member.memberName,
+                amount = fromPaise(paise),
+                paymentType = paymentType
+            )
+        }
+    }
+
     private fun equalSplit(totalPaise: Long, count: Int): List<Long> {
         val base = totalPaise / count
         val remainder = (totalPaise % count).toInt()

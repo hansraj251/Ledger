@@ -20,7 +20,8 @@ object CloudGroupPairwiseBalanceCalculator {
         members: List<CloudGroupMember>,
         expenses: List<CloudGroupExpense>,
         splits: List<CloudGroupExpenseSplit>,
-        payments: List<CloudGroupExpensePayment>
+        payments: List<CloudGroupExpensePayment>,
+        settlements: List<CloudGroupSettlementTransaction> = emptyList()
     ): CloudGroupPairwiseBalanceResult {
 
         val joinedIds = members
@@ -167,8 +168,64 @@ object CloudGroupPairwiseBalanceCalculator {
             }
         }
 
+        settlements.forEach { settlement ->
+            require(settlement.fromMemberId in joinedIds &&
+                settlement.toMemberId in joinedIds) {
+                "Settlement references an unknown or unjoined member."
+            }
+            require(settlement.fromMemberId != settlement.toMemberId) {
+                "Settlement payer and receiver must be different."
+            }
+
+            val amount = toPaise(settlement.amount)
+            require(amount > 0L) {
+                "Settlement amount must be greater than zero."
+            }
+
+            val key = settlement.fromMemberId to settlement.toMemberId
+            val outstanding = debts.getOrDefault(key, 0L)
+            val applied = minOf(outstanding, amount)
+
+            if (applied > 0L) {
+                val remaining = outstanding - applied
+                if (remaining == 0L) debts.remove(key)
+                else debts[key] = remaining
+            }
+
+            val excess = amount - applied
+            if (excess > 0L) {
+                val reverseKey = settlement.toMemberId to settlement.fromMemberId
+                debts[reverseKey] = Math.addExact(
+                    debts.getOrDefault(reverseKey, 0L),
+                    excess
+                )
+            }
+        }
+
+        val netDebts = mutableMapOf<Pair<String, String>, Long>()
+
+        val memberPairs = debts.keys
+            .map { (from, to) ->
+                if (from < to) from to to else to to from
+            }
+            .toSet()
+
+        memberPairs.forEach { (first, second) ->
+            val forwardKey = first to second
+            val reverseKey = second to first
+
+            val difference = debts.getOrDefault(forwardKey, 0L) -
+                debts.getOrDefault(reverseKey, 0L)
+
+            if (difference > 0L) {
+                netDebts[forwardKey] = difference
+            } else if (difference < 0L) {
+                netDebts[reverseKey] = -difference
+            }
+        }
+
         return CloudGroupPairwiseBalanceResult(
-            debts = debts.map { (key, amount) ->
+            debts = netDebts.map { (key, amount) ->
                 CloudGroupPairwiseDebt(
                     fromMemberId = key.first,
                     toMemberId = key.second,

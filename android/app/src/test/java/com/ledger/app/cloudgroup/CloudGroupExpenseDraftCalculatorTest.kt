@@ -129,4 +129,42 @@ class CloudGroupExpenseDraftCalculatorTest {
         assertEquals("you", result.single().memberId)
         assertEquals(50.0, result.single().amount, 0.001)
     }
+
+    @Test
+    fun manualPayments_useEnteredPayersWithoutAutomaticYouAmount() {
+        val result = CloudGroupExpenseDraftCalculator.buildManualPayments(
+            totalAmount = 100.00,
+            members = listOf(member("you", "You"), member("m1"), member("m2")),
+            payerAmounts = mapOf("you" to 40.00, "m2" to 60.00),
+            excludedMemberIds = setOf("m1"),
+            paymentType = "Online"
+        )
+
+        assertEquals(listOf("you", "m2"), result.map { it.memberId })
+        assertEquals(listOf(40.0, 60.0), result.map { it.amount })
+        assertEquals(setOf("Online"), result.map { it.paymentType }.toSet())
+    }
+
+    @Test
+    fun manualPayments_rejectAmountsThatDoNotMatchTotal() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CloudGroupExpenseDraftCalculator.buildManualPayments(
+                totalAmount = 100.00,
+                members = listOf(member("you"), member("m1")),
+                payerAmounts = mapOf("you" to 40.00, "m1" to 50.00)
+            )
+        }
+    }
+
+    @Test
+    fun manualPayments_rejectReceivingMemberAsPayer() {
+        assertThrows(IllegalArgumentException::class.java) {
+            CloudGroupExpenseDraftCalculator.buildManualPayments(
+                totalAmount = 100.00,
+                members = listOf(member("you"), member("m1")),
+                payerAmounts = mapOf("you" to 100.00),
+                excludedMemberIds = setOf("you")
+            )
+        }
+    }
 }

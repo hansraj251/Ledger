@@ -54,6 +54,8 @@ import com.ledger.app.cloudgroup.CloudGroup
 import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
 import com.ledger.app.cloudgroup.CloudGroupMemberBalance
 import com.ledger.app.cloudgroup.CloudGroupMember
+import com.ledger.app.cloudgroup.CloudGroupPairwiseBalanceCalculator
+import com.ledger.app.cloudgroup.CloudGroupPairwiseDebt
 import com.ledger.app.cloudgroup.CloudGroupExpenseData
 import com.ledger.app.cloudgroup.CloudGroupRepository
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
@@ -110,6 +112,11 @@ fun OnlineGroupDetailScreen(
     }
     var memberExpenseLoading by remember { mutableStateOf(false) }
     var memberExpenseError by remember { mutableStateOf<String?>(null) }
+    var showBalanceBreakdown by remember { mutableStateOf(false) }
+    var balanceBreakdownLoading by remember { mutableStateOf(false) }
+    var balanceBreakdownError by remember { mutableStateOf<String?>(null) }
+    var balanceBreakdownDebts by remember { mutableStateOf<List<CloudGroupPairwiseDebt>>(emptyList()) }
+    var balanceBreakdownUnallocated by remember { mutableStateOf<Set<String>>(emptySet()) }
 
 
     val isOwner = group != null &&
@@ -276,7 +283,8 @@ fun OnlineGroupDetailScreen(
         }
     }
 
-    BackHandler(onBack = onBack)
+    BackHandler(enabled = showBalanceBreakdown) { showBalanceBreakdown = false }
+    BackHandler(enabled = !showBalanceBreakdown, onBack = onBack)
 
     Scaffold(
         floatingActionButton = {
@@ -613,46 +621,84 @@ fun OnlineGroupDetailScreen(
 }
 Spacer(Modifier.width(12.dp))
 Column(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .clickable { selectedMemberDetail = member }
-                                                ) {
-                                                    Text(
-                                                        text = member.memberName,
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.Medium
-                                                    )
-                                                    Text(
-                                                        text = member.memberEmail,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                    val memberShare = memberExpenseData.splits
-                                                        .filter { it.memberId == member.id }
-                                                        .sumOf { it.amount }
-                                                    val memberPaid = memberExpenseData.payments
-                                                        .filter { it.memberId == member.id }
-                                                        .sumOf { it.amount }
-                                                    val memberBalance = memberShare - memberPaid
-                                                    Text(
-                                                        text = when {
-                                                            member.status != "joined" -> "Invitation pending"
-                                                            kotlin.math.abs(memberBalance) < 0.01 -> "Settled"
-                                                            memberBalance > 0 -> "Remaining ₹" + String.format(
-                                                                java.util.Locale.getDefault(), "%,.2f", memberBalance
-                                                            )
-                                                            else -> "Excess paid ₹" + String.format(
-                                                                java.util.Locale.getDefault(), "%,.2f", -memberBalance
-                                                            )
-                                                        },
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = when {
-                                                            member.status != "joined" -> MaterialTheme.colorScheme.onSurfaceVariant
-                                                            memberBalance > 0.009 -> MaterialTheme.colorScheme.error
-                                                            else -> MaterialTheme.colorScheme.primary
-                                                        }
-                                                    )
-                                                }
+    modifier = Modifier
+        .weight(1f)
+        .clickable { selectedMemberDetail = member }
+) {
+    val memberShare = memberExpenseData.splits
+        .filter { it.memberId == member.id }
+        .sumOf { it.amount }
+    val memberPaid = memberExpenseData.payments
+        .filter { it.memberId == member.id }
+        .sumOf { it.amount }
+    val memberBalance = memberShare - memberPaid
+
+    val balanceLabel = when {
+        member.status != "joined" -> ""
+        kotlin.math.abs(memberBalance) < 0.01 -> "Settled"
+        memberBalance > 0 -> "Will Give"
+        else -> "Will Get"
+    }
+
+    val balanceColor = when {
+        member.status != "joined" -> MaterialTheme.colorScheme.onSurfaceVariant
+        kotlin.math.abs(memberBalance) < 0.01 -> MaterialTheme.colorScheme.primary
+        memberBalance > 0 -> androidx.compose.ui.graphics.Color(0xFF2E7D32)
+        else -> androidx.compose.ui.graphics.Color(0xFFC62828)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = member.memberName,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        if (balanceLabel.isNotBlank()) {
+            Text(
+                text = balanceLabel,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = balanceColor
+            )
+        }
+    }
+
+    Spacer(Modifier.height(4.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = member.memberEmail,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1
+        )
+        Text(
+            text = if (member.status != "joined") {
+                "Invitation pending"
+            } else {
+                "₹" + String.format(
+                    java.util.Locale.getDefault(),
+                    "%,.2f",
+                    kotlin.math.abs(memberBalance)
+                )
+            },
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = balanceColor
+        )
+    }
+}
                                                 if (member.status == "pending") {
                                                 Text(
                                                     text = "Pending",
@@ -694,13 +740,59 @@ Column(
                 modifier = Modifier.fillMaxSize(),
                 color = MaterialTheme.colorScheme.background
             ) {
+                val nonSettlementExpenseIds = memberExpenseData.expenses
+                    .filterNot { it.title.trim().equals("Settled", ignoreCase = true) }
+                    .map { it.id }
+                    .toSet()
+
                 val memberShare = memberExpenseData.splits
-                    .filter { it.memberId == detailMember.id }
+                    .filter {
+                        it.memberId == detailMember.id &&
+                            it.expenseId in nonSettlementExpenseIds
+                    }
                     .sumOf { it.amount }
                 val memberPaid = memberExpenseData.payments
-                    .filter { it.memberId == detailMember.id }
+                    .filter {
+                        it.memberId == detailMember.id &&
+                            it.expenseId in nonSettlementExpenseIds
+                    }
                     .sumOf { it.amount }
-                val memberBalance = memberShare - memberPaid
+                val memberSettled = memberExpenseData.payments
+                    .filter {
+                        it.memberId == detailMember.id &&
+                            it.expenseId !in nonSettlementExpenseIds
+                    }
+                    .sumOf { it.amount }
+                val memberPairwiseResult = remember(
+                    members,
+                    memberExpenseData.expenses,
+                    memberExpenseData.splits,
+                    memberExpenseData.payments,
+                    detailMember.id
+                ) {
+                    runCatching {
+                        CloudGroupPairwiseBalanceCalculator.calculate(
+                            members = members,
+                            expenses = memberExpenseData.expenses,
+                            splits = memberExpenseData.splits,
+                            payments = memberExpenseData.payments
+                        )
+                    }.getOrNull()
+                }
+
+                val memberGetTotalPaise = memberPairwiseResult?.debts
+                    ?.filter { it.toMemberId == detailMember.id }
+                    ?.sumOf { it.amountPaise } ?: 0L
+
+                val memberGiveTotalPaise = memberPairwiseResult?.debts
+                    ?.filter { it.fromMemberId == detailMember.id }
+                    ?.sumOf { it.amountPaise } ?: 0L
+
+                val memberBalance = if (memberPairwiseResult != null) {
+                    (memberGiveTotalPaise - memberGetTotalPaise) / 100.0
+                } else {
+                    memberShare - memberPaid
+                }
                 val memberExpenseIds = (
                     memberExpenseData.splits.filter { it.memberId == detailMember.id }.map { it.expenseId } +
                     memberExpenseData.payments.filter { it.memberId == detailMember.id }.map { it.expenseId }
@@ -820,38 +912,94 @@ Column(
                         }
                     }
 
-                    Card(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color.White
+                            )
+                        ) {
+                            Column(Modifier.padding(14.dp)) {
+                                Text(
+                                    "Settled",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF77500A)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "₹" + String.format(
+                                        java.util.Locale.getDefault(), "%,.2f", memberSettled
+                                    ),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                showBalanceBreakdown = true
+                                balanceBreakdownLoading = true
+                                balanceBreakdownError = null
+                                balanceBreakdownDebts = emptyList()
+                                balanceBreakdownUnallocated = emptySet()
+                                scope.launch {
+                                    try {
+                                        val result = withContext(Dispatchers.IO) {
+                                            CloudGroupPairwiseBalanceCalculator.calculate(
+                                                members = members,
+                                                expenses = memberExpenseData.expenses,
+                                                splits = memberExpenseData.splits,
+                                                payments = memberExpenseData.payments
+                                            )
+                                        }
+                                        balanceBreakdownDebts = result.debts
+                                        balanceBreakdownUnallocated = result.unallocatedExpenseIds
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        balanceBreakdownError = error.message
+                                            ?: "Could not load balance breakdown."
+                                    } finally {
+                                        balanceBreakdownLoading = false
+                                    }
+                                }
+                            },
                         shape = RoundedCornerShape(16.dp),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
                             containerColor = Color.White
                         )
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column {
-                                Text(
-                                    "Remaining Balance",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    when {
-                                        kotlin.math.abs(memberBalance) < 0.01 -> "Settled"
-                                        memberBalance > 0 -> "Owes"
-                                        else -> "Excess paid"
-                                    },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                            Text(
+                                when {
+                                    kotlin.math.abs(memberBalance) < 0.01 -> "Settled"
+                                    memberBalance > 0 -> "Will Give"
+                                    else -> "Will Get"
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = when {
+                                    kotlin.math.abs(memberBalance) < 0.01 -> MaterialTheme.colorScheme.primary
+                                    memberBalance > 0 -> Color(0xFF2E7D32)
+                                    else -> Color(0xFFC62828)
+                                }
+                            )
                             Text(
                                 "₹" + String.format(
                                     java.util.Locale.getDefault(), "%,.2f",
@@ -861,13 +1009,14 @@ Column(
                                 fontWeight = FontWeight.Bold,
                                 color = when {
                                     kotlin.math.abs(memberBalance) < 0.01 -> MaterialTheme.colorScheme.primary
-                                    memberBalance > 0 -> MaterialTheme.colorScheme.error
-                                    else -> Color(0xFF16804A)
-                                }
+                                    memberBalance > 0 -> Color(0xFF2E7D32)
+                                    else -> Color(0xFFC62828)
+                                },
+                                maxLines = 1
                             )
                         }
                     }
-
+                    }
                     Text(
                         "Expense History",
                         modifier = Modifier.padding(start = 16.dp, top = 18.dp, bottom = 8.dp),
@@ -894,17 +1043,36 @@ Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(detailExpenses, key = { it.id }) { expense ->
-                                val split = memberExpenseData.splits
-                                    .firstOrNull {
+                                val isSettlement = expense.title.trim()
+                                    .equals("Settled", ignoreCase = true)
+
+                                val split = if (isSettlement) {
+                                    null
+                                } else {
+                                    memberExpenseData.splits.firstOrNull {
                                         it.expenseId == expense.id &&
                                             it.memberId == detailMember.id
                                     }
-                                val paid = memberExpenseData.payments
-                                    .filter {
-                                        it.expenseId == expense.id &&
-                                            it.memberId == detailMember.id
+                                }
+
+                                val paid = if (isSettlement) {
+                                    0.0
+                                } else {
+                                    memberExpenseData.payments
+                                        .filter {
+                                            it.expenseId == expense.id &&
+                                                it.memberId == detailMember.id
+                                        }
+                                        .sumOf { it.amount }
+                                }
+
+                                val settlementPayments = if (isSettlement) {
+                                    memberExpenseData.payments.filter {
+                                        it.expenseId == expense.id
                                     }
-                                    .sumOf { it.amount }
+                                } else {
+                                    emptyList()
+                                }
 
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
@@ -939,32 +1107,64 @@ Column(
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
-                                        split?.let {
-                                            Spacer(Modifier.height(8.dp))
-                                            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                                                Text("Member Share", color = Color(0xFFE53935))
-                                                Spacer(Modifier.weight(1f))
-                                                Text(
-                                                    "₹" + String.format(
-                                                        java.util.Locale.getDefault(), "%,.2f", it.amount
-                                                    ),
-                                                    color = Color(0xFFE53935),
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
+                                        if (isSettlement) {
+                                            settlementPayments
+                                                .groupBy { it.memberId }
+                                                .forEach { (payerId, records) ->
+                                                    val payerName = members
+                                                        .firstOrNull { it.id == payerId }
+                                                        ?.memberName ?: "Member"
+                                                    val payerAmount = records.sumOf { it.amount }
+
+                                                    if (payerAmount > 0.009) {
+                                                        Spacer(Modifier.height(6.dp))
+                                                        Row {
+                                                            Text(
+                                                                payerName,
+                                                                color = Color(0xFF16804A)
+                                                            )
+                                                            Spacer(Modifier.weight(1f))
+                                                            Text(
+                                                                "₹" + String.format(
+                                                                    java.util.Locale.getDefault(),
+                                                                    "%,.2f",
+                                                                    payerAmount
+                                                                ),
+                                                                color = Color(0xFF16804A),
+                                                                fontWeight = FontWeight.SemiBold
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                        } else {
+                                            split?.let {
+                                                Spacer(Modifier.height(8.dp))
+                                                Row(horizontalArrangement = Arrangement.SpaceBetween) {
+                                                    Text("Member Share", color = Color(0xFFE53935))
+                                                    Spacer(Modifier.weight(1f))
+                                                    Text(
+                                                        "₹" + String.format(
+                                                            java.util.Locale.getDefault(), "%,.2f", it.amount
+                                                        ),
+                                                        color = Color(0xFFE53935),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
                                             }
-                                        }
-                                        if (paid > 0.009) {
-                                            Spacer(Modifier.height(6.dp))
-                                            Row {
-                                                Text("Paid", color = Color(0xFF16804A))
-                                                Spacer(Modifier.weight(1f))
-                                                Text(
-                                                    "₹" + String.format(
-                                                        java.util.Locale.getDefault(), "%,.2f", paid
-                                                    ),
-                                                    color = Color(0xFF16804A),
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
+
+                                            if (paid > 0.009) {
+                                                Spacer(Modifier.height(6.dp))
+                                                Row {
+                                                    Text("Paid", color = Color(0xFF16804A))
+                                                    Spacer(Modifier.weight(1f))
+                                                    Text(
+                                                        "₹" + String.format(
+                                                            java.util.Locale.getDefault(), "%,.2f", paid
+                                                        ),
+                                                        color = Color(0xFF16804A),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
                                             }
                                         }
                                         if (expense.note.isNotBlank()) {
@@ -972,6 +1172,186 @@ Column(
                                             Text(
                                                 expense.note,
                                                 style = MaterialTheme.typography.bodySmall
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    if (showBalanceBreakdown && selectedMemberDetail != null) {
+        val detailMember = selectedMemberDetail!!
+        val getDebts = balanceBreakdownDebts.filter { it.toMemberId == detailMember.id }
+        val giveDebts = balanceBreakdownDebts.filter { it.fromMemberId == detailMember.id }
+        val memberNameById = members.associate { it.id to it.memberName }
+
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showBalanceBreakdown = false },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { showBalanceBreakdown = false }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Remaining Balance",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                detailMember.memberName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+
+                    when {
+                        balanceBreakdownLoading -> Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+
+                        balanceBreakdownError != null -> Box(
+                            modifier = Modifier.fillMaxSize().padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                balanceBreakdownError ?: "Could not load balance breakdown.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        else -> LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (balanceBreakdownUnallocated.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "Some expenses could not be included because their split/payment details do not reconcile.",
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+
+                            item {
+                                Text(
+                                    "You will get",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFC62828)
+                                )
+                            }
+
+                            if (getDebts.isEmpty()) {
+                                item {
+                                    Text(
+                                        "No members currently owe ${detailMember.memberName}.",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                items(getDebts, key = { "get-${it.fromMemberId}-${it.toMemberId}" }) { debt ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                                            containerColor = Color.White
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                memberNameById[debt.fromMemberId] ?: "Unknown member",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "₹" + String.format(
+                                                    java.util.Locale.getDefault(), "%,.2f",
+                                                    debt.amountPaise / 100.0
+                                                ),
+                                                color = Color(0xFFC62828),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "You will give",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+
+                            if (giveDebts.isEmpty()) {
+                                item {
+                                    Text(
+                                        "${detailMember.memberName} does not currently owe any member.",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            } else {
+                                items(giveDebts, key = { "give-${it.fromMemberId}-${it.toMemberId}" }) { debt ->
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                                            containerColor = Color.White
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                memberNameById[debt.toMemberId] ?: "Unknown member",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            Text(
+                                                "₹" + String.format(
+                                                    java.util.Locale.getDefault(), "%,.2f",
+                                                    debt.amountPaise / 100.0
+                                                ),
+                                                color = Color(0xFF2E7D32),
+                                                fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }

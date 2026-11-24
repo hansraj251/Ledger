@@ -147,4 +147,63 @@ class CloudGroupPairwiseBalanceCalculatorTest {
         assertTrue(result.debts.isEmpty())
         assertEquals(setOf("E1"), result.unallocatedExpenseIds)
     }
+
+    @Test
+    fun settlementTransaction_reducesExistingPairwiseDebt() {
+        val result = CloudGroupPairwiseBalanceCalculator.calculate(
+            members = listOf(member("A"), member("B")),
+            expenses = listOf(expense("E1")),
+            splits = listOf(
+                split("E1", "A", 50.0),
+                split("E1", "B", 50.0)
+            ),
+            payments = listOf(payment("E1", "A", 100.0)),
+            settlements = listOf(
+                CloudGroupSettlementTransaction(
+                    id = "S1",
+                    groupId = "group-1",
+                    fromMemberId = "B",
+                    toMemberId = "A",
+                    amount = 20.0,
+                    paymentType = "Cash",
+                    settlementDateMs = 2000L,
+                    createdBy = "user-1",
+                    createdAt = "2026-11-24T00:00:00Z"
+                )
+            )
+        )
+
+        assertEquals(
+            listOf(CloudGroupPairwiseDebt("B", "A", 3000L)),
+            result.debts
+        )
+        assertTrue(result.unallocatedExpenseIds.isEmpty())
+    }
+
+    @Test
+    fun settledExpense_reducesExistingDebtAndShowsOnlyNetBalance() {
+        val result = CloudGroupPairwiseBalanceCalculator.calculate(
+            members = listOf(member("A"), member("B")),
+            expenses = listOf(
+                expense("E1").copy(amount = 400.0),
+                expense("E2").copy(title = "Settled", amount = 170.0)
+            ),
+            splits = listOf(
+                split("E1", "A", 200.0),
+                split("E1", "B", 200.0),
+                split("E2", "A", 170.0)
+            ),
+            payments = listOf(
+                payment("E1", "A", 400.0),
+                payment("E2", "B", 170.0)
+            )
+        )
+
+        assertEquals(
+            listOf(CloudGroupPairwiseDebt("B", "A", 3000L)),
+            result.debts
+        )
+        assertTrue(result.unallocatedExpenseIds.isEmpty())
+    }
+
 }

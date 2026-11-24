@@ -227,18 +227,6 @@ fun OnlineGroupExpensesSection(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Expenses",
-                style = MaterialTheme.typography.titleMedium
-            )
-            // Add Expense action is provided by the floating button.
-        }
-
         if (loading) {
             CircularProgressIndicator()
         }

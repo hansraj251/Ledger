@@ -960,6 +960,7 @@ Column(
                                     showSettledOnly = !showSettledOnly
                                 },
                             shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE8D8A8)),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
                                 containerColor = Color.White
                             )
@@ -986,6 +987,7 @@ Column(
                     Card(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE8D8A8)),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
                             containerColor = Color.White
                         )
@@ -1012,7 +1014,8 @@ Column(
                         }
                     }
                     }
- 
+
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1051,6 +1054,14 @@ Column(
                                 }
                             },
                         shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            when {
+                                memberBalance > 0.01 -> Color(0xFFB7DDBD)
+                                memberBalance < -0.01 -> Color(0xFFE7B8B8)
+                                else -> Color(0xFFD8DCE3)
+                            }
+                        ),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
                             containerColor = Color.White
                         )
@@ -1063,9 +1074,12 @@ Column(
                         ) {
                             Text(
                                 when {
-                                    kotlin.math.abs(memberBalance) < 0.01 -> "Settled"
-                                    memberBalance > 0 -> "Will Give"
-                                    else -> "Will Get"
+                                    kotlin.math.abs(memberBalance) < 0.01 ->
+                                        "${detailMember.memberName} Settled"
+                                    memberBalance > 0 ->
+                                        "${detailMember.memberName} Will Give"
+                                    else ->
+                                        "${detailMember.memberName} Will Get"
                                 },
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
@@ -1207,30 +1221,6 @@ Column(
                                                         }
                                                     }
                                                 }
-                                            val otherMembersPaid = settlementPayments
-                                                .filter { it.memberId != detailMember.id }
-                                                .sumOf { it.amount }
-
-                                            if (otherMembersPaid > 0.009) {
-                                                Spacer(Modifier.height(8.dp))
-                                                Row {
-                                                    Text(
-                                                        "Other Members Paid",
-                                                        color = Color(0xFF16804A),
-                                                        fontWeight = FontWeight.SemiBold
-                                                    )
-                                                    Spacer(Modifier.weight(1f))
-                                                    Text(
-                                                        "₹" + String.format(
-                                                            java.util.Locale.getDefault(),
-                                                            "%,.2f",
-                                                            otherMembersPaid
-                                                        ),
-                                                        color = Color(0xFF16804A),
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-}
                                         } else {
                                             split?.let {
                                                 Spacer(Modifier.height(8.dp))

@@ -66,6 +66,19 @@ data class CloudGroupSettlement(
     @SerialName("payment_type") val paymentType: String = "Cash"
 )
 
+@Serializable
+data class CloudGroupSettlementTransaction(
+    val id: String,
+    @SerialName("group_id") val groupId: String,
+    @SerialName("from_member_id") val fromMemberId: String,
+    @SerialName("to_member_id") val toMemberId: String,
+    val amount: Double,
+    @SerialName("payment_type") val paymentType: String,
+    @SerialName("settlement_date_ms") val settlementDateMs: Long,
+    @SerialName("created_by") val createdBy: String,
+    @SerialName("created_at") val createdAt: String
+)
+
 
 @Serializable
 data class CloudGroupMemberAddResult(

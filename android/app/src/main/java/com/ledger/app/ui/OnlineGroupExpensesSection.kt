@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.ui.graphics.Color
@@ -98,6 +99,7 @@ fun OnlineGroupExpensesSection(
     var error by remember { mutableStateOf<String?>(null) }
 
     var showEditor by remember { mutableStateOf(false) }
+    var settlementMode by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showPaidByDialog by remember { mutableStateOf(false) }
     var showMemberSearch by remember { mutableStateOf(false) }
@@ -161,6 +163,7 @@ fun OnlineGroupExpensesSection(
     }
 
     fun openNewExpense() {
+        settlementMode = false
         editingExpense = null
         expenseDateMs = LocalDate.now().atStartOfDay(ZoneOffset.UTC)
             .toInstant().toEpochMilli()
@@ -180,6 +183,7 @@ fun OnlineGroupExpensesSection(
 
     fun openEditExpense(expense: CloudGroupExpense) {
         editingExpense = expense
+        settlementMode = expense.title.trim().equals("Settled", ignoreCase = true)
         expenseDateMs = expense.expenseDateMs
         title = expense.title
         amount = expense.amount.toString()
@@ -440,16 +444,40 @@ fun OnlineGroupExpensesSection(
                         verticalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
                         Text(
-                            if (editingExpense == null) "Add group expense" else "Edit group expense",
+                            when {
+                                settlementMode -> "Settlement"
+                                editingExpense == null -> "Add group expense"
+                                else -> "Edit group expense"
+                            },
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            "Split and track group spending",
+                            if (settlementMode) "Settle amounts between group members"
+                            else "Split and track group spending",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    Switch(
+                        checked = settlementMode,
+                        onCheckedChange = { checked ->
+                            if (!busy && editingExpense == null) {
+                                settlementMode = checked
+                                title = if (checked) "Settled" else ""
+                                splitMode = if (checked) "Custom" else "Equal"
+                                selectedIds = if (checked) emptySet()
+                                    else joinedMembers.map { it.id }.toSet()
+                                customAmounts = if (checked) emptyMap()
+                                    else joinedMembers.associate { it.id to "" }
+                                shareUnits = joinedMembers.associate { it.id to "1" }
+                                paidAmounts = if (checked) emptyMap()
+                                    else joinedMembers.filter { it.id != youMember?.id }
+                                        .associate { it.id to "" }
+                            }
+                        },
+                        enabled = !busy && editingExpense == null
+                    )
                 }
             },
             text = {
@@ -464,9 +492,10 @@ fun OnlineGroupExpensesSection(
                     ) {
                         OutlinedTextField(
                             value = title,
-                            onValueChange = { title = it },
+                            onValueChange = { if (!settlementMode) title = it },
                             label = { Text("Title") },
                             singleLine = true,
+                            readOnly = settlementMode,
                             enabled = !busy,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
@@ -567,7 +596,7 @@ fun OnlineGroupExpensesSection(
                         )
                     }
 
-                    Row(
+                    if (!settlementMode) Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -649,10 +678,17 @@ fun OnlineGroupExpensesSection(
                             ) {
                                 Checkbox(
                                     checked = member.id in selectedIds,
-                                    enabled = !busy,
+                                    enabled = !busy && (
+                                        !settlementMode ||
+                                            (member.id !in paidAmounts.keys ||
+                                                (paidAmounts[member.id]?.trim()?.toDoubleOrNull() ?: 0.0) <= 0.0)
+                                    ),
                                     onCheckedChange = { checked ->
                                         selectedIds = if (checked) selectedIds + member.id
                                         else selectedIds - member.id
+                                        if (checked) {
+                                            paidAmounts = paidAmounts - member.id
+                                        }
                                     }
                                 )
                                 Text(member.memberName, modifier = Modifier.weight(1f))
@@ -741,7 +777,9 @@ fun OnlineGroupExpensesSection(
 
                     OutlinedButton(
                         onClick = { showPaidByDialog = true },
-                        enabled = !busy && totalForPaidBy > 0.0 && youMember != null,
+                        enabled = !busy && totalForPaidBy > 0.0 &&
+                            (if (settlementMode) joinedMembers.any { it.id !in selectedIds }
+                            else youMember != null),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {
@@ -839,8 +877,9 @@ fun OnlineGroupExpensesSection(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("Enter how much each member paid. Use 0 if they paid nothing.")
-                    joinedMembers.forEach { member ->
-                        val isYou = member.id == youMember?.id
+                    joinedMembers.filter { !settlementMode || it.id !in selectedIds }
+                        .forEach { member ->
+                        val isYou = !settlementMode && member.id == youMember?.id
                         val value = if (isYou) String.format(java.util.Locale.US, "%.2f", remaining)
                         else paidAmounts[member.id].orEmpty()
 

@@ -100,6 +100,38 @@ class CloudGroupRepositoryTest {
             return CloudGroupExpenseData(emptyList(), emptyList(), emptyList())
         }
 
+        var fetchedSettlementGroupId: String? = null
+        var insertedSettlementAmount: Double? = null
+
+        override suspend fun fetchGroupSettlementTransactions(
+            groupId: String
+        ): List<CloudGroupSettlementTransaction> {
+            fetchedSettlementGroupId = groupId
+            return emptyList()
+        }
+
+        override suspend fun insertGroupSettlementTransaction(
+            groupId: String,
+            fromMemberId: String,
+            toMemberId: String,
+            amount: Double,
+            paymentType: String,
+            settlementDateMs: Long
+        ): CloudGroupSettlementTransaction {
+            insertedSettlementAmount = amount
+            return CloudGroupSettlementTransaction(
+                id = "settlement-123",
+                groupId = groupId,
+                fromMemberId = fromMemberId,
+                toMemberId = toMemberId,
+                amount = amount,
+                paymentType = paymentType,
+                settlementDateMs = settlementDateMs,
+                createdBy = "user-123",
+                createdAt = "2026-11-24T00:00:00Z"
+            )
+        }
+
         override suspend fun saveGroupExpense(
             groupId: String,
             expenseId: String?,
@@ -310,6 +342,48 @@ class CloudGroupRepositoryTest {
         )
         assertEquals("expense-123", result)
         assertEquals("expense-123", remote.deletedExpenseId)
+    }
+
+
+    @Test
+    fun loadSettlementTransactions_usesRequestedGroup() = runBlocking {
+        val remote = FakeRemoteDataSource()
+        CloudGroupRepository(remote).loadSettlementTransactions("group-123")
+        assertEquals("group-123", remote.fetchedSettlementGroupId)
+    }
+
+    @Test
+    fun saveSettlementTransaction_validatesAndRoundsAmount() = runBlocking {
+        val remote = FakeRemoteDataSource()
+        val result = CloudGroupRepository(remote).saveSettlementTransaction(
+            groupId = "group-123",
+            fromMemberId = "member-1",
+            toMemberId = "member-2",
+            amount = 125.456,
+            paymentType = "UPI",
+            settlementDateMs = 1000L
+        )
+
+        assertEquals(125.46, remote.insertedSettlementAmount!!, 0.001)
+        assertEquals("settlement-123", result.id)
+    }
+
+    @Test
+    fun saveSettlementTransaction_rejectsSamePayerAndReceiver() {
+        val repository = CloudGroupRepository(FakeRemoteDataSource())
+
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                repository.saveSettlementTransaction(
+                    groupId = "group-123",
+                    fromMemberId = "member-1",
+                    toMemberId = "member-1",
+                    amount = 100.0,
+                    paymentType = "Cash",
+                    settlementDateMs = 1000L
+                )
+            }
+        }
     }
 
 }

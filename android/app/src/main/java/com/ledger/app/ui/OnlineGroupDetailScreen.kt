@@ -542,7 +542,7 @@ fun OnlineGroupDetailScreen(
                                         text = "₹" + String.format(
                                             java.util.Locale.getDefault(),
                                             "%,.2f",
-                                            memberExpenseData.expenses.sumOf { it.amount }
+                                            memberExpenseData.expenses.filterNot { it.title.equals("Settled", ignoreCase = true) }.sumOf { it.amount }
                                         ),
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold
@@ -562,7 +562,7 @@ fun OnlineGroupDetailScreen(
                                 }
 
                                 Text(
-                                    "${memberExpenseData.expenses.size} entries",
+                                    "${memberExpenseData.expenses.count { !it.title.equals("Settled", ignoreCase = true) }} entries",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

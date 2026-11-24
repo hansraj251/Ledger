@@ -35,6 +35,19 @@ interface CloudGroupRemoteDataSource {
         groupId: String
     ): CloudGroupExpenseData
 
+    suspend fun fetchGroupSettlementTransactions(
+        groupId: String
+    ): List<CloudGroupSettlementTransaction>
+
+    suspend fun insertGroupSettlementTransaction(
+        groupId: String,
+        fromMemberId: String,
+        toMemberId: String,
+        amount: Double,
+        paymentType: String,
+        settlementDateMs: Long
+    ): CloudGroupSettlementTransaction
+
     suspend fun saveGroupExpense(
         groupId: String,
         expenseId: String?,

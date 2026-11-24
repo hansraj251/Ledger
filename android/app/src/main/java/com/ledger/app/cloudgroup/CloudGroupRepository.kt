@@ -123,6 +123,52 @@ class CloudGroupRepository(
         return remote.fetchGroupExpenses(groupId)
     }
 
+    suspend fun loadSettlementTransactions(
+        groupId: String
+    ): List<CloudGroupSettlementTransaction> {
+        requireValidId(groupId, "Group")
+        return remote.fetchGroupSettlementTransactions(groupId)
+    }
+
+    suspend fun saveSettlementTransaction(
+        groupId: String,
+        fromMemberId: String,
+        toMemberId: String,
+        amount: Double,
+        paymentType: String,
+        settlementDateMs: Long
+    ): CloudGroupSettlementTransaction {
+        requireValidId(groupId, "Group")
+        requireValidId(fromMemberId, "Payer")
+        requireValidId(toMemberId, "Receiver")
+
+        require(fromMemberId != toMemberId) {
+            "Payer and receiver must be different members."
+        }
+        require(amount.isFinite() && amount > 0.0) {
+            "Settlement amount must be greater than zero."
+        }
+        require(paymentType in setOf("Cash", "UPI", "Bank Transfer")) {
+            "Invalid settlement payment type."
+        }
+        require(settlementDateMs > 0L) {
+            "Settlement date is invalid."
+        }
+
+        val roundedAmount = java.math.BigDecimal.valueOf(amount)
+            .setScale(2, java.math.RoundingMode.HALF_UP)
+            .toDouble()
+
+        return remote.insertGroupSettlementTransaction(
+            groupId = groupId,
+            fromMemberId = fromMemberId,
+            toMemberId = toMemberId,
+            amount = roundedAmount,
+            paymentType = paymentType,
+            settlementDateMs = settlementDateMs
+        )
+    }
+
     suspend fun saveGroupExpense(
         groupId: String,
         expenseId: String?,

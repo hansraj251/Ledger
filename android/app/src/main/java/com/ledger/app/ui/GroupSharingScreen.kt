@@ -829,14 +829,14 @@ if (selectedGroupSection != "Members") {
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    money(expenses.sumOf { it.amount }),
+                                    money(expenses.filterNot { it.title.equals("Settled", ignoreCase = true) }.sumOf { it.amount }),
                                     style = MaterialTheme.typography.headlineSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isPremium) Color(0xFFD4A017) else MaterialTheme.colorScheme.onSurface
                                 )
                             }
                             Text(
-                                "${expenses.size} entries",
+                                "${expenses.count { !it.title.equals("Settled", ignoreCase = true) }} entries",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

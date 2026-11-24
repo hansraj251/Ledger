@@ -187,6 +187,42 @@ class CloudSupabaseRemoteDataSource(
         )
     }
 
+    override suspend fun fetchGroupSettlementTransactions(
+        groupId: String
+    ): List<CloudGroupSettlementTransaction> {
+        return supabase
+            .from("cloud_group_settlement_transactions")
+            .select {
+                filter { eq("group_id", groupId) }
+            }
+            .decodeList<CloudGroupSettlementTransaction>()
+    }
+
+    override suspend fun insertGroupSettlementTransaction(
+        groupId: String,
+        fromMemberId: String,
+        toMemberId: String,
+        amount: Double,
+        paymentType: String,
+        settlementDateMs: Long
+    ): CloudGroupSettlementTransaction {
+        val payload = CloudGroupSettlementTransactionInsert(
+            groupId = groupId,
+            fromMemberId = fromMemberId,
+            toMemberId = toMemberId,
+            amount = amount,
+            paymentType = paymentType,
+            settlementDateMs = settlementDateMs
+        )
+
+        return supabase
+            .from("cloud_group_settlement_transactions")
+            .insert(payload) {
+                select()
+            }
+            .decodeSingle<CloudGroupSettlementTransaction>()
+    }
+
     override suspend fun saveGroupExpense(
         groupId: String,
         expenseId: String?,
@@ -256,6 +292,16 @@ class CloudSupabaseRemoteDataSource(
             )
             .decodeAs<String>()
     }
+
+    @Serializable
+    private data class CloudGroupSettlementTransactionInsert(
+        @SerialName("group_id") val groupId: String,
+        @SerialName("from_member_id") val fromMemberId: String,
+        @SerialName("to_member_id") val toMemberId: String,
+        val amount: Double,
+        @SerialName("payment_type") val paymentType: String,
+        @SerialName("settlement_date_ms") val settlementDateMs: Long
+    )
 
     @Serializable
     private data class CloudGroupInsert(

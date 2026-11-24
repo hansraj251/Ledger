@@ -112,8 +112,11 @@ fun OnlineGroupDetailScreen(
     var settlementHistoryFilter by remember(selectedMemberDetail?.id) {
         mutableStateOf("all")
     }
-    var memberExpenseData by remember {
+    var memberExpenseData by remember(groupId) {
         mutableStateOf(CloudGroupExpenseData(emptyList(), emptyList(), emptyList()))
+    }
+    var memberExpenseDataLoaded by remember(groupId) {
+        mutableStateOf(false)
     }
     var memberExpenseLoading by remember { mutableStateOf(false) }
     var memberExpenseError by remember { mutableStateOf<String?>(null) }
@@ -199,6 +202,7 @@ fun OnlineGroupDetailScreen(
                     data to balances
                 }
                 memberExpenseData = result.first
+                memberExpenseDataLoaded = true
                 deleteBalances = result.second
             } catch (error: CancellationException) {
                 throw error
@@ -237,13 +241,15 @@ fun OnlineGroupDetailScreen(
     }
 
     LaunchedEffect(groupId, selectedGroupSection) {
-        if (selectedGroupSection == "Members") {
+        if (selectedGroupSection == "Members" && !memberExpenseDataLoaded) {
             memberExpenseLoading = true
             memberExpenseError = null
             try {
-                memberExpenseData = withContext(Dispatchers.IO) {
+                val loadedData = withContext(Dispatchers.IO) {
                     repository.loadGroupExpenses(groupId)
                 }
+                memberExpenseData = loadedData
+                memberExpenseDataLoaded = true
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -496,6 +502,16 @@ fun OnlineGroupDetailScreen(
                             currentUserId = currentUserId,
                             repository = repository,
                             enabled = !isBusy,
+                            expenseData = memberExpenseData,
+                            expenseDataLoaded = memberExpenseDataLoaded,
+                            onExpenseDataChange = { loadedData ->
+                                memberExpenseData = loadedData
+                                memberExpenseDataLoaded = true
+                                memberExpenseError = null
+                            },
+                            onAddExpenseRequestConsumed = {
+                                addExpenseRequest = 0
+                            },
                             addExpenseRequest = addExpenseRequest
                         )
                     }

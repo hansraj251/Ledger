@@ -88,14 +88,18 @@ fun OnlineGroupExpensesSection(
     currentUserId: String?,
     repository: CloudGroupRepository,
     enabled: Boolean,
+    expenseData: CloudGroupExpenseData,
+    expenseDataLoaded: Boolean,
+    onExpenseDataChange: (CloudGroupExpenseData) -> Unit,
+    onAddExpenseRequestConsumed: () -> Unit,
     addExpenseRequest: Int = 0
 ) {
     val scope = rememberCoroutineScope()
 
-    var data by remember(groupId) {
-        mutableStateOf(CloudGroupExpenseData(emptyList(), emptyList(), emptyList()))
+    val data = expenseData
+    var loading by remember(groupId) {
+        mutableStateOf(!expenseDataLoaded)
     }
-    var loading by remember(groupId) { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -135,9 +139,10 @@ fun OnlineGroupExpensesSection(
         loading = true
         error = null
         try {
-            data = withContext(Dispatchers.IO) {
+            val loadedData = withContext(Dispatchers.IO) {
                 repository.loadGroupExpenses(groupId)
             }
+            onExpenseDataChange(loadedData)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -215,11 +220,16 @@ fun OnlineGroupExpensesSection(
     }
 
     LaunchedEffect(groupId) {
-        refreshExpenses()
+        if (!expenseDataLoaded) {
+            refreshExpenses()
+        }
     }
 
     LaunchedEffect(addExpenseRequest) {
-        if (addExpenseRequest > 0) openNewExpense()
+        if (addExpenseRequest > 0) {
+            openNewExpense()
+            onAddExpenseRequestConsumed()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

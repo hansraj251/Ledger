@@ -45,6 +45,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
@@ -123,6 +124,7 @@ fun OnlineGroupExpensesSection(
     var customAmounts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var shareUnits by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var paidAmounts by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var settlementPayerId by remember { mutableStateOf<String?>(null) }
 
     val joinedMembers = members.filter { it.status == "joined" }
     val youMember = joinedMembers.firstOrNull {
@@ -178,6 +180,7 @@ fun OnlineGroupExpensesSection(
         paidAmounts = joinedMembers
             .filter { it.id != youMember?.id }
             .associate { it.id to "" }
+        settlementPayerId = null
         showEditor = true
     }
 
@@ -204,6 +207,9 @@ fun OnlineGroupExpensesSection(
         paidAmounts = oldPayments
             .filter { it.memberId != youMember?.id }
             .associate { it.memberId to it.amount.toString() }
+        settlementPayerId = if (settlementMode) {
+            oldPayments.singleOrNull()?.memberId
+        } else null
 
         showEditor = true
     }
@@ -474,6 +480,7 @@ fun OnlineGroupExpensesSection(
                                 paidAmounts = if (checked) emptyMap()
                                     else joinedMembers.filter { it.id != youMember?.id }
                                         .associate { it.id to "" }
+                                settlementPayerId = null
                             }
                         },
                         enabled = !busy && editingExpense == null
@@ -678,21 +685,23 @@ fun OnlineGroupExpensesSection(
                             ) {
                                 Checkbox(
                                     checked = member.id in selectedIds,
-                                    enabled = !busy && (
-                                        !settlementMode ||
-                                            (member.id !in paidAmounts.keys ||
-                                                (paidAmounts[member.id]?.trim()?.toDoubleOrNull() ?: 0.0) <= 0.0)
-                                    ),
+                                    enabled = !busy,
                                     onCheckedChange = { checked ->
-                                        selectedIds = if (checked) selectedIds + member.id
-                                        else selectedIds - member.id
-                                        if (checked) {
-                                            paidAmounts = paidAmounts - member.id
+                                        if (settlementMode) {
+                                            selectedIds = if (checked) setOf(member.id) else emptySet()
+                                            if (checked && settlementPayerId == member.id) {
+                                                settlementPayerId = null
+                                                paidAmounts = emptyMap()
+                                            }
+                                        } else {
+                                            selectedIds = if (checked) selectedIds + member.id
+                                            else selectedIds - member.id
+                                            if (checked) paidAmounts = paidAmounts - member.id
                                         }
                                     }
                                 )
                                 Text(member.memberName, modifier = Modifier.weight(1f))
-                                if (member.id in selectedIds && splitMode == "Custom") {
+                                if (!settlementMode && member.id in selectedIds && splitMode == "Custom") {
                                     OutlinedTextField(
                                         value = customAmounts[member.id] ?: "",
                                         onValueChange = {
@@ -778,12 +787,22 @@ fun OnlineGroupExpensesSection(
                     OutlinedButton(
                         onClick = { showPaidByDialog = true },
                         enabled = !busy && totalForPaidBy > 0.0 &&
-                            (if (settlementMode) joinedMembers.any { it.id !in selectedIds }
+                            (if (settlementMode) selectedIds.size == 1 &&
+                                joinedMembers.any { it.id !in selectedIds }
                             else youMember != null),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Paid By · ₹${"%.2f".format(paidTotal + youRemaining)}")
+                        Text(
+                            if (settlementMode) {
+                                val payerName = joinedMembers.firstOrNull {
+                                    it.id == settlementPayerId
+                                }?.memberName ?: "Select payer"
+                                "Paid By · $payerName · ₹${"%.2f".format(totalForPaidBy)}"
+                            } else {
+                                "Paid By · ₹${"%.2f".format(paidTotal + youRemaining)}"
+                            }
+                        )
                     }
 
                     Row(
@@ -802,16 +821,22 @@ fun OnlineGroupExpensesSection(
                             modifier = Modifier.weight(1f),
                             enabled = !busy && title.isNotBlank() &&
                                 (amount.toDoubleOrNull() ?: 0.0) > 0.0 &&
-                                selectedIds.isNotEmpty() && youMember != null,
+                                selectedIds.isNotEmpty() &&
+                                (if (settlementMode) {
+                                    selectedIds.size == 1 && settlementPayerId != null &&
+                                        settlementPayerId !in selectedIds
+                                } else youMember != null),
                             onClick = {
                                 val total = amount.toDoubleOrNull() ?: return@Button
                                 val selectedMembers = joinedMembers.filter { it.id in selectedIds }
                                 try {
                                     val splitDrafts = CloudGroupExpenseDraftCalculator.buildSplits(
                                         totalAmount = total,
-                                        mode = splitMode,
+                                        mode = if (settlementMode) "Custom" else splitMode,
                                         selectedMembers = selectedMembers,
-                                        customAmounts = customAmounts.mapNotNull { (id, value) ->
+                                        customAmounts = if (settlementMode) {
+                                            mapOf(selectedMembers.single().id to total)
+                                        } else customAmounts.mapNotNull { (id, value) ->
                                             value.toDoubleOrNull()?.let { id to it }
                                         }.toMap(),
                                         shareUnits = shareUnits.mapNotNull { (id, value) ->
@@ -822,9 +847,7 @@ fun OnlineGroupExpensesSection(
                                         CloudGroupExpenseDraftCalculator.buildManualPayments(
                                             totalAmount = total,
                                             members = joinedMembers,
-                                            payerAmounts = paidAmounts.mapValues { (_, value) ->
-                                                value.toDoubleOrNull() ?: 0.0
-                                            },
+                                            payerAmounts = mapOf(requireNotNull(settlementPayerId) to total),
                                             excludedMemberIds = selectedIds,
                                             paymentType = category
                                         )
@@ -888,6 +911,30 @@ fun OnlineGroupExpensesSection(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (settlementMode) {
+                        Text("Select the member who paid the full settlement amount.")
+
+                        joinedMembers.filter { it.id !in selectedIds }.forEach { member ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        settlementPayerId = member.id
+                                        paidAmounts = mapOf(member.id to total.toString())
+                                    },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = settlementPayerId == member.id,
+                                    onClick = {
+                                        settlementPayerId = member.id
+                                        paidAmounts = mapOf(member.id to total.toString())
+                                    }
+                                )
+                                Text(member.memberName)
+                            }
+                        }
+                    } else {
                     Text("Enter how much each member paid. Use 0 if they paid nothing.")
                     joinedMembers.filter { !settlementMode || it.id !in selectedIds }
                         .forEach { member ->
@@ -924,6 +971,7 @@ fun OnlineGroupExpensesSection(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier.fillMaxWidth()
                         )
+                    }
                     }
                 }
             },

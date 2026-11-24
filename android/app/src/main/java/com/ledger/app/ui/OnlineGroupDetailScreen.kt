@@ -611,8 +611,15 @@ fun OnlineGroupDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 items(members, key = { it.id }) { member ->
+                                    val isCurrentUserMember =
+                                        currentUserId != null && member.userId == currentUserId
+
                                     Card(
                                         modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(18.dp),
+                                        border = if (isCurrentUserMember) {
+                                            BorderStroke(1.dp, Color(0xFFE8B64A))
+                                        } else null,
                                         colors = androidx.compose.material3.CardDefaults.cardColors(
                                             containerColor = Color.White
                                         )
@@ -729,13 +736,6 @@ Column(
                                             }
                                             }
 
-                                            if (member.role == "owner") {
-                                                Text(
-                                                    text = "Group Owner",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
 
                                         }
                                     }

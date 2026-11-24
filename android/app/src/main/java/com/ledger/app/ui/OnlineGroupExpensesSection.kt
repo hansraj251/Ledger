@@ -155,6 +155,19 @@ fun OnlineGroupExpensesSection(
     var expandedExpenseIds by remember(groupId) { mutableStateOf<Set<String>>(emptySet()) }
 
     var title by remember { mutableStateOf("") }
+    val settlementTitlePattern = remember {
+        Regex(
+            """\b(?:settle(?:d|ment|ments)?|settling)\b""",
+            RegexOption.IGNORE_CASE
+        )
+    }
+
+    val hasReservedSettlementTitle = !settlementMode &&
+        Regex(
+            """\bsettle(?:d|ment|ments|ing)?\b""",
+            RegexOption.IGNORE_CASE
+        ).containsMatchIn(title)
+
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Cash") }
@@ -576,6 +589,23 @@ fun OnlineGroupExpensesSection(
         }
     }
 
+    fun updateSettlementMode(checked: Boolean) {
+        if (busy || editingExpense != null) return
+
+        settlementMode = checked
+        title = if (checked) "Settled" else ""
+        splitMode = if (checked) "Custom" else "Equal"
+        selectedIds = if (checked) emptySet()
+            else joinedMembers.map { it.id }.toSet()
+        customAmounts = if (checked) emptyMap()
+            else joinedMembers.associate { it.id to "" }
+        shareUnits = joinedMembers.associate { it.id to "1" }
+        paidAmounts = if (checked) emptyMap()
+            else joinedMembers.filter { it.id != youMember?.id }
+                .associate { it.id to "" }
+        settlementPayerId = null
+    }
+
     if (showEditor) {
         AlertDialog(
             modifier = Modifier.fillMaxSize(),
@@ -623,20 +653,7 @@ fun OnlineGroupExpensesSection(
                     Switch(
                         checked = settlementMode,
                         onCheckedChange = { checked ->
-                            if (!busy && editingExpense == null) {
-                                settlementMode = checked
-                                title = if (checked) "Settled" else ""
-                                splitMode = if (checked) "Custom" else "Equal"
-                                selectedIds = if (checked) emptySet()
-                                    else joinedMembers.map { it.id }.toSet()
-                                customAmounts = if (checked) emptyMap()
-                                    else joinedMembers.associate { it.id to "" }
-                                shareUnits = joinedMembers.associate { it.id to "1" }
-                                paidAmounts = if (checked) emptyMap()
-                                    else joinedMembers.filter { it.id != youMember?.id }
-                                        .associate { it.id to "" }
-                                settlementPayerId = null
-                            }
+                            updateSettlementMode(checked)
                         },
                         enabled = !busy && editingExpense == null
                     )
@@ -654,9 +671,25 @@ fun OnlineGroupExpensesSection(
                     ) {
                         OutlinedTextField(
                             value = title,
-                            onValueChange = { if (!settlementMode) title = it },
+                            onValueChange = { newTitle ->
+                                if (!settlementMode) {
+                                    if (settlementTitlePattern.containsMatchIn(newTitle)) {
+                                        if (editingExpense == null) {
+                                            updateSettlementMode(true)
+                                        }
+                                    } else {
+                                        title = newTitle
+                                    }
+                                }
+                            },
                             label = { Text("Title") },
                             singleLine = true,
+                            isError = hasReservedSettlementTitle,
+                            supportingText = {
+                                if (hasReservedSettlementTitle) {
+                                    Text("Settlement-related titles are reserved.")
+                                }
+                            },
                             readOnly = settlementMode,
                             enabled = !busy,
                             modifier = Modifier.weight(1f),
@@ -975,6 +1008,7 @@ fun OnlineGroupExpensesSection(
                         Button(
                             modifier = Modifier.weight(1f),
                             enabled = !busy && title.isNotBlank() &&
+                                !hasReservedSettlementTitle &&
                                 (amount.toDoubleOrNull() ?: 0.0) > 0.0 &&
                                 selectedIds.isNotEmpty() &&
                                 (if (settlementMode) {
@@ -982,6 +1016,7 @@ fun OnlineGroupExpensesSection(
                                         settlementPayerId !in selectedIds
                                 } else youMember != null),
                             onClick = {
+                                if (hasReservedSettlementTitle) return@Button
                                 val total = amount.toDoubleOrNull() ?: return@Button
                                 val selectedMembers = joinedMembers.filter { it.id in selectedIds }
                                 try {

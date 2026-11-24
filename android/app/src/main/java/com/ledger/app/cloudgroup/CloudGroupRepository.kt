@@ -32,6 +32,26 @@ class CloudGroupRepository(
         return remote.insertGroup(cleanName, ownerId)
     }
 
+    suspend fun updateGroupName(
+        groupId: String,
+        name: String
+    ): String {
+        requireValidId(groupId, "Group")
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty()) {
+            "Group name cannot be empty."
+        }
+        require(cleanName.length <= 120) {
+            "Group name cannot exceed 120 characters."
+        }
+        return remote.updateGroupName(groupId, cleanName)
+    }
+
+    suspend fun deleteGroup(groupId: String): String {
+        requireValidId(groupId, "Group")
+        return remote.deleteGroup(groupId)
+    }
+
     suspend fun claimPendingMemberships(): Int {
         return remote.claimPendingMemberships()
     }

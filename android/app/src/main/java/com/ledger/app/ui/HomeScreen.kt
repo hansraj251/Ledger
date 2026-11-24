@@ -1688,22 +1688,7 @@ item {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(
-                            onClick = {
-                                if (cloudUser == null) {
-                                    onProfileClick()
-                                } else {
-                                    createOnlineGroupError = null
-                                    newOnlineGroupName = ""
-                                    showCreateOnlineGroupDialog = true
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Add,
-                                contentDescription = "Create Online Group"
-                            )
-                        }
+
                     }
                 }
 
@@ -1816,20 +1801,7 @@ item {
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                OutlinedButton(
-                                    onClick = {
-                                        newOnlineGroupName = ""
-                                        createOnlineGroupError = null
-                                        showCreateOnlineGroupDialog = true
-                                    }
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.Add,
-                                        contentDescription = null
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Create Online Group")
-                                }
+
                             }
                         }
                     }
@@ -2036,6 +2008,28 @@ item {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text("Create Group")
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showAddOptionsDialog = false
+                            if (cloudUser == null) {
+                                onProfileClick()
+                            } else {
+                                newOnlineGroupName = ""
+                                createOnlineGroupError = null
+                                showCreateOnlineGroupDialog = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CloudDone,
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Create Online Group")
                     }
 
                     androidx.compose.material3.OutlinedButton(
@@ -2595,11 +2589,13 @@ title = { Text("Delete Party?") },
                 }
             },
             shape = RoundedCornerShape(24.dp),
+            containerColor = Color.White,
             title = {
                 Text(
                     text = "Create Online Group",
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF20243A)
                 )
             },
             text = {
@@ -2637,55 +2633,76 @@ title = { Text("Delete Party?") },
                 }
             },
             confirmButton = {
-                Button(
-                    enabled = newOnlineGroupName.isNotBlank() &&
-                        newOnlineGroupName.trim().length <= 120 &&
-                        !isCreatingOnlineGroup,
-                    onClick = {
-                        scope.launch {
-                            isCreatingOnlineGroup = true
-                            createOnlineGroupError = null
-                            try {
-                                val created = withContext(Dispatchers.IO) {
-                                    cloudGroupRepository.createGroup(newOnlineGroupName)
-                                }
-                                onlineGroups = listOf(created) + onlineGroups
-                                newOnlineGroupName = ""
-                                showCreateOnlineGroupDialog = false
-                            } catch (error: CancellationException) {
-                                throw error
-                            } catch (error: Exception) {
-                                android.util.Log.e(
-                                    "CloudGroupDebug",
-                                    "Create Online Group failed",
-                                    error
-                                )
-                                createOnlineGroupError = error.message
-                                    ?: "Could not create Online Group."
-                            } finally {
-                                isCreatingOnlineGroup = false
-                            }
-                        }
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (isCreatingOnlineGroup) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
+                    androidx.compose.material3.OutlinedButton(
+                        enabled = !isCreatingOnlineGroup,
+                        onClick = { showCreateOnlineGroupDialog = false },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Color(0xFFD8DCE5)
                         )
-                    } else {
-                        Text("Create")
+                    ) {
+                        Text(
+                            "Cancel",
+                            color = Color(0xFF42485A),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        enabled = newOnlineGroupName.isNotBlank() &&
+                            newOnlineGroupName.trim().length <= 120 &&
+                            !isCreatingOnlineGroup,
+                        onClick = {
+                            scope.launch {
+                                isCreatingOnlineGroup = true
+                                createOnlineGroupError = null
+                                try {
+                                    val created = withContext(Dispatchers.IO) {
+                                        cloudGroupRepository.createGroup(newOnlineGroupName)
+                                    }
+                                    onlineGroups = listOf(created) + onlineGroups
+                                    newOnlineGroupName = ""
+                                    showCreateOnlineGroupDialog = false
+                                } catch (error: CancellationException) {
+                                    throw error
+                                } catch (error: Exception) {
+                                    android.util.Log.e(
+                                        "CloudGroupDebug",
+                                        "Create Online Group failed",
+                                        error
+                                    )
+                                    createOnlineGroupError = error.message
+                                        ?: "Could not create Online Group."
+                                } finally {
+                                    isCreatingOnlineGroup = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        if (isCreatingOnlineGroup) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                        } else {
+                            Text(
+                                "Create",
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             },
-            dismissButton = {
-                TextButton(
-                    enabled = !isCreatingOnlineGroup,
-                    onClick = { showCreateOnlineGroupDialog = false }
-                ) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = {}
         )
     }
 

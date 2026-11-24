@@ -78,5 +78,6 @@ data class CloudGroupMemberAddResult(
 data class CloudGroupExpenseData(
     val expenses: List<CloudGroupExpense>,
     val splits: List<CloudGroupExpenseSplit>,
-    val payments: List<CloudGroupExpensePayment>
+    val payments: List<CloudGroupExpensePayment>,
+    val settlements: List<CloudGroupSettlement> = emptyList()
 )

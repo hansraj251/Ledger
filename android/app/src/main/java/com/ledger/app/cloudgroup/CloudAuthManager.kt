@@ -99,6 +99,28 @@ class CloudAuthManager(
 
         Log.i(TAG, "STEP 6: Authenticated user session found")
 
+        val displayName = credential.displayName
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+
+        if (displayName != null) {
+            try {
+                val updatedCount =
+                    cloudGroupRemote.syncMyCloudProfileName(displayName)
+
+                Log.i(
+                    TAG,
+                    "Google display name synced. Owner records updated: $updatedCount"
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.w(TAG, "Could not sync Google display name", error)
+            }
+        } else {
+            Log.w(TAG, "Google credential did not provide a display name")
+        }
+
         claimPendingMembershipsSafely()
 
         return CloudAuthenticatedUser(

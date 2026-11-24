@@ -8,6 +8,13 @@ interface CloudGroupRemoteDataSource {
 
     suspend fun insertGroup(name: String, ownerId: String): CloudGroup
 
+    suspend fun updateGroupName(
+        groupId: String,
+        name: String
+    ): String
+
+    suspend fun deleteGroup(groupId: String): String
+
     suspend fun claimPendingMemberships(): Int
 
     suspend fun fetchMembers(groupId: String): List<CloudGroupMember>

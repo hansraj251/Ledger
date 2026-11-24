@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
@@ -109,6 +110,7 @@ fun OnlineGroupExpensesSection(
     }
     var editingExpense by remember { mutableStateOf<CloudGroupExpense?>(null) }
     var deletingExpense by remember { mutableStateOf<CloudGroupExpense?>(null) }
+    var expandedExpenseIds by remember(groupId) { mutableStateOf<Set<String>>(emptySet()) }
 
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -221,7 +223,7 @@ fun OnlineGroupExpensesSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Expenses (${data.expenses.size})",
+                "Expenses",
                 style = MaterialTheme.typography.titleMedium
             )
             // Add Expense action is provided by the floating button.
@@ -245,15 +247,38 @@ fun OnlineGroupExpensesSection(
         if (data.expenses.isNotEmpty()) {
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 220.dp),
+                    .weight(1f)
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 items(
                     data.expenses.sortedByDescending { it.expenseDateMs },
                     key = { it.id }
                 ) { expense ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                enabled = enabled && !busy,
+                                onClick = {
+                                    expandedExpenseIds =
+                                        if (expense.id in expandedExpenseIds) {
+                                            expandedExpenseIds - expense.id
+                                        } else {
+                                            expandedExpenseIds + expense.id
+                                        }
+                                },
+                                onLongClick = { openEditExpense(expense) }
+                            ),
+                        shape = RoundedCornerShape(18.dp),
+                        border = BorderStroke(1.dp, Color(0xFFE8B64A)),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        elevation = androidx.compose.material3.CardDefaults.cardElevation(
+                            defaultElevation = 3.dp
+                        )
+                    ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -276,27 +301,107 @@ fun OnlineGroupExpensesSection(
                             Text(
                                 "${expense.splitMode} • ${expense.category}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color(0xFF626B78)
                             )
-                            if (expense.note.isNotBlank()) {
-                                Text(expense.note, style = MaterialTheme.typography.bodySmall)
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(
-                                    enabled = enabled && !busy,
-                                    onClick = { openEditExpense(expense) }
-                                ) {
-                                    Text("Edit")
+                            Text(
+                                java.text.SimpleDateFormat(
+                                    "dd MMM yyyy",
+                                    java.util.Locale.getDefault()
+                                ).format(java.util.Date(expense.expenseDateMs)),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF737B87)
+                            )
+                            if (expense.id in expandedExpenseIds) {
+                                if (expense.note.isNotBlank()) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = Color(0xFFF5F7FA),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text(
+                                            text = expense.note,
+                                            modifier = Modifier.padding(10.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color(0xFF424A55)
+                                        )
+                                    }
                                 }
-                                TextButton(
-                                    enabled = enabled && !busy,
-                                    onClick = { deletingExpense = expense }
+
+                                val expenseSplits = data.splits.filter {
+                                    it.expenseId == expense.id
+                                }
+                                val expensePayments = data.payments.filter {
+                                    it.expenseId == expense.id
+                                }
+                                val displayedMemberIds = (
+                                    expenseSplits.map { it.memberId } +
+                                    expensePayments.map { it.memberId }
+                                ).distinct()
+
+                                displayedMemberIds.forEach { memberId ->
+                                    val split = expenseSplits.firstOrNull {
+                                        it.memberId == memberId
+                                    }
+                                    val memberPayments = expensePayments.filter {
+                                        it.memberId == memberId
+                                    }
+                                    val memberName = split?.memberNameSnapshot
+                                        ?: memberPayments.firstOrNull()?.memberNameSnapshot
+                                        ?: ""
+                                    val shareAmount = split?.amount ?: 0.0
+                                    val memberPaid = memberPayments.sumOf { it.amount }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                memberName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (memberPaid > 0.009)
+                                                    Color(0xFF166534)
+                                                else Color(0xFF202124)
+                                            )
+                                            Text(
+                                                if (memberPaid > 0.009)
+                                                    "Paid ₹${"%.2f".format(memberPaid)}"
+                                                else "Not paid",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (memberPaid > 0.009)
+                                                    Color(0xFF166534)
+                                                else Color(0xFF737B87)
+                                            )
+                                        }
+                                        Text(
+                                            "₹${"%.2f".format(shareAmount)}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF202124)
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 2.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        "Delete",
-                                        color = MaterialTheme.colorScheme.error
+                                        "Hold to Edit",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF8A9099)
                                     )
                                 }
+                            } else {
+                                Text(
+                                    "Tap to view details",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF8A9099)
+                                )
                             }
                         }
                     }
@@ -819,6 +924,7 @@ fun OnlineGroupExpensesSection(
                     enabled = !busy,
                     onClick = {
                         deletingExpense = null
+                        showEditor = false
                         runAction {
                             repository.deleteGroupExpense(groupId, expense.id)
                         }

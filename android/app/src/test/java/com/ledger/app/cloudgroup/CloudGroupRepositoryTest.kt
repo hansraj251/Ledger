@@ -15,6 +15,9 @@ class CloudGroupRepositoryTest {
 
         var insertedName: String? = null
         var insertedOwnerId: String? = null
+        var updatedGroupName: String? = null
+        var updatedGroupId: String? = null
+        var deletedGroupId: String? = null
         var claimCalls = 0
         var fetchedGroupId: String? = null
         var addedMemberName: String? = null
@@ -38,6 +41,20 @@ class CloudGroupRepositoryTest {
                 ownerId = ownerId,
                 createdAt = "2026-11-23T00:00:00Z"
             )
+        }
+
+        override suspend fun updateGroupName(
+            groupId: String,
+            name: String
+        ): String {
+            updatedGroupId = groupId
+            updatedGroupName = name
+            return groupId
+        }
+
+        override suspend fun deleteGroup(groupId: String): String {
+            deletedGroupId = groupId
+            return groupId
         }
 
         override suspend fun claimPendingMemberships(): Int {

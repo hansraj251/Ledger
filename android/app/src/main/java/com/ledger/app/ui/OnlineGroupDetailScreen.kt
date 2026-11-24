@@ -1,6 +1,7 @@
 package com.ledger.app.ui
 
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ledger.app.cloudgroup.CloudGroup
+import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
+import com.ledger.app.cloudgroup.CloudGroupMemberBalance
 import com.ledger.app.cloudgroup.CloudGroupMember
 import com.ledger.app.cloudgroup.CloudGroupExpenseData
 import com.ledger.app.cloudgroup.CloudGroupRepository
@@ -78,10 +81,24 @@ fun OnlineGroupDetailScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showEditGroupDialog by remember { mutableStateOf(false) }
+    var showDeleteGroupDialog by remember { mutableStateOf(false) }
+    var groupNameInput by remember { mutableStateOf("") }
+    var deleteBalanceLoading by remember { mutableStateOf(false) }
+    var deleteBalanceError by remember { mutableStateOf<String?>(null) }
+    var deleteBalances by remember(groupId) {
+        mutableStateOf<Map<String, CloudGroupMemberBalance>>(emptyMap())
+    }
     var editingMember by remember { mutableStateOf<CloudGroupMember?>(null) }
     var removingMember by remember { mutableStateOf<CloudGroupMember?>(null) }
     var memberNameInput by remember { mutableStateOf("") }
     var memberEmailInput by remember { mutableStateOf("") }
+
+    var memberRemovalBalanceLoading by remember { mutableStateOf(false) }
+    var memberRemovalBalanceError by remember { mutableStateOf<String?>(null) }
+    var memberRemovalBalances by remember(groupId) {
+        mutableStateOf<Map<String, CloudGroupMemberBalance>>(emptyMap())
+    }
 
     var selectedGroupSection by remember(groupId) {
         mutableStateOf("Members")
@@ -114,6 +131,12 @@ fun OnlineGroupDetailScreen(
                 }
             group = result.first
             members = result.second
+
+            // Keep the open Member Detail screen in sync with refreshed data.
+            selectedMemberDetail = selectedMemberDetail?.let { selected ->
+                result.second.firstOrNull { it.id == selected.id }
+            }
+
             currentUserId = result.third
 
             if (group == null) {
@@ -147,6 +170,56 @@ fun OnlineGroupDetailScreen(
         }
     }
 
+    fun loadDeleteBalances() {
+        scope.launch {
+            deleteBalanceLoading = true
+            deleteBalanceError = null
+            deleteBalances = emptyMap()
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    val data = repository.loadGroupExpenses(groupId)
+                    val balances = CloudGroupBalanceCalculator.calculate(
+                        members = members,
+                        splits = data.splits,
+                        payments = data.payments,
+                        settlements = data.settlements
+                    )
+                    data to balances
+                }
+                memberExpenseData = result.first
+                deleteBalances = result.second
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                deleteBalanceError =
+                    error.message ?: "Could not verify group balances."
+            } finally {
+                deleteBalanceLoading = false
+            }
+        }
+    }
+
+    fun deleteGroupNow() {
+        scope.launch {
+            isBusy = true
+            deleteBalanceError = null
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.deleteGroup(groupId)
+                }
+                showDeleteGroupDialog = false
+                onBack()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                deleteBalanceError =
+                    error.message ?: "Could not delete this group."
+            } finally {
+                isBusy = false
+            }
+        }
+    }
+
     LaunchedEffect(groupId) {
         refresh()
     }
@@ -169,6 +242,39 @@ fun OnlineGroupDetailScreen(
         }
     }
 
+
+    LaunchedEffect(groupId, editingMember?.id, members) {
+        val targetMember = editingMember
+
+        if (targetMember == null) {
+            memberRemovalBalances = emptyMap()
+            memberRemovalBalanceError = null
+            memberRemovalBalanceLoading = false
+        } else {
+            memberRemovalBalanceLoading = true
+            memberRemovalBalanceError = null
+            memberRemovalBalances = emptyMap()
+
+            try {
+                memberRemovalBalances = withContext(Dispatchers.IO) {
+                    val data = repository.loadGroupExpenses(groupId)
+                    CloudGroupBalanceCalculator.calculate(
+                        members = members,
+                        splits = data.splits,
+                        payments = data.payments,
+                        settlements = data.settlements
+                    )
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                memberRemovalBalanceError =
+                    error.message ?: "Could not verify member balance."
+            } finally {
+                memberRemovalBalanceLoading = false
+            }
+        }
+    }
 
     BackHandler(onBack = onBack)
 
@@ -216,7 +322,7 @@ fun OnlineGroupDetailScreen(
                                 .clip(RoundedCornerShape(17.dp))
                                 .clickable {
                                     if (section == "Members" && selected) {
-                                        if (isOwner && !isBusy) {
+                                        if (currentUserId != null && !isBusy) {
                                             memberNameInput = ""
                                             memberEmailInput = ""
                                             showAddDialog = true
@@ -318,8 +424,21 @@ fun OnlineGroupDetailScreen(
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
+                                val context = androidx.compose.ui.platform.LocalContext.current
                                 Text(
                                     text = group!!.name,
+                                    modifier = Modifier.clickable(enabled = !isBusy) {
+                                        if (isOwner) {
+                                            groupNameInput = group!!.name
+                                            showEditGroupDialog = true
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Only owner can edit or delete",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    },
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface,
@@ -477,7 +596,23 @@ fun OnlineGroupDetailScreen(
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column(
+                                                Box(
+    modifier = Modifier
+        .size(44.dp)
+        .background(
+            MaterialTheme.colorScheme.primaryContainer,
+            androidx.compose.foundation.shape.CircleShape
+        ),
+    contentAlignment = Alignment.Center
+) {
+    Text(
+        text = member.memberName.trim().take(1).uppercase().ifBlank { "M" },
+        color = MaterialTheme.colorScheme.onPrimaryContainer,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+Spacer(Modifier.width(12.dp))
+Column(
                                                     modifier = Modifier
                                                         .weight(1f)
                                                         .clickable { selectedMemberDetail = member }
@@ -518,13 +653,13 @@ fun OnlineGroupDetailScreen(
                                                         }
                                                     )
                                                 }
+                                                if (member.status == "pending") {
                                                 Text(
-                                                    text = member.status.replaceFirstChar { it.uppercase() },
+                                                    text = "Pending",
                                                     style = MaterialTheme.typography.labelMedium,
-                                                    color = if (member.status == "joined")
-                                                        MaterialTheme.colorScheme.primary
-                                                    else MaterialTheme.colorScheme.error
+                                                    color = MaterialTheme.colorScheme.error
                                                 )
+                                            }
                                             }
 
                                             if (member.role == "owner") {
@@ -603,18 +738,37 @@ fun OnlineGroupDetailScreen(
                             }
                         }
                         Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val canEditDetailMemberName =
+                            (isOwner && detailMember.role == "member") ||
+                            (
+                                currentUserId != null &&
+                                detailMember.userId == currentUserId &&
+                                detailMember.role in listOf("owner", "member")
+                            )
+
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                                .clickable(enabled = !isBusy) {
+                                    if (canEditDetailMemberName) {
+                                        memberNameInput = detailMember.memberName
+                                        editingMember = detailMember
+                                    } else if (!isOwner) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Member can edit only own name",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                        ) {
                             Text(
                                 detailMember.memberName,
-                                modifier = Modifier.clickable(
-                                    enabled = isOwner && detailMember.role == "member" && !isBusy
-                                ) {
-                                    memberNameInput = detailMember.memberName
-                                    editingMember = detailMember
-                                },
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isOwner && detailMember.role == "member")
+                                color = if (canEditDetailMemberName)
                                     MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface
                             )
@@ -624,15 +778,7 @@ fun OnlineGroupDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        if (detailMember.role == "owner") {
-                            Text(
-                                "Owner",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
-
                     HorizontalDivider()
 
                     Row(
@@ -838,6 +984,204 @@ fun OnlineGroupDetailScreen(
         }
     }
 
+    if (showEditGroupDialog && isOwner) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isBusy) showEditGroupDialog = false
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Edit Group",
+                    color = Color(0xFF202124),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = groupNameInput,
+                    onValueChange = { groupNameInput = it },
+                    label = { Text("Group Name") },
+                    singleLine = true,
+                    enabled = !isBusy,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        disabledContainerColor = Color.White,
+                        focusedTextColor = Color(0xFF202124),
+                        unfocusedTextColor = Color(0xFF202124)
+                    )
+                )
+            },
+            confirmButton = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.OutlinedButton(
+                        enabled = !isBusy,
+                        onClick = {
+                            showEditGroupDialog = false
+                            deleteBalanceError = null
+                            showDeleteGroupDialog = true
+                            loadDeleteBalances()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+
+                    androidx.compose.material3.OutlinedButton(
+                        enabled = !isBusy && groupNameInput.isNotBlank(),
+                        onClick = {
+                            showEditGroupDialog = false
+                            runMemberAction {
+                                repository.updateGroupName(groupId, groupNameInput)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { showEditGroupDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showDeleteGroupDialog && isOwner) {
+        val joinedMembers = members.filter { it.status == "joined" }
+        val unsettledMembers = joinedMembers.filter { member ->
+            (deleteBalances[member.id]?.remainingBalancePaise ?: 0L) != 0L
+        }
+        val canDelete =
+            !deleteBalanceLoading &&
+            deleteBalanceError == null &&
+            unsettledMembers.isEmpty()
+
+        AlertDialog(
+            onDismissRequest = {
+                if (!isBusy) showDeleteGroupDialog = false
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Delete Group?",
+                    color = Color(0xFF202124),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "A group can only be deleted when every joined member's " +
+                            "remaining balance is exactly ₹0.00.",
+                        color = Color(0xFF424242)
+                    )
+
+                    when {
+                        deleteBalanceLoading -> {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                                Text("Checking latest settlements and balances...")
+                            }
+                        }
+
+                        deleteBalanceError != null -> {
+                            Text(
+                                deleteBalanceError ?: "Balance verification failed.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(
+                                enabled = !isBusy,
+                                onClick = { loadDeleteBalances() }
+                            ) {
+                                Text("Retry balance check")
+                            }
+                        }
+
+                        unsettledMembers.isNotEmpty() -> {
+                            Text(
+                                "Deletion blocked. These members have outstanding balances:",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            unsettledMembers.forEach { member ->
+                                val paise =
+                                    deleteBalances[member.id]?.remainingBalancePaise ?: 0L
+                                Text(
+                                    "${member.memberName}: ₹" +
+                                        String.format(
+                                            java.util.Locale.US,
+                                            "%.2f",
+                                            paise / 100.0
+                                        ),
+                                    color = Color(0xFF424242)
+                                )
+                            }
+                        }
+
+                        else -> {
+                            Text(
+                                "All ${joinedMembers.size} joined members have zero balance.",
+                                color = Color(0xFF187A45),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Deleting this group will permanently remove its " +
+                                    "members, expenses, payments and settlements.",
+                                color = Color(0xFF424242)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isBusy && canDelete,
+                    onClick = { deleteGroupNow() }
+                ) {
+                    Text(
+                        if (isBusy) "Deleting..." else "Delete permanently",
+                        color = if (canDelete) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isBusy,
+                    onClick = { showDeleteGroupDialog = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -929,6 +1273,19 @@ fun OnlineGroupDetailScreen(
     }
 
     editingMember?.let { member ->
+        val canEditMemberName =
+            (isOwner && member.role == "member") ||
+            (
+                currentUserId != null &&
+                member.userId == currentUserId &&
+                member.role in listOf("owner", "member")
+            )
+
+        val canShowRemoveButton =
+            isOwner &&
+            member.role == "member" &&
+            member.userId != currentUserId
+
         AlertDialog(
             onDismissRequest = {
                 if (!isBusy) editingMember = null
@@ -937,14 +1294,54 @@ fun OnlineGroupDetailScreen(
             shape = RoundedCornerShape(24.dp),
             title = { Text("Edit Member", color = Color(0xFF202124)) },
             text = {
-                OutlinedTextField(
-                    value = memberNameInput,
-                    onValueChange = { memberNameInput = it },
-                    label = { Text("Member Name") },
-                    singleLine = true,
-                    enabled = !isBusy,
-                    shape = RoundedCornerShape(14.dp)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = memberNameInput,
+                        onValueChange = { memberNameInput = it },
+                        label = { Text("Member Name") },
+                        singleLine = true,
+                        enabled = !isBusy,
+                        shape = RoundedCornerShape(14.dp)
+                    )
+
+                    val removalBalance = memberRemovalBalances[member.id]
+
+                    if (member.status != "pending") {
+                        when {
+                            memberRemovalBalanceLoading -> {
+                            Text("Checking latest member balance...")
+                        }
+                        memberRemovalBalanceError != null -> {
+                            Text(
+                                "Cannot verify balance. Remove is disabled.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        removalBalance == null -> {
+                            Text(
+                                "Balance unavailable. Member cannot be removed.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        removalBalance.remainingBalancePaise != 0L -> {
+                            Text(
+                                "Unsettled balance: ₹" + String.format(
+                                    java.util.Locale.US,
+                                    "%.2f",
+                                    removalBalance.remainingBalancePaise / 100.0
+                                ) + ". Settle all dues before removing this member.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        else -> {
+                            Text(
+                                "Balance settled. Member can be removed.",
+                                color = Color(0xFF187A45)
+                            )
+                        }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Row(
@@ -952,21 +1349,35 @@ fun OnlineGroupDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    androidx.compose.material3.OutlinedButton(
-                        enabled = !isBusy,
-                        onClick = {
-                            editingMember = null
-                            removingMember = member
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    val removalBalance = memberRemovalBalances[member.id]
+                    val canRemoveMember =
+                        !isBusy && (
+                            member.status == "pending" ||
+                            (
+                                !memberRemovalBalanceLoading &&
+                                memberRemovalBalanceError == null &&
+                                removalBalance != null &&
+                                removalBalance.remainingBalancePaise == 0L
+                            )
+                        )
+
+                    if (canShowRemoveButton) {
+                        androidx.compose.material3.OutlinedButton(
+                            enabled = canRemoveMember,
+                            onClick = {
+                                editingMember = null
+                                removingMember = member
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                        ) {
+                            Text("Remove", color = MaterialTheme.colorScheme.error)
+                        }
                     }
 
                     androidx.compose.material3.OutlinedButton(
-                        enabled = !isBusy && memberNameInput.isNotBlank(),
+                        enabled = canEditMemberName && !isBusy && memberNameInput.isNotBlank(),
                         onClick = {
                             editingMember = null
                             runMemberAction {
@@ -998,6 +1409,7 @@ fun OnlineGroupDetailScreen(
 
     removingMember?.let { member ->
         AlertDialog(
+            containerColor = Color.White,
             onDismissRequest = {
                 if (!isBusy) removingMember = null
             },
@@ -1014,6 +1426,33 @@ fun OnlineGroupDetailScreen(
                     onClick = {
                         removingMember = null
                         runMemberAction {
+                            val latestMembers = repository.loadMembers(groupId)
+                            val latestData = repository.loadGroupExpenses(groupId)
+                            val latestMember = latestMembers.firstOrNull {
+                                it.id == member.id
+                            } ?: throw IllegalStateException(
+                                "Member not found. Please refresh and retry."
+                            )
+
+                            if (latestMember.status != "pending") {
+                                val latestBalances = CloudGroupBalanceCalculator.calculate(
+                                    members = latestMembers,
+                                    splits = latestData.splits,
+                                    payments = latestData.payments,
+                                    settlements = latestData.settlements
+                                )
+                                val latestBalance = latestBalances[member.id]
+                                    ?: throw IllegalStateException(
+                                        "Could not verify this member's balance. Please retry."
+                                    )
+
+                                if (latestBalance.remainingBalancePaise != 0L) {
+                                    throw IllegalStateException(
+                                        "Member cannot be removed. Please settle the outstanding balance first."
+                                    )
+                                }
+                            }
+
                             repository.removeMember(groupId, member.id)
                         }
                     }

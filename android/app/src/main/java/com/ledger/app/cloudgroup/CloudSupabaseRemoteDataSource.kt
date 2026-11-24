@@ -42,9 +42,46 @@ class CloudSupabaseRemoteDataSource(
             .decodeSingle<CloudGroup>()
     }
 
+    override suspend fun updateGroupName(
+        groupId: String,
+        name: String
+    ): String {
+        return supabase.postgrest
+            .rpc(
+                "update_cloud_group_name",
+                buildJsonObject {
+                    put("p_group_id", groupId)
+                    put("p_name", name)
+                }
+            )
+            .decodeAs<String>()
+    }
+
+    override suspend fun deleteGroup(groupId: String): String {
+        return supabase.postgrest
+            .rpc(
+                "delete_cloud_group",
+                buildJsonObject {
+                    put("p_group_id", groupId)
+                }
+            )
+            .decodeAs<String>()
+    }
+
     override suspend fun claimPendingMemberships(): Int {
         return supabase.postgrest
             .rpc("claim_pending_cloud_group_memberships", buildJsonObject {})
+            .decodeAs<Int>()
+    }
+
+    suspend fun syncMyCloudProfileName(name: String): Int {
+        return supabase.postgrest
+            .rpc(
+                "sync_my_cloud_profile_name",
+                buildJsonObject {
+                    put("p_name", name)
+                }
+            )
             .decodeAs<Int>()
     }
 
@@ -135,10 +172,18 @@ class CloudSupabaseRemoteDataSource(
             }
             .decodeList<CloudGroupExpensePayment>()
 
+        val settlements = supabase
+            .from("cloud_group_settlements")
+            .select {
+                filter { eq("group_id", groupId) }
+            }
+            .decodeList<CloudGroupSettlement>()
+
         return CloudGroupExpenseData(
             expenses = expenses,
             splits = splits,
-            payments = payments
+            payments = payments,
+            settlements = settlements
         )
     }
 

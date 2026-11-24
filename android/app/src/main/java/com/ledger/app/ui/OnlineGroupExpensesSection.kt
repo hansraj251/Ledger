@@ -105,6 +105,7 @@ fun OnlineGroupExpensesSection(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedMonth by remember(groupId) { mutableStateOf(YearMonth.now()) }
+    var selectedTransactionTab by remember(groupId) { mutableStateOf("Expenses") }
     var monthMenuExpanded by remember { mutableStateOf(false) }
 
     val monthFormatter = remember {
@@ -117,11 +118,22 @@ fun OnlineGroupExpensesSection(
             )
         } + selectedMonth).distinct().sortedDescending()
     }
-    val filteredExpenses = remember(data.expenses, selectedMonth) {
-        data.expenses.filter {
-            YearMonth.from(
-                Instant.ofEpochMilli(it.expenseDateMs).atZone(ZoneOffset.UTC)
+    val filteredExpenses = remember(data.expenses, selectedMonth, selectedTransactionTab) {
+        data.expenses.filter { expense ->
+            val sameMonth = YearMonth.from(
+                Instant.ofEpochMilli(expense.expenseDateMs).atZone(ZoneOffset.UTC)
             ) == selectedMonth
+
+            val isSettlement =
+                expense.title.trim().equals("Settled", ignoreCase = true)
+
+            val matchesType = if (selectedTransactionTab == "Settlement") {
+                isSettlement
+            } else {
+                !isSettlement
+            }
+
+            sameMonth && matchesType
         }.sortedByDescending { it.expenseDateMs }
     }
 
@@ -264,11 +276,37 @@ fun OnlineGroupExpensesSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Expenses",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier
+                    .background(Color(0xFFF1F5F9), RoundedCornerShape(13.dp))
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                listOf("Expenses", "Settlement").forEach { tab ->
+                    val selected = selectedTransactionTab == tab
+
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (selected) Color.White else Color.Transparent,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .clickable { selectedTransactionTab = tab }
+                            .padding(horizontal = 11.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            tab,
+                            color = if (selected) Color(0xFF245DA8)
+                            else Color(0xFF64748B),
+                            fontWeight = if (selected) FontWeight.Bold
+                            else FontWeight.Medium,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
 
             Box {
                 OutlinedButton(
@@ -349,16 +387,20 @@ fun OnlineGroupExpensesSection(
             Text(it, color = MaterialTheme.colorScheme.error)
         }
 
-        if (!loading && data.expenses.isEmpty()) {
-            Text(
-                "No expenses added yet.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        if (!loading && filteredExpenses.isEmpty()) {
+            val emptyMessage = when {
+                data.expenses.isEmpty() && selectedTransactionTab == "Settlement" ->
+                    "No settlements added yet."
+                data.expenses.isEmpty() ->
+                    "No expenses added yet."
+                selectedTransactionTab == "Settlement" ->
+                    "No settlements for ${selectedMonth.format(monthFormatter)}."
+                else ->
+                    "No expenses for ${selectedMonth.format(monthFormatter)}."
+            }
 
-        if (!loading && data.expenses.isNotEmpty() && filteredExpenses.isEmpty()) {
             Text(
-                "No expenses for ${selectedMonth.format(monthFormatter)}.",
+                emptyMessage,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

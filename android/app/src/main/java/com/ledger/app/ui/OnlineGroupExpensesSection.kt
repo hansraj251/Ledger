@@ -435,11 +435,6 @@ fun OnlineGroupExpensesSection(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                    Text(
-                        "Expense approvals",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
                     visibleApprovalRequests.forEach { request ->
                         val isCreator = request.createdBy == currentUserId
                         val myApproval = data.approvals.firstOrNull {
@@ -486,17 +481,23 @@ fun OnlineGroupExpensesSection(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    requestTypeLabel,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF64748B),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    "By $senderName",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF64748B)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        requestTypeLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "By $senderName",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween

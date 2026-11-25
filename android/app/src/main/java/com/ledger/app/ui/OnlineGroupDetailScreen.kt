@@ -710,6 +710,7 @@ fun OnlineGroupDetailScreen(
                                 memberExpenseData = loadedData
                                 memberExpenseDataLoaded = true
                                 memberExpenseError = null
+                                isOffline = false
                                 cloudGroupCache.saveDetail(
                                     groupId = groupId,
                                     group = group,
@@ -717,6 +718,9 @@ fun OnlineGroupDetailScreen(
                                     currentUserId = currentUserId,
                                     expenseData = loadedData
                                 )
+                            },
+                            onConnectivityError = {
+                                isOffline = true
                             },
                             onAddExpenseRequestConsumed = {
                                 addExpenseRequest = 0

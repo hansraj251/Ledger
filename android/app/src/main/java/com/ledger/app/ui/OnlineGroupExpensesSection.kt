@@ -101,6 +101,7 @@ fun OnlineGroupExpensesSection(
     expenseData: CloudGroupExpenseData,
     expenseDataLoaded: Boolean,
     onExpenseDataChange: (CloudGroupExpenseData) -> Unit,
+    onConnectivityError: () -> Unit,
     onAddExpenseRequestConsumed: () -> Unit,
     addExpenseRequest: Int = 0
 ) {
@@ -191,7 +192,12 @@ fun OnlineGroupExpensesSection(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Could not load expenses."
+            if (e.isConnectivityError()) {
+                error = null
+                onConnectivityError()
+            } else {
+                error = "Unable to load expenses. Please try again."
+            }
         } finally {
             loading = false
         }
@@ -207,7 +213,12 @@ fun OnlineGroupExpensesSection(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                error = e.message ?: "Expense operation failed."
+                if (e.isConnectivityError()) {
+                    error = null
+                    onConnectivityError()
+                } else {
+                    error = "Expense operation failed. Please try again."
+                }
             } finally {
                 busy = false
             }
@@ -1802,3 +1813,14 @@ private fun ExpenseApprovalComparison(
         }
     }
 }
+
+private fun Throwable.isConnectivityError(): Boolean =
+    generateSequence(this) { it.cause }.any { error ->
+        error is java.net.UnknownHostException ||
+            error is java.net.ConnectException ||
+            error is java.net.NoRouteToHostException ||
+            error is java.net.SocketException ||
+            error.message.orEmpty().contains("unable to resolve host", true) ||
+            error.message.orEmpty().contains("no address associated with hostname", true) ||
+            error.message.orEmpty().contains("network is unreachable", true)
+    }

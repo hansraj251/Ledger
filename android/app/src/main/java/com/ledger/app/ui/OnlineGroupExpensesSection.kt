@@ -828,10 +828,28 @@ fun OnlineGroupExpensesSection(
                                             }
                                         ) { Text("Cancel Delete Request") }
                                     } else if (isCreator) {
-                                        Button(
-                                            enabled = enabled && !busy,
-                                            onClick = { openEditPendingRequest(request) }
-                                        ) { Text("Edit & Resubmit") }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Button(
+                                                enabled = enabled && !busy,
+                                                onClick = { openEditPendingRequest(request) }
+                                            ) {
+                                                Text("Edit & Resubmit")
+                                            }
+
+                                            OutlinedButton(
+                                                enabled = enabled && !busy,
+                                                onClick = {
+                                                    runAction {
+                                                        repository.cancelGroupExpenseApprovalRequest(
+                                                            groupId,
+                                                            request.id
+                                                        )
+                                                    }
+                                                }
+                                            ) {
+                                                Text("Cancel")
+                                            }
+                                        }
                                     }
                                 } else if (request.status == "pending" && isCreator) {
                                     TextButton(

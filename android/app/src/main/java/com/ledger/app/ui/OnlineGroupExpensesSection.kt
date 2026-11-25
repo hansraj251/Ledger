@@ -1724,8 +1724,8 @@ private fun ExpenseApprovalComparison(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            sectionHeading("Old Expense")
-            sectionHeading("Proposed Expense")
+            sectionHeading(if (isSettlement) "Old Settlement" else "Old Expense")
+            sectionHeading(if (isSettlement) "Proposed Settlement" else "Proposed Expense")
         }
 
         comparisonRow("Date", oldDate, newDate)

@@ -1383,6 +1383,27 @@ Column(
                                     emptyList()
                                 }
 
+                                val settlementReceiverId = if (isSettlement) {
+                                    memberExpenseData.splits.firstOrNull {
+                                        it.expenseId == expense.id
+                                    }?.memberId
+                                } else null
+
+                                val settlementPayerId = settlementPayments.singleOrNull()?.memberId
+
+                                val settlementCounterpartyId = when (detailMember.id) {
+                                    settlementReceiverId -> settlementPayerId
+                                    settlementPayerId -> settlementReceiverId
+                                    else -> null
+                                }
+
+                                val settlementCounterpartyName = members.firstOrNull {
+                                    it.id == settlementCounterpartyId
+                                }?.memberName
+
+                                val settlementTitle = settlementCounterpartyName
+                                    ?.let { "Settled with $it" } ?: "Settled"
+
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(16.dp),
@@ -1395,7 +1416,7 @@ Column(
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Column(Modifier.weight(1f)) {
                                                 Text(
-                                                    expense.title,
+                                                    if (isSettlement) settlementTitle else expense.title,
                                                     style = MaterialTheme.typography.titleMedium,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
@@ -1449,7 +1470,7 @@ Column(
                                             split?.let {
                                                 Spacer(Modifier.height(8.dp))
                                                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text("Member Share", color = Color(0xFFE53935))
+                                                    Text("Share", color = Color(0xFFE53935))
                                                     Spacer(Modifier.weight(1f))
                                                     Text(
                                                         "₹" + String.format(

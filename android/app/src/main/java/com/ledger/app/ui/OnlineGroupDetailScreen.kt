@@ -97,6 +97,8 @@ fun OnlineGroupDetailScreen(
     var members by remember(groupId) {
         mutableStateOf(cachedGroupDetail?.members.orEmpty())
     }
+    // Keep archived members available for historical calculations; hide them only in the active Members UI.
+    val activeMembers = members.filter { it.status != "removed" }
     var currentUserId by remember(groupId) {
         mutableStateOf(cachedGroupDetail?.currentUserId)
     }
@@ -513,7 +515,7 @@ fun OnlineGroupDetailScreen(
                                     text = if (section == "Members" && selected)
                                         "Add Member"
                                     else if (section == "Members")
-                                        "Members (${members.size})"
+                                        "Members (${activeMembers.size})"
                                     else "Expenses",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
@@ -593,7 +595,7 @@ fun OnlineGroupDetailScreen(
                                     maxLines = 1
                                 )
                                 Text(
-                                    text = "${members.size} members",
+                                    text = "${activeMembers.size} members",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1
@@ -813,7 +815,7 @@ fun OnlineGroupDetailScreen(
 
                         Spacer(Modifier.height(12.dp))
 
-                        if (members.isEmpty()) {
+                        if (activeMembers.isEmpty()) {
                             Text(
                                 text = "No members found.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -823,7 +825,7 @@ fun OnlineGroupDetailScreen(
                                 modifier = Modifier.fillMaxWidth().weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(members, key = { it.id }) { member ->
+                                items(activeMembers, key = { it.id }) { member ->
                                     val isCurrentUserMember =
                                         currentUserId != null && member.userId == currentUserId
 
@@ -2186,7 +2188,7 @@ Column(
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                         ) {
-                            Text("Remove", color = MaterialTheme.colorScheme.error)
+                            Text("Hide", color = MaterialTheme.colorScheme.error)
                         }
                     }
 
@@ -2230,8 +2232,8 @@ Column(
             title = { Text("Remove Member?") },
             text = {
                 Text(
-                    "Remove ${member.memberName} from this group? " +
-                        "Historical records may prevent removal."
+                    "Hide ${member.memberName} from the active members list? " +
+                        "Previous expenses and settlements will remain in group history."
                 )
             },
             confirmButton = {
@@ -2271,10 +2273,7 @@ Column(
                         }
                     }
                 ) {
-                    Text(
-                        "Remove",
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    Text("Hide", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {

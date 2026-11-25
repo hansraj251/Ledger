@@ -457,6 +457,14 @@ fun OnlineGroupExpensesSection(
                             myApproval?.approvalStatus == "approved" -> "You approved • waiting for others"
                             else -> "Awaiting approval"
                         }
+                        val requestTypeLabel = when (request.requestType) {
+                            "edit" -> "Edit request"
+                            "delete" -> "Delete request"
+                            else -> "New expense request"
+                        }
+                        val senderName = members.firstOrNull {
+                            it.userId == request.createdBy
+                        }?.memberName?.takeIf { it.isNotBlank() } ?: "Unknown member"
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
@@ -469,21 +477,32 @@ fun OnlineGroupExpensesSection(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                Text(
+                                    requestTypeLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF64748B),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    "By $senderName",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF64748B)
+                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(Modifier.weight(1f)) {
-                                    Text(request.title, fontWeight = FontWeight.SemiBold)
-                                    Text(
-                                        java.text.SimpleDateFormat(
-                                            "dd MMM yyyy",
-                                            java.util.Locale.getDefault()
-                                        ).format(java.util.Date(request.expenseDateMs)),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF737B87)
-                                    )
-                                }
+                                        Text(request.title, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            java.text.SimpleDateFormat(
+                                                "dd MMM yyyy",
+                                                java.util.Locale.getDefault()
+                                            ).format(java.util.Date(request.expenseDateMs)),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF737B87)
+                                        )
+                                    }
                                     Text("₹${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
                                 }
                                 Text(
@@ -491,15 +510,6 @@ fun OnlineGroupExpensesSection(
                                     color = if (request.status == "changes_required") Color(0xFFB45309)
                                     else Color(0xFF315F91),
                                     style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    when (request.requestType) {
-                                        "edit" -> "Edit request"
-                                        "delete" -> "Delete request"
-                                        else -> "New expense request"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF64748B)
                                 )
     
                                 // Resolve request member IDs against this group's joined members.

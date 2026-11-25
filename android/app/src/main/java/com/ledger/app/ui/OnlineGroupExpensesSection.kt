@@ -92,6 +92,29 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private fun Throwable.settlementLimitMessage(): String? {
+    val details = generateSequence(this) { it.cause }
+        .joinToString("\n") { cause ->
+            listOfNotNull(cause.message, cause.toString()).joinToString(" ")
+        }
+
+    val match = Regex(
+        """Settlement exceeds actual remaining balance(?:\.\s*Remaining balance:\s*([0-9]+(?:\.[0-9]+)?))?""",
+        RegexOption.IGNORE_CASE
+    ).find(details) ?: return null
+
+    val amount = match.groupValues.getOrNull(1)
+        ?.toBigDecimalOrNull()
+        ?.setScale(2, java.math.RoundingMode.HALF_UP)
+        ?.toPlainString()
+
+    return if (amount != null) {
+        "Settlement limit reached. Remaining balance is ₹$amount. Please reduce the settlement amount."
+    } else {
+        "Settlement limit reached. The available balance has changed. Please refresh and try again."
+    }
+}
+
 @Composable
 fun OnlineGroupExpensesSection(
     groupId: String,
@@ -260,11 +283,14 @@ fun OnlineGroupExpensesSection(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                if (e.isConnectivityError()) {
-                    error = null
-                    onConnectivityError()
-                } else {
-                    error = "Expense operation failed. Please try again."
+                val settlementError = e.settlementLimitMessage()
+                when {
+                    settlementError != null -> error = settlementError
+                    e.isConnectivityError() -> {
+                        error = null
+                        onConnectivityError()
+                    }
+                    else -> error = "Expense operation failed. Please try again."
                 }
             } finally {
                 busy = false

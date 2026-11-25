@@ -5,6 +5,7 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.rpc
+import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
@@ -409,22 +410,31 @@ class CloudSupabaseRemoteDataSource(
                 })
             }
         }
-        return supabase.postgrest.rpc(
-            "submit_cloud_group_expense_edit_for_approval",
-            buildJsonObject {
-                put("p_group_id", groupId)
-                put("p_expense_id", expenseId)
-                put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
-                put("p_title", title)
-                put("p_amount", amount)
-                put("p_category", category)
-                put("p_note", note)
-                put("p_expense_date_ms", expenseDateMs)
-                put("p_split_mode", splitMode)
-                put("p_splits", splitJson)
-                put("p_payments", paymentJson)
+        try {
+            return supabase.postgrest.rpc(
+                "submit_cloud_group_expense_edit_for_approval",
+                buildJsonObject {
+                    put("p_group_id", groupId)
+                    put("p_expense_id", expenseId)
+                    put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+                    put("p_title", title)
+                    put("p_amount", amount)
+                    put("p_category", category)
+                    put("p_note", note)
+                    put("p_expense_date_ms", expenseDateMs)
+                    put("p_split_mode", splitMode)
+                    put("p_splits", splitJson)
+                    put("p_payments", paymentJson)
+                }
+            ).decodeAs<String>()
+        } catch (e: PostgrestRestException) {
+            if (e.code == "23505" &&
+                e.message.orEmpty().contains("uq_group_expense_active_change_target")
+            ) {
+                throw IllegalStateException("Edit request already pending for this expense.")
             }
-        ).decodeAs<String>()
+            throw e
+        }
     }
 
     override suspend fun submitGroupExpenseDeleteForApproval(
@@ -432,14 +442,23 @@ class CloudSupabaseRemoteDataSource(
         expenseId: String,
         requestId: String?
     ): String {
-        return supabase.postgrest.rpc(
-            "submit_cloud_group_expense_delete_for_approval",
-            buildJsonObject {
-                put("p_group_id", groupId)
-                put("p_expense_id", expenseId)
-                put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+        try {
+            return supabase.postgrest.rpc(
+                "submit_cloud_group_expense_delete_for_approval",
+                buildJsonObject {
+                    put("p_group_id", groupId)
+                    put("p_expense_id", expenseId)
+                    put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+                }
+            ).decodeAs<String>()
+        } catch (e: PostgrestRestException) {
+            if (e.code == "23505" &&
+                e.message.orEmpty().contains("uq_group_expense_active_change_target")
+            ) {
+                throw IllegalStateException("Delete request already pending for this expense.")
             }
-        ).decodeAs<String>()
+            throw e
+        }
     }
 
     override suspend fun cancelGroupExpenseApprovalRequest(

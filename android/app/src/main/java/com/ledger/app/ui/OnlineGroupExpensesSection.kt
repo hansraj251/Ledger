@@ -1036,7 +1036,7 @@ fun OnlineGroupExpensesSection(
                             singleLine = true,
                             readOnly = settlementMode,
                             enabled = !busy,
-                            modifier = Modifier.weight(1f).height(56.dp),
+                            modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
@@ -1045,7 +1045,7 @@ fun OnlineGroupExpensesSection(
                             label = { Text("Amount") },
                             singleLine = true,
                             enabled = !busy,
-                            modifier = Modifier.weight(1f).height(56.dp),
+                            modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = RoundedCornerShape(15.dp)
                         )

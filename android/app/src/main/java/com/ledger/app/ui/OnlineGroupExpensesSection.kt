@@ -64,6 +64,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -296,9 +301,34 @@ fun OnlineGroupExpensesSection(
         }
         .sortedByDescending { it.createdAtMs }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Cached data remains visible for fast first paint, but it must not
+    // suppress a fresh server read when the Expenses section becomes visible.
     LaunchedEffect(groupId) {
-        if (!expenseDataLoaded) {
+        refreshExpenses()
+    }
+
+    // Reconcile approvals/rejections made by other members while this page is
+    // open. This loop is cancelled when the Expenses section leaves composition.
+    LaunchedEffect(groupId, enabled) {
+        if (!enabled) return@LaunchedEffect
+        while (true) {
+            delay(15_000)
             refreshExpenses()
+        }
+    }
+
+    // The local cache survives process restarts; refresh again on foreground.
+    DisposableEffect(lifecycleOwner, groupId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch { refreshExpenses() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

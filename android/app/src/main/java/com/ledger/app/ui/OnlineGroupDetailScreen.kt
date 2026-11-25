@@ -1278,22 +1278,36 @@ Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                when {
-                                    kotlin.math.abs(memberBalance) < 0.01 ->
-                                        "${detailMember.memberName} Settled"
-                                    memberBalance > 0 ->
-                                        "${detailMember.memberName} Will Give"
-                                    else ->
-                                        "${detailMember.memberName} Will Get"
-                                },
+                                "Remaining Balance",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = when {
-                                    kotlin.math.abs(memberBalance) < 0.01 -> MaterialTheme.colorScheme.primary
-                                    memberBalance > 0 -> Color(0xFF2E7D32)
-                                    else -> Color(0xFFC62828)
-                                }
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    when {
+                                        kotlin.math.abs(memberBalance) < 0.01 ->
+                                            "${detailMember.memberName} Settled"
+                                        memberBalance > 0 ->
+                                            "${detailMember.memberName} Will Give"
+                                        else ->
+                                            "${detailMember.memberName} Will Get"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = when {
+                                        kotlin.math.abs(memberBalance) < 0.01 ->
+                                            MaterialTheme.colorScheme.primary
+                                        memberBalance > 0 -> Color(0xFF2E7D32)
+                                        else -> Color(0xFFC62828)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
                             Text(
                                 "₹" + String.format(
                                     java.util.Locale.getDefault(), "%,.2f",
@@ -1308,6 +1322,8 @@ Column(
                                 },
                                 maxLines = 1
                             )
+                            }
+
                         }
                     }
                     }

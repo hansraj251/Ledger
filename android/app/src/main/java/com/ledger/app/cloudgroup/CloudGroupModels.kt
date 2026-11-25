@@ -90,9 +90,63 @@ data class CloudGroupMemberAddResult(
 
 
 @Serializable
+data class CloudGroupExpenseApprovalSplit(
+    @SerialName("member_id") val memberId: String,
+    val amount: Double,
+    @SerialName("share_units") val shareUnits: Double = 1.0
+)
+
+@Serializable
+data class CloudGroupExpenseApprovalPayment(
+    @SerialName("member_id") val memberId: String,
+    val amount: Double,
+    @SerialName("payment_type") val paymentType: String = "Cash"
+)
+
+@Serializable
+data class CloudGroupExpenseApprovalRequest(
+    val id: String,
+    @SerialName("group_id") val groupId: String,
+    @SerialName("created_by") val createdBy: String,
+    val title: String,
+    val amount: Double,
+    val category: String,
+    val note: String = "",
+    @SerialName("expense_date_ms") val expenseDateMs: Long,
+    @SerialName("split_mode") val splitMode: String,
+    val splits: List<CloudGroupExpenseApprovalSplit>,
+    val payments: List<CloudGroupExpenseApprovalPayment> = emptyList(),
+    val status: String,
+    val revision: Int,
+    @SerialName("rejection_reason") val rejectionReason: String? = null,
+    @SerialName("final_expense_id") val finalExpenseId: String? = null,
+    @SerialName("created_at_ms") val createdAtMs: Long,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("approved_at") val approvedAt: String? = null
+)
+
+@Serializable
+data class CloudGroupExpenseApproval(
+    val id: String,
+    @SerialName("request_id") val requestId: String,
+    @SerialName("group_id") val groupId: String,
+    val revision: Int,
+    @SerialName("member_id") val memberId: String,
+    @SerialName("member_name_snapshot") val memberNameSnapshot: String,
+    @SerialName("approval_status") val approvalStatus: String,
+    @SerialName("responded_by") val respondedBy: String? = null,
+    @SerialName("responded_at") val respondedAt: String? = null,
+    @SerialName("rejection_note") val rejectionNote: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
 data class CloudGroupExpenseData(
     val expenses: List<CloudGroupExpense>,
     val splits: List<CloudGroupExpenseSplit>,
     val payments: List<CloudGroupExpensePayment>,
-    val settlements: List<CloudGroupSettlement> = emptyList()
+    val settlements: List<CloudGroupSettlement> = emptyList(),
+    @SerialName("pending_requests") val pendingRequests: List<CloudGroupExpenseApprovalRequest> = emptyList(),
+    val approvals: List<CloudGroupExpenseApproval> = emptyList()
 )

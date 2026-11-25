@@ -267,6 +267,100 @@ class CloudGroupRepository(
         )
     }
 
+    suspend fun submitGroupExpenseForApproval(
+        groupId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        requireValidId(groupId, "Group")
+        if (requestId != null) requireValidId(requestId, "Approval request")
+
+        val cleanTitle = title.trim()
+        require(cleanTitle.isNotEmpty() && cleanTitle.length <= 200) {
+            "Expense title must contain 1 to 200 characters."
+        }
+        require(amount.isFinite() && amount > 0.0) {
+            "Enter a valid expense amount."
+        }
+        require(category in setOf("Cash", "Online")) { "Invalid payment type." }
+        require(splitMode in setOf("Equal", "Custom", "Share")) { "Invalid split mode." }
+        require(expenseDateMs > 0L) { "Expense date is invalid." }
+        require(splits.isNotEmpty()) { "At least one split is required." }
+
+        fun toPaise(value: Double): Long {
+            require(value.isFinite() && value >= 0.0) { "Invalid amount." }
+            return java.math.BigDecimal.valueOf(value)
+                .movePointRight(2)
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .longValueExact()
+        }
+
+        val totalPaise = toPaise(amount)
+        require(splits.map { it.memberId }.distinct().size == splits.size) {
+            "Duplicate members in expense splits."
+        }
+        require(splits.all {
+            it.memberId.isNotBlank() && it.memberName.isNotBlank() &&
+                it.shareUnits.isFinite() && it.shareUnits >= 0.0
+        }) { "Invalid split details." }
+        require(splits.sumOf { toPaise(it.amount) } == totalPaise) {
+            "Split amounts must equal the expense amount."
+        }
+        require(payments.map { it.memberId }.distinct().size == payments.size) {
+            "Duplicate members in expense payments."
+        }
+        require(payments.all {
+            it.memberId.isNotBlank() && it.memberName.isNotBlank() &&
+                it.paymentType in setOf("Cash", "Online") &&
+                it.amount.isFinite() && it.amount > 0.0
+        }) { "Invalid payment details." }
+        require(payments.isEmpty() || payments.sumOf { toPaise(it.amount) } == totalPaise) {
+            "Payment amounts must equal the expense amount."
+        }
+        if (cleanTitle.equals("Settled", ignoreCase = true)) {
+            require(splits.size == 1 && payments.size == 1) {
+                "A settled expense must have one receiver and one payer."
+            }
+        }
+
+        return remote.submitGroupExpenseForApproval(
+            groupId = groupId,
+            requestId = requestId,
+            title = cleanTitle,
+            amount = totalPaise / 100.0,
+            category = category,
+            note = note.trim(),
+            expenseDateMs = expenseDateMs,
+            splitMode = splitMode,
+            splits = splits,
+            payments = payments
+        )
+    }
+
+    suspend fun respondToGroupExpenseApproval(
+        groupId: String,
+        requestId: String,
+        approve: Boolean,
+        rejectionNote: String? = null
+    ): String {
+        requireValidId(groupId, "Group")
+        requireValidId(requestId, "Approval request")
+        val cleanNote = rejectionNote?.trim()?.take(500)?.takeIf { it.isNotEmpty() }
+        return remote.respondToGroupExpenseApproval(
+            groupId = groupId,
+            requestId = requestId,
+            approve = approve,
+            rejectionNote = cleanNote
+        )
+    }
+
     suspend fun deleteGroupExpense(
         groupId: String,
         expenseId: String

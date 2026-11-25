@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
 
@@ -196,11 +197,28 @@ class CloudSupabaseRemoteDataSource(
             }
             .decodeList<CloudGroupSettlement>()
 
+        val pendingRequests = supabase
+            .from("cloud_group_expense_approval_requests")
+            .select {
+                filter { eq("group_id", groupId) }
+            }
+            .decodeList<CloudGroupExpenseApprovalRequest>()
+            .filter { it.status == "pending" || it.status == "changes_required" }
+
+        val approvals = supabase
+            .from("cloud_group_expense_approvals")
+            .select {
+                filter { eq("group_id", groupId) }
+            }
+            .decodeList<CloudGroupExpenseApproval>()
+
         return CloudGroupExpenseData(
             expenses = expenses,
             splits = splits,
             payments = payments,
-            settlements = settlements
+            settlements = settlements,
+            pendingRequests = pendingRequests,
+            approvals = approvals
         )
     }
 
@@ -293,6 +311,71 @@ class CloudSupabaseRemoteDataSource(
         )
 
         return result.decodeAs<String>()
+    }
+
+    override suspend fun submitGroupExpenseForApproval(
+        groupId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        val splitJson = buildJsonArray {
+            splits.forEach { item ->
+                add(buildJsonObject {
+                    put("member_id", item.memberId)
+                    put("amount", item.amount)
+                    put("share_units", item.shareUnits)
+                })
+            }
+        }
+        val paymentJson = buildJsonArray {
+            payments.forEach { item ->
+                add(buildJsonObject {
+                    put("member_id", item.memberId)
+                    put("amount", item.amount)
+                    put("payment_type", item.paymentType)
+                })
+            }
+        }
+
+        return supabase.postgrest.rpc(
+            "submit_cloud_group_expense_for_approval",
+            buildJsonObject {
+                put("p_group_id", groupId)
+                put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+                put("p_title", title)
+                put("p_amount", amount)
+                put("p_category", category)
+                put("p_note", note)
+                put("p_expense_date_ms", expenseDateMs)
+                put("p_split_mode", splitMode)
+                put("p_splits", splitJson)
+                put("p_payments", paymentJson)
+            }
+        ).decodeAs<String>()
+    }
+
+    override suspend fun respondToGroupExpenseApproval(
+        groupId: String,
+        requestId: String,
+        approve: Boolean,
+        rejectionNote: String?
+    ): String {
+        return supabase.postgrest.rpc(
+            "respond_cloud_group_expense_approval",
+            buildJsonObject {
+                put("p_group_id", groupId)
+                put("p_request_id", requestId)
+                put("p_approve", approve)
+                put("p_rejection_note", rejectionNote?.let { JsonPrimitive(it) } ?: JsonNull)
+            }
+        ).decodeAs<String>()
     }
 
     override suspend fun deleteGroupExpense(

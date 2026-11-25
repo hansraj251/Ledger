@@ -67,6 +67,30 @@ interface CloudGroupRemoteDataSource {
         payments: List<CloudGroupExpensePaymentDraft>
     ): String
 
+    suspend fun submitGroupExpenseForApproval(
+        groupId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        throw UnsupportedOperationException("Expense approvals are not supported by this data source.")
+    }
+
+    suspend fun respondToGroupExpenseApproval(
+        groupId: String,
+        requestId: String,
+        approve: Boolean,
+        rejectionNote: String?
+    ): String {
+        throw UnsupportedOperationException("Expense approvals are not supported by this data source.")
+    }
+
     suspend fun deleteGroupExpense(
         groupId: String,
         expenseId: String

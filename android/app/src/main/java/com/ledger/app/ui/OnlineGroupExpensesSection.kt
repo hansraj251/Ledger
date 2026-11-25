@@ -73,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ledger.app.cloudgroup.CloudGroupExpense
+import com.ledger.app.cloudgroup.CloudGroupExpenseApprovalRequest
 import com.ledger.app.cloudgroup.CloudGroupExpenseData
 import com.ledger.app.cloudgroup.CloudGroupExpenseDraftCalculator
 import com.ledger.app.cloudgroup.CloudGroupExpensePaymentDraft
@@ -138,7 +139,10 @@ fun OnlineGroupExpensesSection(
         )
     }
     var editingExpense by remember { mutableStateOf<CloudGroupExpense?>(null) }
+    var editingApprovalRequest by remember { mutableStateOf<CloudGroupExpenseApprovalRequest?>(null) }
     var deletingExpense by remember { mutableStateOf<CloudGroupExpense?>(null) }
+    var rejectingApprovalRequest by remember { mutableStateOf<CloudGroupExpenseApprovalRequest?>(null) }
+    var rejectionNote by remember { mutableStateOf("") }
     var expandedExpenseIds by remember(groupId) { mutableStateOf<Set<String>>(emptySet()) }
 
     var title by remember { mutableStateOf("") }
@@ -207,6 +211,7 @@ fun OnlineGroupExpensesSection(
     fun openNewExpense() {
         settlementMode = false
         editingExpense = null
+        editingApprovalRequest = null
         expenseDateMs = LocalDate.now().atStartOfDay(ZoneOffset.UTC)
             .toInstant().toEpochMilli()
         title = ""
@@ -226,6 +231,7 @@ fun OnlineGroupExpensesSection(
 
     fun openEditExpense(expense: CloudGroupExpense) {
         editingExpense = expense
+        editingApprovalRequest = null
         settlementMode = expense.title.trim().equals("Settled", ignoreCase = true)
         expenseDateMs = expense.expenseDateMs
         title = expense.title
@@ -253,6 +259,42 @@ fun OnlineGroupExpensesSection(
 
         showEditor = true
     }
+
+    fun openEditPendingRequest(request: CloudGroupExpenseApprovalRequest) {
+        editingExpense = null
+        editingApprovalRequest = request
+        settlementMode = request.title.trim().equals("Settled", ignoreCase = true)
+        expenseDateMs = request.expenseDateMs
+        title = request.title
+        amount = request.amount.toString()
+        note = request.note
+        category = request.category
+        splitMode = request.splitMode
+        selectedIds = request.splits.map { it.memberId }.toSet()
+        customAmounts = request.splits.associate { it.memberId to it.amount.toString() }
+        shareUnits = request.splits.associate { it.memberId to it.shareUnits.toString() }
+        paidAmounts = request.payments
+            .filter { it.memberId != youMember?.id }
+            .associate { it.memberId to it.amount.toString() }
+        settlementPayerId = if (settlementMode) {
+            request.payments.singleOrNull()?.memberId
+        } else null
+        showEditor = true
+    }
+
+    val visibleApprovalRequests = data.pendingRequests
+        .filter { request ->
+            if (request.status == "changes_required") {
+                request.createdBy == currentUserId
+            } else if (request.status == "pending") {
+                request.createdBy == currentUserId || data.approvals.any { approval ->
+                    approval.requestId == request.id &&
+                        approval.revision == request.revision &&
+                        approval.memberId == youMember?.id
+                }
+            } else false
+        }
+        .sortedByDescending { it.createdAtMs }
 
     LaunchedEffect(groupId) {
         if (!expenseDataLoaded) {
@@ -345,6 +387,111 @@ fun OnlineGroupExpensesSection(
                                 monthMenuExpanded = false
                             }
                         )
+                    }
+                }
+            }
+        }
+
+        if (visibleApprovalRequests.isNotEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 240.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Expense approvals",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                visibleApprovalRequests.forEach { request ->
+                    val isCreator = request.createdBy == currentUserId
+                    val myApproval = data.approvals.firstOrNull {
+                        it.requestId == request.id &&
+                            it.revision == request.revision &&
+                            it.memberId == youMember?.id
+                    }
+                    val approvalsForRevision = data.approvals.filter {
+                        it.requestId == request.id && it.revision == request.revision
+                    }
+                    val statusText = when {
+                        request.status == "changes_required" -> "Changes required"
+                        isCreator -> "Waiting for member approvals"
+                        myApproval?.approvalStatus == "pending" -> "Your approval is required"
+                        myApproval?.approvalStatus == "approved" -> "You approved • waiting for others"
+                        else -> "Awaiting approval"
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Color(0xFFD8E4F2)),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8FBFF)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(request.title, fontWeight = FontWeight.SemiBold)
+                                Text("₹${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
+                            }
+                            Text(
+                                statusText,
+                                color = if (request.status == "changes_required") Color(0xFFB45309)
+                                else Color(0xFF315F91),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            if (request.status == "changes_required") {
+                                request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
+                                    Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (isCreator) {
+                                    Button(
+                                        enabled = enabled && !busy,
+                                        onClick = { openEditPendingRequest(request) }
+                                    ) { Text("Edit & Resubmit") }
+                                }
+                            } else if (!isCreator && myApproval?.approvalStatus == "pending") {
+                                Text(
+                                    "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF64748B)
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        enabled = enabled && !busy,
+                                        onClick = {
+                                            runAction {
+                                                repository.respondToGroupExpenseApproval(
+                                                    groupId = groupId,
+                                                    requestId = request.id,
+                                                    approve = true
+                                                )
+                                            }
+                                        }
+                                    ) { Text("Approve") }
+                                    OutlinedButton(
+                                        enabled = enabled && !busy,
+                                        onClick = {
+                                            rejectionNote = ""
+                                            rejectingApprovalRequest = request
+                                        }
+                                    ) { Text("Reject") }
+                                }
+                            } else if (myApproval?.approvalStatus == "approved") {
+                                Text(
+                                    "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF64748B)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -584,6 +731,7 @@ fun OnlineGroupExpensesSection(
                         Text(
                             when {
                                 settlementMode -> "Settlement"
+                                editingApprovalRequest != null -> "Edit pending expense"
                                 editingExpense == null -> "Add group expense"
                                 else -> "Edit group expense"
                             },
@@ -1021,20 +1169,36 @@ fun OnlineGroupExpensesSection(
                                         )
                                     }
                                     val existing = editingExpense
+                                    val pendingRequest = editingApprovalRequest
                                     showEditor = false
                                     runAction {
-                                        repository.saveGroupExpense(
-                                            groupId = groupId,
-                                            expenseId = existing?.id,
-                                            title = title.trim(),
-                                            amount = total,
-                                            category = category,
-                                            note = note.trim(),
-                                            expenseDateMs = expenseDateMs,
-                                            splitMode = splitMode,
-                                            splits = splitDrafts,
-                                            payments = paymentDrafts
-                                        )
+                                        if (existing != null) {
+                                            repository.saveGroupExpense(
+                                                groupId = groupId,
+                                                expenseId = existing.id,
+                                                title = title.trim(),
+                                                amount = total,
+                                                category = category,
+                                                note = note.trim(),
+                                                expenseDateMs = expenseDateMs,
+                                                splitMode = splitMode,
+                                                splits = splitDrafts,
+                                                payments = paymentDrafts
+                                            )
+                                        } else {
+                                            repository.submitGroupExpenseForApproval(
+                                                groupId = groupId,
+                                                requestId = pendingRequest?.id,
+                                                title = title.trim(),
+                                                amount = total,
+                                                category = category,
+                                                note = note.trim(),
+                                                expenseDateMs = expenseDateMs,
+                                                splitMode = splitMode,
+                                                splits = splitDrafts,
+                                                payments = paymentDrafts
+                                            )
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     error = e.message ?: "Invalid expense details."
@@ -1042,12 +1206,56 @@ fun OnlineGroupExpensesSection(
                             },
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text(if (editingExpense == null) "Save" else "Update")
+                            Text(
+                                when {
+                                    editingApprovalRequest != null -> "Resubmit for approval"
+                                    editingExpense == null -> "Submit for approval"
+                                    else -> "Update"
+                                }
+                            )
                         }
                     }
                 }
             },
             dismissButton = {}
+        )
+    }
+
+    rejectingApprovalRequest?.let { request ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) rejectingApprovalRequest = null },
+            title = { Text("Request changes") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("The expense will return to its creator for editing.")
+                    OutlinedTextField(
+                        value = rejectionNote,
+                        onValueChange = { rejectionNote = it.take(500) },
+                        label = { Text("Reason (optional)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        val noteToSend = rejectionNote.trim().ifBlank { null }
+                        rejectingApprovalRequest = null
+                        runAction {
+                            repository.respondToGroupExpenseApproval(
+                                groupId = groupId,
+                                requestId = request.id,
+                                approve = false,
+                                rejectionNote = noteToSend
+                            )
+                        }
+                    }
+                ) { Text("Send back") }
+            },
+            dismissButton = {
+                TextButton(onClick = { rejectingApprovalRequest = null }) { Text("Cancel") }
+            }
         )
     }
 

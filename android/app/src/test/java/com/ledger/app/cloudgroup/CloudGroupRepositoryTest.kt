@@ -105,6 +105,9 @@ class CloudGroupRepositoryTest {
         }
 
         var savedExpenseTitle: String? = null
+        var submittedApprovalTitle: String? = null
+        var submittedApprovalRequestId: String? = null
+        var approvalResponse: String? = null
         var deletedExpenseId: String? = null
 
         override suspend fun fetchGroupExpenses(groupId: String): CloudGroupExpenseData {
@@ -158,6 +161,33 @@ class CloudGroupRepositoryTest {
         ): String {
             savedExpenseTitle = title
             return expenseId ?: "expense-123"
+        }
+
+        override suspend fun submitGroupExpenseForApproval(
+            groupId: String,
+            requestId: String?,
+            title: String,
+            amount: Double,
+            category: String,
+            note: String,
+            expenseDateMs: Long,
+            splitMode: String,
+            splits: List<CloudGroupExpenseSplitDraft>,
+            payments: List<CloudGroupExpensePaymentDraft>
+        ): String {
+            submittedApprovalTitle = title
+            submittedApprovalRequestId = requestId
+            return requestId ?: "approval-request-123"
+        }
+
+        override suspend fun respondToGroupExpenseApproval(
+            groupId: String,
+            requestId: String,
+            approve: Boolean,
+            rejectionNote: String?
+        ): String {
+            approvalResponse = if (approve) "approved" else rejectionNote ?: "changes_required"
+            return if (approve) "approved" else "changes_required"
         }
 
         override suspend fun deleteGroupExpense(groupId: String, expenseId: String): String {
@@ -365,6 +395,59 @@ class CloudGroupRepositoryTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun submitGroupExpenseForApproval_trimsTitleAndDelegates() = runBlocking {
+        val remote = FakeRemoteDataSource()
+        val result = CloudGroupRepository(remote).submitGroupExpenseForApproval(
+            groupId = "group-123",
+            requestId = null,
+            title = "  Dinner  ",
+            amount = 100.0,
+            category = "Cash",
+            note = " note ",
+            expenseDateMs = 1000L,
+            splitMode = "Equal",
+            splits = listOf(CloudGroupExpenseSplitDraft("member-1", "Raj", 100.0, 1.0)),
+            payments = emptyList()
+        )
+        assertEquals("Dinner", remote.submittedApprovalTitle)
+        assertNull(remote.submittedApprovalRequestId)
+        assertEquals("approval-request-123", result)
+    }
+
+    @Test
+    fun submitGroupExpenseForApproval_rejectsIncorrectSplitTotal() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                CloudGroupRepository(FakeRemoteDataSource()).submitGroupExpenseForApproval(
+                    groupId = "group-123",
+                    requestId = null,
+                    title = "Dinner",
+                    amount = 100.0,
+                    category = "Cash",
+                    note = "",
+                    expenseDateMs = 1000L,
+                    splitMode = "Custom",
+                    splits = listOf(CloudGroupExpenseSplitDraft("m1", "Raj", 60.0, 1.0)),
+                    payments = emptyList()
+                )
+            }
+        }
+    }
+
+    @Test
+    fun respondToGroupExpenseApproval_delegates() = runBlocking {
+        val remote = FakeRemoteDataSource()
+        val result = CloudGroupRepository(remote).respondToGroupExpenseApproval(
+            groupId = "group-123",
+            requestId = "request-123",
+            approve = false,
+            rejectionNote = "  Incorrect amount  "
+        )
+        assertEquals("changes_required", result)
+        assertEquals("Incorrect amount", remote.approvalResponse)
     }
 
     @Test

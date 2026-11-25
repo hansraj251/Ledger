@@ -82,6 +82,7 @@ import com.ledger.app.cloudgroup.CloudGroupExpenseApprovalRequest
 import com.ledger.app.cloudgroup.CloudGroupExpenseApprovalSnapshot
 import com.ledger.app.cloudgroup.CloudGroupExpenseData
 import com.ledger.app.cloudgroup.CloudGroupExpenseDraftCalculator
+import com.ledger.app.cloudgroup.CloudGroupPairwiseBalanceCalculator
 import com.ledger.app.cloudgroup.CloudGroupExpensePaymentDraft
 import com.ledger.app.cloudgroup.CloudGroupExpenseSplitDraft
 import com.ledger.app.cloudgroup.CloudGroupMember
@@ -179,6 +180,50 @@ fun OnlineGroupExpensesSection(
     val joinedMembers = members.filter { it.status == "joined" }
     val youMember = joinedMembers.firstOrNull {
         currentUserId != null && it.userId == currentUserId
+    }
+
+    val settlementReceiverId = selectedIds.singleOrNull()
+    val hasSettlementPair = settlementMode &&
+        settlementReceiverId != null &&
+        settlementPayerId != null &&
+        settlementPayerId != settlementReceiverId
+
+    val settlementOutstandingPaise = if (hasSettlementPair) {
+        runCatching {
+            CloudGroupPairwiseBalanceCalculator.calculateFromExpenseData(
+                members = joinedMembers,
+                expenseData = data,
+                excludeExpenseId = editingExpense?.takeIf { settlementMode }?.id
+            ).debts.firstOrNull {
+                it.fromMemberId == settlementPayerId &&
+                    it.toMemberId == settlementReceiverId
+            }?.amountPaise ?: 0L
+        }.getOrDefault(0L)
+    } else 0L
+
+    val settlementMaximumAmount = settlementOutstandingPaise / 100.0
+    val settlementAmountPaise = amount.toBigDecimalOrNull()?.let {
+        runCatching {
+            it.movePointRight(2)
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .longValueExact()
+        }.getOrNull()
+    } ?: 0L
+
+    LaunchedEffect(
+        settlementMode, settlementReceiverId,
+        settlementPayerId, settlementOutstandingPaise
+    ) {
+        if (hasSettlementPair) {
+            val entered = amount.toDoubleOrNull()
+            if (amount.isBlank() ||
+                (entered != null && entered > settlementMaximumAmount)
+            ) {
+                amount = if (settlementOutstandingPaise > 0L) {
+                    String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
+                } else ""
+            }
+        }
     }
 
     suspend fun refreshExpenses() {
@@ -1041,7 +1086,23 @@ fun OnlineGroupExpensesSection(
                         )
                         OutlinedTextField(
                             value = amount,
-                            onValueChange = { amount = it },
+                            onValueChange = { newValue ->
+                                if (settlementMode && hasSettlementPair) {
+                                    val entered = newValue.toDoubleOrNull()
+                                    amount = when {
+                                        newValue.isBlank() ->
+                                            if (settlementOutstandingPaise > 0L)
+                                                String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
+                                            else ""
+                                        entered != null && entered.isFinite() &&
+                                            entered > settlementMaximumAmount ->
+                                            String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
+                                        else -> newValue
+                                    }
+                                } else {
+                                    amount = newValue
+                                }
+                            },
                             label = { Text("Amount") },
                             singleLine = true,
                             enabled = !busy,
@@ -1379,6 +1440,8 @@ fun OnlineGroupExpensesSection(
                                 (if (settlementMode) {
                                     selectedIds.size == 1 && settlementPayerId != null &&
                                         settlementPayerId !in selectedIds &&
+                                        settlementOutstandingPaise > 0L &&
+                                        settlementAmountPaise in 1L..settlementOutstandingPaise &&
                                         joinedMembers.any { member ->
                                             member.id in selectedIds && (
                                                 member.allowSettlementByOthers ||
@@ -1389,6 +1452,15 @@ fun OnlineGroupExpensesSection(
                             onClick = {
                                 if (hasReservedSettlementTitle) return@Button
                                 val total = amount.toDoubleOrNull() ?: return@Button
+                                if (settlementMode &&
+                                    (settlementOutstandingPaise <= 0L ||
+                                        settlementAmountPaise <= 0L ||
+                                        settlementAmountPaise > settlementOutstandingPaise)
+                                ) {
+                                    error = "Settlement amount cannot exceed outstanding balance ₹" +
+                                        String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
+                                    return@Button
+                                }
                                 val selectedMembers = joinedMembers.filter { it.id in selectedIds }
                                 try {
                                     val splitDrafts = CloudGroupExpenseDraftCalculator.buildSplits(
@@ -1546,7 +1618,7 @@ fun OnlineGroupExpensesSection(
                                     .fillMaxWidth()
                                     .clickable {
                                         settlementPayerId = member.id
-                                        paidAmounts = mapOf(member.id to total.toString())
+                                        paidAmounts = emptyMap()
                                     },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1554,7 +1626,7 @@ fun OnlineGroupExpensesSection(
                                     selected = settlementPayerId == member.id,
                                     onClick = {
                                         settlementPayerId = member.id
-                                        paidAmounts = mapOf(member.id to total.toString())
+                                        paidAmounts = emptyMap()
                                     }
                                 )
                                 Text(member.memberName)

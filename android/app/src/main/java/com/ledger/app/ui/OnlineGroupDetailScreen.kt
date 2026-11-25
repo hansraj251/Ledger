@@ -1031,11 +1031,9 @@ Column(
                     detailMember.id
                 ) {
                     runCatching {
-                        CloudGroupPairwiseBalanceCalculator.calculate(
+                        CloudGroupPairwiseBalanceCalculator.calculateFromExpenseData(
                             members = members,
-                            expenses = memberExpenseData.expenses,
-                            splits = memberExpenseData.splits,
-                            payments = memberExpenseData.payments
+                            expenseData = memberExpenseData
                         )
                     }.getOrNull()
                 }
@@ -1239,11 +1237,9 @@ Column(
                                 scope.launch {
                                     try {
                                         val result = withContext(Dispatchers.IO) {
-                                            CloudGroupPairwiseBalanceCalculator.calculate(
+                                            CloudGroupPairwiseBalanceCalculator.calculateFromExpenseData(
                                                 members = members,
-                                                expenses = memberExpenseData.expenses,
-                                                splits = memberExpenseData.splits,
-                                                payments = memberExpenseData.payments
+                                                expenseData = memberExpenseData
                                             )
                                         }
                                         balanceBreakdownDebts = result.debts

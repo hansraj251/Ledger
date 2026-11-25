@@ -1220,7 +1220,7 @@ Column(
                         }
                     }
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

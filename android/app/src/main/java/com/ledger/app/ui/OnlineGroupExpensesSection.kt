@@ -472,9 +472,11 @@ fun OnlineGroupExpensesSection(
                             myApproval?.approvalStatus == "approved" -> "You approved • waiting for others"
                             else -> "Awaiting approval"
                         }
-                        val requestTypeLabel = when (request.requestType) {
-                            "edit" -> "Edit request"
-                            "delete" -> "Delete request"
+                        val requestTypeLabel = when {
+                            request.requestType == "edit" -> "Edit request"
+                            request.requestType == "delete" -> "Delete request"
+                            request.title.trim().equals("Settled", ignoreCase = true) ->
+                                "Settlement request"
                             else -> "New expense request"
                         }
                         val senderName = members.firstOrNull {
@@ -1465,8 +1467,9 @@ fun OnlineGroupExpensesSection(
                         ) {
                             Text(
                                 when {
-                                    editingApprovalRequest != null -> "Resubmit for approval"
-                                    editingExpense == null -> "Submit for approval"
+                                    editingApprovalRequest != null -> "Resubmit"
+                                    editingExpense == null && settlementMode -> "Settle"
+                                    editingExpense == null -> "Add"
                                     else -> "Update"
                                 }
                             )

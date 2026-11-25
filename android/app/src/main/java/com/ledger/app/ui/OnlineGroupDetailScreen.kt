@@ -2,6 +2,7 @@ package com.ledger.app.ui
 
 import com.ledger.app.data.CurrencySettings
 
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -1253,9 +1254,7 @@ Column(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        "${CurrencySettings.symbol}" + String.format(
-                                            java.util.Locale.getDefault(), "%,.2f", amount
-                                        ),
+                                        "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(amount),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = tint,
@@ -1353,10 +1352,7 @@ Column(
                                     modifier = Modifier.weight(1f)
                                 )
                             Text(
-                                "${CurrencySettings.symbol}" + String.format(
-                                    java.util.Locale.getDefault(), "%,.2f",
-                                    kotlin.math.abs(memberBalance)
-                                ),
+                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(kotlin.math.abs(memberBalance)),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = when {
@@ -2320,3 +2316,9 @@ private fun Throwable.isConnectivityError(): Boolean =
             error.message.orEmpty().contains("no address associated with hostname", true) ||
             error.message.orEmpty().contains("network is unreachable", true)
     }
+
+private fun formatOnlineMemberCardAmount(amount: Double): String =
+    java.text.NumberFormat.getNumberInstance(CurrencySettings.selectedOption.locale).apply {
+        minimumFractionDigits = 0
+        maximumFractionDigits = 2
+    }.format(amount)

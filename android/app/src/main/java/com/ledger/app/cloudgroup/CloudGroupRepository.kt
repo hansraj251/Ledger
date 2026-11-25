@@ -19,8 +19,8 @@ class CloudGroupRepository(
             "Group name cannot be empty."
         }
 
-        require(cleanName.length <= 120) {
-            "Group name cannot exceed 120 characters."
+        require(cleanName.length <= 16) {
+            "Group name cannot exceed 16 characters."
         }
 
         val ownerId = remote.currentUserId()
@@ -41,8 +41,8 @@ class CloudGroupRepository(
         require(cleanName.isNotEmpty()) {
             "Group name cannot be empty."
         }
-        require(cleanName.length <= 120) {
-            "Group name cannot exceed 120 characters."
+        require(cleanName.length <= 16) {
+            "Group name cannot exceed 16 characters."
         }
         return remote.updateGroupName(groupId, cleanName)
     }
@@ -72,8 +72,8 @@ class CloudGroupRepository(
         require(cleanName.isNotEmpty()) {
             "Member name cannot be empty."
         }
-        require(cleanName.length <= 120) {
-            "Member name cannot exceed 120 characters."
+        require(cleanName.length <= 16) {
+            "Member name cannot exceed 16 characters."
         }
 
         val cleanEmail = memberEmail.trim().lowercase()
@@ -100,8 +100,8 @@ class CloudGroupRepository(
         require(cleanName.isNotEmpty()) {
             "Member name cannot be empty."
         }
-        require(cleanName.length <= 120) {
-            "Member name cannot exceed 120 characters."
+        require(cleanName.length <= 16) {
+            "Member name cannot exceed 16 characters."
         }
 
         return remote.updateMemberName(groupId, memberId, cleanName)

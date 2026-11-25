@@ -450,6 +450,15 @@ fun OnlineGroupExpensesSection(
                         val approvalsForRevision = data.approvals.filter {
                             it.requestId == request.id && it.revision == request.revision
                         }
+                        val pendingApproverNames = approvalsForRevision
+                            .filter { it.approvalStatus == "pending" }
+                            .map { approval ->
+                                approval.memberNameSnapshot.takeIf { it.isNotBlank() }
+                                    ?: members.firstOrNull { it.id == approval.memberId }
+                                        ?.memberName
+                                    ?: "Unknown member"
+                            }
+                            .distinct()
                         val statusText = when {
                             request.status == "changes_required" -> "Changes required"
                             isCreator -> "Waiting for member approvals"
@@ -691,6 +700,13 @@ fun OnlineGroupExpensesSection(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color(0xFF64748B)
                                     )
+                                    if (pendingApproverNames.isNotEmpty()) {
+                                        Text(
+                                            "Pending approval from: ${pendingApproverNames.joinToString(", ")}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFB45309)
+                                        )
+                                    }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Button(
                                             enabled = enabled && !busy,
@@ -718,6 +734,13 @@ fun OnlineGroupExpensesSection(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = Color(0xFF64748B)
                                     )
+                                    if (pendingApproverNames.isNotEmpty()) {
+                                        Text(
+                                            "Pending approval from: ${pendingApproverNames.joinToString(", ")}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFB45309)
+                                        )
+                                    }
                                 }
                             }
                         }

@@ -808,11 +808,7 @@ fun OnlineGroupDetailScreen(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        text = "${CurrencySettings.symbol}" + String.format(
-                                            java.util.Locale.getDefault(),
-                                            "%,.2f",
-                                            memberExpenseData.expenses.filterNot { it.title.equals("Settled", ignoreCase = true) }.sumOf { it.amount }
-                                        ),
+                                        text = "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(memberExpenseData.expenses.filterNot { it.title.equals("Settled", ignoreCase = true) }.sumOf { it.amount }),
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -979,11 +975,7 @@ Column(
             text = if (member.status != "joined") {
                 "Invitation pending"
             } else {
-                "${CurrencySettings.symbol}" + String.format(
-                    java.util.Locale.getDefault(),
-                    "%,.2f",
-                    kotlin.math.abs(memberBalance)
-                )
+                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(kotlin.math.abs(memberBalance))
             },
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
@@ -1470,9 +1462,7 @@ Column(
                                                 )
                                             }
                                             Text(
-                                                "${CurrencySettings.symbol}" + String.format(
-                                                    java.util.Locale.getDefault(), "%,.2f", expense.amount
-                                                ),
+                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(expense.amount),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1495,11 +1485,7 @@ Column(
                                                             )
                                                             Spacer(Modifier.weight(1f))
                                                             Text(
-                                                                "${CurrencySettings.symbol}" + String.format(
-                                                                    java.util.Locale.getDefault(),
-                                                                    "%,.2f",
-                                                                    payerAmount
-                                                                ),
+                                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(payerAmount),
                                                                 color = Color(0xFF16804A),
                                                                 fontWeight = FontWeight.SemiBold
                                                             )
@@ -1513,9 +1499,7 @@ Column(
                                                     Text("Share", color = Color(0xFFE53935))
                                                     Spacer(Modifier.weight(1f))
                                                     Text(
-                                                        "${CurrencySettings.symbol}" + String.format(
-                                                            java.util.Locale.getDefault(), "%,.2f", it.amount
-                                                        ),
+                                                        "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(it.amount),
                                                         color = Color(0xFFE53935),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
@@ -1528,9 +1512,7 @@ Column(
                                                     Text("Paid", color = Color(0xFF16804A))
                                                     Spacer(Modifier.weight(1f))
                                                     Text(
-                                                        "${CurrencySettings.symbol}" + String.format(
-                                                            java.util.Locale.getDefault(), "%,.2f", paid
-                                                        ),
+                                                        "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(paid),
                                                         color = Color(0xFF16804A),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
@@ -1676,10 +1658,7 @@ Column(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                "${CurrencySettings.symbol}" + String.format(
-                                                    java.util.Locale.getDefault(), "%,.2f",
-                                                    debt.amountPaise / 100.0
-                                                ),
+                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(debt.amountPaise / 100.0),
                                                 color = Color(0xFFC62828),
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1732,10 +1711,7 @@ Column(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                "${CurrencySettings.symbol}" + String.format(
-                                                    java.util.Locale.getDefault(), "%,.2f",
-                                                    debt.amountPaise / 100.0
-                                                ),
+                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(debt.amountPaise / 100.0),
                                                 color = Color(0xFF2E7D32),
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -1900,11 +1876,7 @@ Column(
                                     deleteBalances[member.id]?.remainingBalancePaise ?: 0L
                                 Text(
                                     "${member.memberName}: ${CurrencySettings.symbol}" +
-                                        String.format(
-                                            java.util.Locale.US,
-                                            "%.2f",
-                                            paise / 100.0
-                                        ),
+                                        formatOnlineMemberCardAmount(paise / 100.0),
                                     color = Color(0xFF424242)
                                 )
                             }
@@ -2158,11 +2130,7 @@ Column(
                         }
                         removalBalance.remainingBalancePaise != 0L -> {
                             Text(
-                                "Unsettled balance: ${CurrencySettings.symbol}" + String.format(
-                                    java.util.Locale.US,
-                                    "%.2f",
-                                    removalBalance.remainingBalancePaise / 100.0
-                                ) + ". Settle all dues before removing this member.",
+                                "Unsettled balance: ${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(removalBalance.remainingBalancePaise / 100.0) + ". Settle all dues before removing this member.",
                                 color = MaterialTheme.colorScheme.error
                             )
                         }

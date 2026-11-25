@@ -225,6 +225,9 @@ fun HomeScreen(
     var groupExpenseTotals by remember {
         mutableStateOf(emptyMap<Long, Double>())
     }
+    var onlineGroupExpenseTotals by remember {
+        mutableStateOf(emptyMap<String, Double>())
+    }
     var receivableInterestTotal by remember { mutableStateOf(0.0) }
     var payableInterestTotal by remember { mutableStateOf(0.0) }
     var groupReceivableTotal by remember { mutableStateOf(0.0) }
@@ -349,6 +352,35 @@ fun HomeScreen(
             val expenseDao = LedgerDatabaseProvider.get(context).groupExpenseDao()
             sharingGroups.associate { group ->
                 group.id to expenseDao.getByGroup(group.id).sumOf { it.amount }
+            }
+        }
+    }
+
+    LaunchedEffect(onlineGroups, cloudUser?.userId) {
+        onlineGroupExpenseTotals = onlineGroups.associate { group ->
+            group.id to (
+                cloudGroupCache.loadDetail(group.id)
+                    ?.expenseData?.expenses?.sumOf { it.amount }
+                    ?: onlineGroupExpenseTotals[group.id]
+                    ?: 0.0
+            )
+        }
+
+        if (cloudUser != null) {
+            onlineGroups.forEach { group ->
+                try {
+                    val expenseData = withContext(Dispatchers.IO) {
+                        cloudGroupRepository.loadGroupExpenses(group.id)
+                    }
+                    onlineGroupExpenseTotals =
+                        onlineGroupExpenseTotals + (
+                            group.id to expenseData.expenses.sumOf { it.amount }
+                        )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (_: Exception) {
+                    // Keep cached total when cloud data cannot be loaded.
+                }
             }
         }
     }
@@ -1708,69 +1740,6 @@ item {
                             Text("Loading Online Groups...")
                         }
                     }
-                } else if (onlineGroupsError != null) {
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
-                            ) {
-                                Text(
-                                    text = onlineGroupsError.orEmpty(),
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            if (onlineGroups.isEmpty()) {
-                                                isOnlineGroupsLoading = true
-                                            }
-                                            onlineGroupsError = null
-                                            try {
-                                                val restoredUser = withContext(Dispatchers.IO) {
-                                                    cloudAuthManager.restoreSession()
-                                                }
-                                                cloudUser = restoredUser
-
-                                                val latestGroups = if (restoredUser != null) {
-                                                    withContext(Dispatchers.IO) {
-                                                        cloudGroupRepository.loadGroups()
-                                                    }
-                                                } else {
-                                                    emptyList()
-                                                }
-
-                                                onlineGroups = latestGroups
-                                                if (restoredUser != null) {
-                                                    cloudGroupCache.saveGroups(
-                                                        restoredUser.userId,
-                                                        latestGroups
-                                                    )
-                                                }
-                                            } catch (error: CancellationException) {
-                                                throw error
-                                            } catch (error: Exception) {
-                                                onlineGroupsError = if (error.isConnectivityError()) {
-                                                    null
-                                                } else {
-                                                    "Unable to load Online Groups. Please try again."
-                                                }
-                                            } finally {
-                                                isOnlineGroupsLoading = false
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Text("Retry")
-                                }
-                            }
-                        }
-                    }
                 }
                 items(
                     items = visibleOnlineGroups,
@@ -1799,7 +1768,7 @@ item {
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        imageVector = Icons.Outlined.CloudDone,
+                                        imageVector = Icons.Outlined.Group,
                                         contentDescription = "Online Group",
                                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                                     )
@@ -1812,6 +1781,28 @@ item {
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
+                                Spacer(Modifier.height(5.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Total Expense",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = java.text.NumberFormat.getCurrencyInstance(
+                                            java.util.Locale("en", "IN")
+                                        ).format(
+                                            onlineGroupExpenseTotals[group.id] ?: 0.0
+                                        ).substringBefore("."),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1565C0)
+                                    )
+                                }
                             }
                         }
                     }

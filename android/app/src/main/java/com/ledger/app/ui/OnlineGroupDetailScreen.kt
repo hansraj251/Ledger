@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.outlined.GroupAdd
@@ -851,7 +852,33 @@ fun OnlineGroupDetailScreen(
                                         currentUserId != null && member.userId == currentUserId
 
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .combinedClickable(
+                                                onClick = {
+                                                    selectedMemberDetail = member
+                                                },
+                                                onLongClick = {
+                                                    val canEditMemberName =
+                                                        (isOwner && member.role == "member") ||
+                                                        (
+                                                            currentUserId != null &&
+                                                            member.userId == currentUserId &&
+                                                            member.role in listOf("owner", "member")
+                                                        )
+
+                                                    if (canEditMemberName) {
+                                                        memberNameInput = member.memberName
+                                                        editingMember = member
+                                                    } else if (!isOwner) {
+                                                        android.widget.Toast.makeText(
+                                                            context,
+                                                            "Member can edit only own name",
+                                                            android.widget.Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                }
+                                            ),
                                         shape = RoundedCornerShape(18.dp),
                                         border = if (isCurrentUserMember) {
                                             BorderStroke(1.dp, Color(0xFFE8B64A))
@@ -885,9 +912,7 @@ fun OnlineGroupDetailScreen(
 }
 Spacer(Modifier.width(12.dp))
 Column(
-    modifier = Modifier
-        .weight(1f)
-        .clickable { selectedMemberDetail = member }
+    modifier = Modifier.weight(1f)
 ) {
     val memberShare = memberExpenseData.splits
         .filter { it.memberId == member.id }

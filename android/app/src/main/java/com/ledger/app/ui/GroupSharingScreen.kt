@@ -10,6 +10,7 @@ import com.ledger.app.data.CurrencySettings
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.CircleShape
@@ -3672,89 +3673,142 @@ private fun SettlementDialog(
     onDismiss: () -> Unit,
     onSave: (Double, Long, String) -> Unit
 ) {
-    var amountText by remember(member.id) { mutableStateOf(String.format(Locale.US, "%.2f", remainingBalance)) }
-    var settlementToDelete by remember(member.id) { mutableStateOf<GroupSettlementEntity?>(null) }
-    var settlementDate by remember(member.id) { mutableStateOf(System.currentTimeMillis()) }
+    var amountText by remember(member.id) {
+        mutableStateOf(String.format(Locale.US, "%.2f", remainingBalance))
+    }
+    var settlementToDelete by remember(member.id) {
+        mutableStateOf<GroupSettlementEntity?>(null)
+    }
+    var settlementDate by remember(member.id) {
+        mutableStateOf(System.currentTimeMillis())
+    }
     var paymentType by remember(member.id) { mutableStateOf("Cash") }
     var showSettlementDatePicker by remember { mutableStateOf(false) }
-    val settlementContext = androidx.compose.ui.platform.LocalContext.current
-    val amount = amountText.toDoubleOrNull()
-    val validAmount = amount != null &&
-        amount.isFinite() &&
-        amount > 0.0
 
-    AlertDialog(
+    val settlementContext = LocalContext.current
+    val amount = amountText.toDoubleOrNull()
+    val validAmount = amount != null && amount.isFinite() && amount > 0.0
+
+    Dialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(26.dp),
-        containerColor = Color.White,
-        tonalElevation = 0.dp,
-        title = { Text("Settle with ${member.name}") },
-        text = {
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.White,
+            shape = RoundedCornerShape(0.dp)
+        ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 460.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text("Total Share: ${money(totalExpense)}")
-                if (totalPaidInExpense > 0.009) {
-                    Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
-                }
-                if (totalReceived > 0.009) {
-                    Text("Amount received: ${money(totalReceived)}")
-                }
-                if (excessPaid <= 0.009) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFF5F7FF),
-                    border = BorderStroke(1.dp, Color(0xFFE2E7F5))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Outlined.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Remaining Balance",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF555F75)
+                            "Settle with ${member.name}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
                         )
                         Text(
-                            java.text.NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply {
-                                minimumFractionDigits = 2
-                                maximumFractionDigits = 2
-                            }.format(remainingBalance),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2457C5)
+                            "Record payment and settlement history",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                }
-                if (excessPaid > 0.009) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        color = Color(0xFFE8F5E9),
-                        border = BorderStroke(1.dp, Color(0xFFA5D6A7))
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text(
-                                "Excess Paid",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFF2E7D32)
-                            )
-                            Text(
-                                money(excessPaid),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32)
-                            )
+
+                HorizontalDivider(color = Color(0xFFE8E8EC))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text("Total Share: ${money(totalExpense)}")
+
+                    if (totalPaidInExpense > 0.009) {
+                        Text("Total Paid in Expense: ${money(totalPaidInExpense)}")
+                    }
+
+                    if (totalReceived > 0.009) {
+                        Text("Amount received: ${money(totalReceived)}")
+                    }
+
+                    if (excessPaid <= 0.009) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFFF5F7FF),
+                            border = BorderStroke(1.dp, Color(0xFFE2E7F5))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "Remaining Balance",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color(0xFF555F75)
+                                )
+                                Text(
+                                    java.text.NumberFormat.getCurrencyInstance(
+                                        Locale("en", "IN")
+                                    ).apply {
+                                        minimumFractionDigits = 2
+                                        maximumFractionDigits = 2
+                                    }.format(remainingBalance),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2457C5)
+                                )
+                            }
                         }
                     }
-                }
-                OutlinedTextField(
+
+                    if (excessPaid > 0.009) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color(0xFFE8F5E9),
+                            border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                        ) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(
+                                    "Excess Paid",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color(0xFF2E7D32)
+                                )
+                                Text(
+                                    money(excessPaid),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32)
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
                         value = amountText,
                         onValueChange = { input ->
-                            if (input.isEmpty() || input.matches(Regex("^\\d*\\.?\\d{0,2}$"))) {
+                            if (input.isEmpty() ||
+                                input.matches(Regex("^\\d*\\.?\\d{0,2}$"))
+                            ) {
                                 amountText = input
                             }
                         },
@@ -3762,9 +3816,16 @@ private fun SettlementDialog(
                         label = { Text("Received Amount") },
                         singleLine = true,
                         shape = RoundedCornerShape(15.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        )
                     )
-                    Text("Payment Type", fontWeight = FontWeight.SemiBold)
+
+                    Text(
+                        "Payment Type",
+                        fontWeight = FontWeight.SemiBold
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -3790,8 +3851,10 @@ private fun SettlementDialog(
                     }
 
                     OutlinedTextField(
-                        value = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                            .format(Date(settlementDate)),
+                        value = SimpleDateFormat(
+                            "dd MMM yyyy",
+                            Locale.getDefault()
+                        ).format(Date(settlementDate)),
                         onValueChange = {},
                         modifier = Modifier
                             .fillMaxWidth()
@@ -3799,7 +3862,9 @@ private fun SettlementDialog(
                         readOnly = true,
                         label = { Text("Settlement Date") },
                         trailingIcon = {
-                            TextButton(onClick = { showSettlementDatePicker = true }) {
+                            TextButton(
+                                onClick = { showSettlementDatePicker = true }
+                            ) {
                                 Text("Choose")
                             }
                         },
@@ -3807,78 +3872,104 @@ private fun SettlementDialog(
                         shape = RoundedCornerShape(15.dp)
                     )
 
-                Text("Payment History", fontWeight = FontWeight.SemiBold)
-                androidx.compose.material3.HorizontalDivider(
-                    color = Color(0xFFE8E8EC)
-                )
-                if (history.isEmpty()) {
-                    Text("No settlements recorded yet.")
-                } else {
-                    history.sortedByDescending { it.receivedAt }.forEach { record ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    money(record.amount),
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    SimpleDateFormat(
-                                        "dd MMM yyyy, hh:mm a",
-                                        Locale.getDefault()
-                                    ).format(Date(record.receivedAt)),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                                Text(
-                                    "Payment: ${record.paymentType}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                    Text(
+                        "Payment History",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    HorizontalDivider(color = Color(0xFFE8E8EC))
+
+                    if (history.isEmpty()) {
+                        Text(
+                            "No settlements recorded yet.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        history.sortedByDescending { it.receivedAt }.forEach { record ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        money(record.amount),
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        SimpleDateFormat(
+                                            "dd MMM yyyy, hh:mm a",
+                                            Locale.getDefault()
+                                        ).format(Date(record.receivedAt)),
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    Text(
+                                        "Payment: ${record.paymentType}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { settlementToDelete = record }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.DeleteOutline,
+                                        contentDescription = "Delete settlement",
+                                        tint = Color(0xFFDC2626)
+                                    )
+                                }
                             }
-                            IconButton(onClick = { settlementToDelete = record }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.DeleteOutline,
-                                    contentDescription = "Delete settlement",
-                                    tint = Color(0xFFDC2626)
-                                )
-                            }
+
+                            HorizontalDivider(color = Color(0xFFF0F0F0))
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+
+                HorizontalDivider(color = Color(0xFFE8E8EC))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Cancel")
-                }
-                Button(
-                    onClick = { if (validAmount) onSave(amount!!, settlementDate, paymentType) },
-                    enabled = validAmount,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text("Save")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline
+                        )
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (validAmount) {
+                                onSave(amount!!, settlementDate, paymentType)
+                            }
+                        },
+                        enabled = validAmount,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Save")
+                    }
                 }
             }
-        },
-        dismissButton = {}
-    )
+        }
+    }
 
     if (showSettlementDatePicker) {
         val initialCalendar = java.util.Calendar.getInstance().apply {
             timeInMillis = settlementDate
         }
+
         android.app.DatePickerDialog(
             settlementContext,
             { _, year, month, day ->
@@ -3895,7 +3986,9 @@ private fun SettlementDialog(
             initialCalendar.get(java.util.Calendar.MONTH),
             initialCalendar.get(java.util.Calendar.DAY_OF_MONTH)
         ).apply {
-            setOnCancelListener { showSettlementDatePicker = false }
+            setOnCancelListener {
+                showSettlementDatePicker = false
+            }
         }.show()
     }
 
@@ -3904,7 +3997,10 @@ private fun SettlementDialog(
             onDismissRequest = { settlementToDelete = null },
             title = { Text("Delete settlement?") },
             text = {
-                Text("Delete the received amount ${money(record.amount)} from settlement history? This action cannot be undone.")
+                Text(
+                    "Delete the received amount ${money(record.amount)} " +
+                    "from settlement history? This action cannot be undone."
+                )
             },
             confirmButton = {
                 Button(
@@ -3926,7 +4022,6 @@ private fun SettlementDialog(
             }
         )
     }
-
 }
 
 private fun money(amount: Double): String = CurrencySettings.format(amount)

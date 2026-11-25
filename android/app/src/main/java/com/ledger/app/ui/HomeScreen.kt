@@ -69,6 +69,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -148,6 +152,7 @@ fun HomeScreen(
     var newStaffJoiningDate by rememberSaveable { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) }
     var isSavingStaff by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val cloudAuthManager = remember(context) {
         CloudAuthManager(context.applicationContext)
@@ -173,6 +178,17 @@ fun HomeScreen(
         mutableStateOf(cachedOnlineGroups == null)
     }
     var onlineGroupsError by remember { mutableStateOf<String?>(null) }
+    var onlineGroupsLoadTrigger by remember { mutableStateOf(0) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onlineGroupsLoadTrigger++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var showCreateOnlineGroupDialog by rememberSaveable {
         mutableStateOf(false)
     }
@@ -313,36 +329,54 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(cloudAuthManager) {
+    LaunchedEffect(cloudAuthManager, onlineGroupsLoadTrigger) {
         if (onlineGroups.isEmpty()) {
             isOnlineGroupsLoading = true
         }
         onlineGroupsError = null
+
+        var lastError: Exception? = null
+
         try {
-            val restoredUser = withContext(Dispatchers.IO) {
-                cloudAuthManager.restoreSession()
-            }
-            cloudUser = restoredUser
+            repeat(3) { attempt ->
+                try {
+                    val restoredUser = withContext(Dispatchers.IO) {
+                        cloudAuthManager.restoreSession()
+                    }
 
-            val latestGroups = if (restoredUser != null) {
-                withContext(Dispatchers.IO) {
-                    cloudGroupRepository.loadGroups()
+                    cloudUser = restoredUser
+
+                    val latestGroups = if (restoredUser != null) {
+                        withContext(Dispatchers.IO) {
+                            cloudGroupRepository.loadGroups()
+                        }
+                    } else {
+                        emptyList()
+                    }
+
+                    // Only a successful server response may replace the current list.
+                    onlineGroups = latestGroups
+
+                    if (restoredUser != null) {
+                        cloudGroupCache.saveGroups(restoredUser.userId, latestGroups)
+                    }
+
+                    lastError = null
+                    onlineGroupsError = null
+                    return@LaunchedEffect
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    lastError = error
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(1000L * (attempt + 1))
+                    }
                 }
-            } else {
-                emptyList()
             }
 
-            onlineGroups = latestGroups
-            if (restoredUser != null) {
-                cloudGroupCache.saveGroups(restoredUser.userId, latestGroups)
-            }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            onlineGroupsError = if (error.isConnectivityError()) {
-                null
-            } else {
-                "Unable to load Online Groups. Please try again."
+            if (lastError != null) {
+                onlineGroupsError =
+                    "Unable to refresh Online Groups. Check your internet and retry."
             }
         } finally {
             isOnlineGroupsLoading = false
@@ -1834,6 +1868,29 @@ item {
                         }
                     }
                 }
+                onlineGroupsError?.let { message ->
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = message,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(
+                                onClick = { onlineGroupsLoadTrigger++ }
+                            ) {
+                                Text("Retry")
+                            }
+                        }
+                    }
+                }
+
                 items(
                     items = visibleOnlineGroups,
                     key = { "online-group-${it.id}" }

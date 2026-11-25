@@ -1799,9 +1799,12 @@ item {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = java.text.NumberFormat.getCurrencyInstance(
-                                        java.util.Locale("en", "IN")
-                                    ).format(groupExpenseTotals[group.id] ?: 0.0).substringBefore("."),
+                                    text = CurrencySettings.symbol + java.text.NumberFormat.getNumberInstance(
+                                        CurrencySettings.selectedOption.locale
+                                    ).apply {
+                                        maximumFractionDigits = 0
+                                        roundingMode = java.math.RoundingMode.DOWN
+                                    }.format(groupExpenseTotals[group.id] ?: 0.0),
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF1565C0)
@@ -1901,11 +1904,14 @@ item {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = java.text.NumberFormat.getCurrencyInstance(
-                                            java.util.Locale("en", "IN")
-                                        ).format(
+                                        text = CurrencySettings.symbol + java.text.NumberFormat.getNumberInstance(
+                                            CurrencySettings.selectedOption.locale
+                                        ).apply {
+                                            maximumFractionDigits = 0
+                                            roundingMode = java.math.RoundingMode.DOWN
+                                        }.format(
                                             onlineGroupExpenseTotals[group.id] ?: 0.0
-                                        ).substringBefore("."),
+                                        ),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF1565C0)

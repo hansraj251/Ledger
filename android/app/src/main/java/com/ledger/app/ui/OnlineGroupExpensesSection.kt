@@ -1479,7 +1479,7 @@ fun OnlineGroupExpensesSection(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Delete expense")
+                            Text(if (settlementMode) "Delete" else "Delete expense")
                         }
                     }
 

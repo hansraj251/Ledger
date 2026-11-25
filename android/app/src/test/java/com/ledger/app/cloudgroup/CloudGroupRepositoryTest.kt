@@ -23,6 +23,8 @@ class CloudGroupRepositoryTest {
         var addedMemberName: String? = null
         var addedMemberEmail: String? = null
         var updatedMemberName: String? = null
+        var settlementPermissionMemberId: String? = null
+        var settlementPermissionValue: Boolean? = null
         var removedMemberId: String? = null
 
         override suspend fun currentUserId(): String? = userId
@@ -90,6 +92,16 @@ class CloudGroupRepositoryTest {
         ): String {
             updatedMemberName = memberName
             return memberId
+        }
+
+        override suspend fun updateOwnSettlementPermission(
+            groupId: String,
+            memberId: String,
+            allow: Boolean
+        ): Boolean {
+            settlementPermissionMemberId = memberId
+            settlementPermissionValue = allow
+            return true
         }
 
         var savedExpenseTitle: String? = null
@@ -270,6 +282,27 @@ class CloudGroupRepositoryTest {
         )
         assertEquals("New Name", remote.updatedMemberName)
         assertEquals("member-123", result)
+    }
+
+    @Test
+    fun updateOwnSettlementPermission_delegatesToRemote() = runBlocking {
+        val remote = FakeRemoteDataSource()
+        val result = CloudGroupRepository(remote).updateOwnSettlementPermission(
+            "group-123", "member-123", false
+        )
+        assertEquals(true, result)
+        assertEquals("member-123", remote.settlementPermissionMemberId)
+        assertEquals(false, remote.settlementPermissionValue)
+    }
+
+    @Test
+    fun updateOwnSettlementPermission_rejectsBlankIds() {
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking {
+                CloudGroupRepository(FakeRemoteDataSource())
+                    .updateOwnSettlementPermission(" ", "member-123", false)
+            }
+        }
     }
 
     @Test

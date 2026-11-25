@@ -133,6 +133,23 @@ class CloudSupabaseRemoteDataSource(
             .decodeAs<String>()
     }
 
+    override suspend fun updateOwnSettlementPermission(
+        groupId: String,
+        memberId: String,
+        allow: Boolean
+    ): Boolean {
+        return supabase.postgrest
+            .rpc(
+                "update_own_settlement_permission",
+                buildJsonObject {
+                    put("p_group_id", groupId)
+                    put("p_member_id", memberId)
+                    put("p_allow", allow)
+                }
+            )
+            .decodeAs<Boolean>()
+    }
+
     override suspend fun removeMember(
         groupId: String,
         memberId: String

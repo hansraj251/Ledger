@@ -107,6 +107,16 @@ class CloudGroupRepository(
         return remote.updateMemberName(groupId, memberId, cleanName)
     }
 
+    suspend fun updateOwnSettlementPermission(
+        groupId: String,
+        memberId: String,
+        allow: Boolean
+    ): Boolean {
+        requireValidId(groupId, "Group")
+        requireValidId(memberId, "Member")
+        return remote.updateOwnSettlementPermission(groupId, memberId, allow)
+    }
+
     suspend fun removeMember(
         groupId: String,
         memberId: String

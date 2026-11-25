@@ -14,7 +14,8 @@ data class CloudGroupMember(
     val status: String,
     @SerialName("added_by") val addedBy: String? = null,
     @SerialName("joined_at") val joinedAt: String? = null,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("allow_settlement_by_others") val allowSettlementByOthers: Boolean = true
 )
 
 @Serializable

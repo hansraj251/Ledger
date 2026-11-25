@@ -805,7 +805,15 @@ fun OnlineGroupExpensesSection(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        joinedMembers.filter {
+                        (if (settlementMode) {
+                            joinedMembers.filter {
+                                it.allowSettlementByOthers ||
+                                    (currentUserId != null && it.userId == currentUserId) ||
+                                    it.id in selectedIds
+                            }
+                        } else {
+                            joinedMembers
+                        }).filter {
                             it.memberName.contains(memberSearch, ignoreCase = true)
                         }.forEach { member ->
                             Row(
@@ -814,7 +822,11 @@ fun OnlineGroupExpensesSection(
                             ) {
                                 Checkbox(
                                     checked = member.id in selectedIds,
-                                    enabled = !busy,
+                                    enabled = !busy && (
+                                        member.allowSettlementByOthers ||
+                                            (currentUserId != null && member.userId == currentUserId) ||
+                                            member.id in selectedIds
+                                        ),
                                     onCheckedChange = { checked ->
                                         if (settlementMode) {
                                             selectedIds = if (checked) setOf(member.id) else emptySet()
@@ -830,6 +842,15 @@ fun OnlineGroupExpensesSection(
                                     }
                                 )
                                 Text(member.memberName, modifier = Modifier.weight(1f))
+                                if (settlementMode && !member.allowSettlementByOthers &&
+                                    !(currentUserId != null && member.userId == currentUserId)
+                                ) {
+                                    Text(
+                                        "Permission off",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                                 if (!settlementMode && member.id in selectedIds && splitMode == "Custom") {
                                     OutlinedTextField(
                                         value = customAmounts[member.id] ?: "",
@@ -954,7 +975,13 @@ fun OnlineGroupExpensesSection(
                                 selectedIds.isNotEmpty() &&
                                 (if (settlementMode) {
                                     selectedIds.size == 1 && settlementPayerId != null &&
-                                        settlementPayerId !in selectedIds
+                                        settlementPayerId !in selectedIds &&
+                                        joinedMembers.any { member ->
+                                            member.id in selectedIds && (
+                                                member.allowSettlementByOthers ||
+                                                    (currentUserId != null && member.userId == currentUserId)
+                                                )
+                                        }
                                 } else youMember != null),
                             onClick = {
                                 if (hasReservedSettlementTitle) return@Button

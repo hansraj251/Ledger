@@ -31,6 +31,12 @@ interface CloudGroupRemoteDataSource {
         memberName: String
     ): String
 
+    suspend fun updateOwnSettlementPermission(
+        groupId: String,
+        memberId: String,
+        allow: Boolean
+    ): Boolean
+
     suspend fun fetchGroupExpenses(
         groupId: String
     ): CloudGroupExpenseData

@@ -37,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -124,6 +125,8 @@ fun OnlineGroupDetailScreen(
     }
     var addExpenseRequest by remember { mutableStateOf(0) }
     var selectedMemberDetail by remember { mutableStateOf<CloudGroupMember?>(null) }
+    var showSettlementPermissionDialog by remember { mutableStateOf(false) }
+    var pendingSettlementPermission by remember { mutableStateOf<Boolean?>(null) }
     // all = normal history, member = selected member paid,
     // others = another member paid in a settlement involving this member.
     var settlementHistoryFilter by remember(selectedMemberDetail?.id) {
@@ -1000,6 +1003,22 @@ Column(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        val canChangeSettlementPermission =
+                            currentUserId != null &&
+                                detailMember.userId == currentUserId &&
+                                detailMember.status == "joined"
+
+                        if (canChangeSettlementPermission) {
+                            Switch(
+                                checked = detailMember.allowSettlementByOthers,
+                                onCheckedChange = { allow ->
+                                    pendingSettlementPermission = allow
+                                    showSettlementPermissionDialog = true
+                                },
+                                enabled = !isBusy
+                            )
+                        }
                     }
                     HorizontalDivider()
 
@@ -1841,6 +1860,73 @@ Column(
             },
             dismissButton = {}
         )
+    }
+
+    if (showSettlementPermissionDialog) {
+        val member = selectedMemberDetail
+        val requestedPermission = pendingSettlementPermission
+        if (member != null && requestedPermission != null) {
+            AlertDialog(
+                containerColor = Color.White,
+                onDismissRequest = {
+                    if (!isBusy) {
+                        showSettlementPermissionDialog = false
+                        pendingSettlementPermission = null
+                    }
+                },
+                title = {
+                    Text(
+                        if (requestedPermission) "Allow settlements?"
+                        else "Disable settlements?"
+                    )
+                },
+                text = {
+                    Text(
+                        if (requestedPermission) {
+                            "Other group members will be able to select you as the settlement receiver."
+                        } else {
+                            "Other group members will no longer be able to select you as the settlement receiver. You can still pay and settle with other members."
+                        }
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !isBusy,
+                        onClick = {
+                            val memberId = member.id
+                            val allow = requestedPermission
+                            showSettlementPermissionDialog = false
+                            pendingSettlementPermission = null
+                            runMemberAction {
+                                val updated = repository.updateOwnSettlementPermission(
+                                    groupId = groupId,
+                                    memberId = memberId,
+                                    allow = allow
+                                )
+                                if (!updated) {
+                                    throw IllegalStateException(
+                                        "Could not update settlement permission. Please retry."
+                                    )
+                                }
+                            }
+                        }
+                    ) {
+                        Text("Confirm")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !isBusy,
+                        onClick = {
+                            showSettlementPermissionDialog = false
+                            pendingSettlementPermission = null
+                        }
+                    ) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
     }
 
     editingMember?.let { member ->

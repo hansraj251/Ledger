@@ -360,7 +360,7 @@ fun HomeScreen(
         onlineGroupExpenseTotals = onlineGroups.associate { group ->
             group.id to (
                 cloudGroupCache.loadDetail(group.id)
-                    ?.expenseData?.expenses?.sumOf { it.amount }
+                    ?.expenseData?.expenses?.filterNot { it.title.trim().equals("Settled", ignoreCase = true) }?.sumOf { it.amount }
                     ?: onlineGroupExpenseTotals[group.id]
                     ?: 0.0
             )
@@ -374,7 +374,7 @@ fun HomeScreen(
                     }
                     onlineGroupExpenseTotals =
                         onlineGroupExpenseTotals + (
-                            group.id to expenseData.expenses.sumOf { it.amount }
+                            group.id to expenseData.expenses.filterNot { it.title.trim().equals("Settled", ignoreCase = true) }.sumOf { it.amount }
                         )
                 } catch (error: CancellationException) {
                     throw error

@@ -1436,63 +1436,119 @@ Column(
                                 val settlementTitle = settlementCounterpartyName
                                     ?.let { "Settled with $it" } ?: "Settled"
 
-                                Card(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(16.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFE8B64A)),
-                                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                                        containerColor = Color.White
-                                    )
-                                ) {
-                                    Column(Modifier.padding(14.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Column(Modifier.weight(1f)) {
+                                if (isSettlement) {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF9AD5AF)),
+                                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                                            containerColor = Color(0xFFF0FAF3)
+                                        )
+                                    ) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(
+                                                        "SETTLEMENT",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color(0xFF16804A),
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Spacer(Modifier.height(3.dp))
+                                                    Text(
+                                                        settlementTitle,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF176B3A)
+                                                    )
+                                                    Text(
+                                                        java.text.SimpleDateFormat(
+                                                            "dd MMM yyyy",
+                                                            java.util.Locale.getDefault()
+                                                        ).format(java.util.Date(expense.expenseDateMs)),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = Color(0xFF578267)
+                                                    )
+                                                }
                                                 Text(
-                                                    if (isSettlement) settlementTitle else expense.title,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                                Text(
-                                                    java.text.SimpleDateFormat(
-                                                        "dd MMM yyyy",
-                                                        java.util.Locale.getDefault()
-                                                    ).format(java.util.Date(expense.expenseDateMs)),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(expense.amount),
+                                                    style = MaterialTheme.typography.titleLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF16804A)
                                                 )
                                             }
-                                            Text(
-                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(expense.amount),
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        if (isSettlement) {
-                                            settlementPayments
-                                                .groupBy { it.memberId }
-                                                .forEach { (payerId, records) ->
+
+                                            val groupedSettlementPayments =
+                                                settlementPayments.groupBy { it.memberId }
+
+                                            if (groupedSettlementPayments.isNotEmpty()) {
+                                                Spacer(Modifier.height(10.dp))
+                                                HorizontalDivider(color = Color(0xFFD4EBDD))
+                                                Spacer(Modifier.height(8.dp))
+
+                                                groupedSettlementPayments.forEach { (payerId, records) ->
                                                     val payerName = members
                                                         .firstOrNull { it.id == payerId }
                                                         ?.memberName ?: "Member"
                                                     val payerAmount = records.sumOf { it.amount }
 
                                                     if (payerAmount > 0.009) {
-                                                        Spacer(Modifier.height(6.dp))
-                                                        Row {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
                                                             Text(
-                                                                payerName,
-                                                                color = Color(0xFF16804A)
+                                                                "Paid by $payerName",
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = Color(0xFF397451)
                                                             )
                                                             Spacer(Modifier.weight(1f))
                                                             Text(
                                                                 "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(payerAmount),
-                                                                color = Color(0xFF16804A),
-                                                                fontWeight = FontWeight.SemiBold
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = Color(0xFF16804A)
                                                             )
                                                         }
                                                     }
                                                 }
-                                        } else {
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFE8B64A)),
+                                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                                            containerColor = Color.White
+                                        )
+                                    ) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(
+                                                        expense.title,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Text(
+                                                        java.text.SimpleDateFormat(
+                                                            "dd MMM yyyy",
+                                                            java.util.Locale.getDefault()
+                                                        ).format(java.util.Date(expense.expenseDateMs)),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                Text(
+                                                    "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(expense.amount),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+
                                             split?.let {
                                                 Spacer(Modifier.height(8.dp))
                                                 Row(horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1518,13 +1574,14 @@ Column(
                                                     )
                                                 }
                                             }
-                                        }
-                                        if (expense.note.isNotBlank()) {
-                                            Spacer(Modifier.height(6.dp))
-                                            Text(
-                                                expense.note,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
+
+                                            if (expense.note.isNotBlank()) {
+                                                Spacer(Modifier.height(6.dp))
+                                                Text(
+                                                    expense.note,
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                            }
                                         }
                                     }
                                 }

@@ -477,6 +477,145 @@ fun OnlineGroupExpensesSection(
                                 else Color(0xFF315F91),
                                 style = MaterialTheme.typography.bodySmall
                             )
+
+                            // Resolve request member IDs against this group's joined members.
+                            // Amounts are read from the submitted approval revision.
+                            val requestSplits = request.splits
+                            val requestPayments = request.payments
+                            val isSettlementRequest = request.title.trim().equals(
+                                "Settled",
+                                ignoreCase = true
+                            )
+                            val memberNameById = joinedMembers.associate {
+                                it.id to it.memberName
+                            }
+
+                            androidx.compose.material3.HorizontalDivider(
+                                color = Color(0xFFE2E8F0)
+                            )
+
+                            if (isSettlementRequest) {
+                                Text(
+                                    "Settlement details",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF334155)
+                                )
+                                val payer = requestPayments.firstOrNull()
+                                val receiver = requestSplits.firstOrNull()
+
+                                if (payer != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "Paid by: ${memberNameById[payer.memberId] ?: "Unknown member"}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            "₹${"%.2f".format(payer.amount)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                    Text(
+                                        payer.paymentType,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                                if (receiver != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "Received by: ${memberNameById[receiver.memberId] ?: "Unknown member"}",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                        Text(
+                                            "₹${"%.2f".format(receiver.amount)}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+                            } else {
+                                Text(
+                                    "Member-wise share",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF334155)
+                                )
+                                if (requestSplits.isEmpty()) {
+                                    Text(
+                                        "No share entries",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                } else {
+                                    requestSplits.forEach { split ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                memberNameById[split.memberId] ?: "Unknown member",
+                                                modifier = Modifier.weight(1f),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Text(
+                                                "₹${"%.2f".format(split.amount)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+
+                                androidx.compose.material3.HorizontalDivider(
+                                    color = Color(0xFFE2E8F0)
+                                )
+                                Text(
+                                    "Paid by",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF334155)
+                                )
+                                if (requestPayments.isEmpty()) {
+                                    Text(
+                                        "No payment entries",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                } else {
+                                    requestPayments.forEach { payment ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    memberNameById[payment.memberId] ?: "Unknown member",
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                                Text(
+                                                    payment.paymentType,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF64748B)
+                                                )
+                                            }
+                                            Text(
+                                                "₹${"%.2f".format(payment.amount)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             if (request.status == "changes_required") {
                                 request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
                                     Text("Reason: $it", style = MaterialTheme.typography.bodySmall)

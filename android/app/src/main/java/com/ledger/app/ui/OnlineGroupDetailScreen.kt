@@ -1729,7 +1729,7 @@ Column(
             text = {
                 OutlinedTextField(
                     value = groupNameInput,
-                    onValueChange = { groupNameInput = it },
+                    onValueChange = { groupNameInput = it.take(16) },
                     label = { Text("Group Name") },
                     singleLine = true,
                     enabled = !isBusy,
@@ -1928,7 +1928,7 @@ Column(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = memberNameInput,
-                        onValueChange = { memberNameInput = it },
+                        onValueChange = { memberNameInput = it.take(16) },
                         label = { Text("Member Name") },
                         singleLine = true,
                         enabled = !isBusy,
@@ -2091,7 +2091,7 @@ Column(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = memberNameInput,
-                        onValueChange = { memberNameInput = it },
+                        onValueChange = { memberNameInput = it.take(16) },
                         label = { Text("Member Name") },
                         singleLine = true,
                         enabled = !isBusy,

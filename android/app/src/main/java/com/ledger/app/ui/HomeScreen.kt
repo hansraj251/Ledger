@@ -2557,7 +2557,7 @@ title = { Text("Delete Party?") },
                     OutlinedTextField(
                         value = newOnlineGroupName,
                         onValueChange = {
-                            newOnlineGroupName = it.take(120)
+                            newOnlineGroupName = it.take(16)
                             createOnlineGroupError = null
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -2673,7 +2673,7 @@ title = { Text("Delete Party?") },
             text = {
                 OutlinedTextField(
                     value = newGroupName,
-                    onValueChange = { newGroupName = it },
+                    onValueChange = { newGroupName = it.take(16) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     enabled = !isSavingGroup,

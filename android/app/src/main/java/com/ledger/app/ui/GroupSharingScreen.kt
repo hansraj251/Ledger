@@ -2691,7 +2691,7 @@ private fun GroupEditDialog(
                 )
                 OutlinedTextField(
                     value = name,
-                    onValueChange = onNameChange,
+                    onValueChange = { onNameChange(it.take(16)) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Group name") },
                     singleLine = true,
@@ -2776,7 +2776,7 @@ private fun NameEditorDialog(
             ) {
                 OutlinedTextField(
                     value = value,
-                    onValueChange = { value = it },
+                    onValueChange = { value = it.take(16) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(label) },
                     singleLine = true,

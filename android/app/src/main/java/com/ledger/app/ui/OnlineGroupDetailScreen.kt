@@ -63,8 +63,13 @@ import com.ledger.app.cloudgroup.CloudGroupRepository
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.DisposableEffect
 
 @Composable
 fun OnlineGroupDetailScreen(
@@ -306,6 +311,73 @@ fun OnlineGroupDetailScreen(
             } finally {
                 memberExpenseLoading = false
             }
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Keep Total Expenses current while Members remains open.
+    LaunchedEffect(groupId, selectedGroupSection) {
+        if (selectedGroupSection != "Members") return@LaunchedEffect
+
+        while (true) {
+            delay(15_000)
+            try {
+                val loadedData = withContext(Dispatchers.IO) {
+                    repository.loadGroupExpenses(groupId)
+                }
+                memberExpenseData = loadedData
+                memberExpenseDataLoaded = true
+                memberExpenseError = null
+                cloudGroupCache.saveDetail(
+                    groupId = groupId,
+                    group = group,
+                    members = members,
+                    currentUserId = currentUserId,
+                    expenseData = loadedData
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                memberExpenseError = error.message
+                    ?: "Could not refresh member expense details."
+            }
+        }
+    }
+
+    // Refresh immediately when the app returns to foreground.
+    DisposableEffect(lifecycleOwner, groupId, selectedGroupSection) {
+        if (selectedGroupSection != "Members") {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    scope.launch {
+                        try {
+                            val loadedData = withContext(Dispatchers.IO) {
+                                repository.loadGroupExpenses(groupId)
+                            }
+                            memberExpenseData = loadedData
+                            memberExpenseDataLoaded = true
+                            memberExpenseError = null
+                            cloudGroupCache.saveDetail(
+                                groupId = groupId,
+                                group = group,
+                                members = members,
+                                currentUserId = currentUserId,
+                                expenseData = loadedData
+                            )
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Exception) {
+                            memberExpenseError = error.message
+                                ?: "Could not refresh member expense details."
+                        }
+                    }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
     }
 

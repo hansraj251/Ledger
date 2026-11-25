@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import androidx.compose.foundation.text.KeyboardOptions
 
 import androidx.compose.foundation.layout.width
@@ -109,7 +111,7 @@ private fun Throwable.settlementLimitMessage(): String? {
         ?.toPlainString()
 
     return if (amount != null) {
-        "Settlement limit reached. Remaining balance is ₹$amount. Please reduce the settlement amount."
+        "Settlement limit reached. Remaining balance is ${CurrencySettings.symbol}$amount. Please reduce the settlement amount."
     } else {
         "Settlement limit reached. The available balance has changed. Please refresh and try again."
     }
@@ -645,7 +647,7 @@ fun OnlineGroupExpensesSection(
                                             color = Color(0xFF737B87)
                                         )
                                     }
-                                    Text("₹${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
+                                    Text("${CurrencySettings.symbol}${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
                                 }
                                 Text(
                                     statusText,
@@ -696,7 +698,7 @@ fun OnlineGroupExpensesSection(
                                                 style = MaterialTheme.typography.bodySmall
                                             )
                                             Text(
-                                                "₹${"%.2f".format(payer.amount)}",
+                                                "${CurrencySettings.symbol}${"%.2f".format(payer.amount)}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.SemiBold
                                             )
@@ -717,7 +719,7 @@ fun OnlineGroupExpensesSection(
                                                 style = MaterialTheme.typography.bodySmall
                                             )
                                             Text(
-                                                "₹${"%.2f".format(receiver.amount)}",
+                                                "${CurrencySettings.symbol}${"%.2f".format(receiver.amount)}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.SemiBold
                                             )
@@ -748,7 +750,7 @@ fun OnlineGroupExpensesSection(
                                                     style = MaterialTheme.typography.bodySmall
                                                 )
                                                 Text(
-                                                    "₹${"%.2f".format(split.amount)}",
+                                                    "${CurrencySettings.symbol}${"%.2f".format(split.amount)}",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     fontWeight = FontWeight.Medium
                                                 )
@@ -789,7 +791,7 @@ fun OnlineGroupExpensesSection(
                                                     )
                                                 }
                                                 Text(
-                                                    "₹${"%.2f".format(payment.amount)}",
+                                                    "${CurrencySettings.symbol}${"%.2f".format(payment.amount)}",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     fontWeight = FontWeight.SemiBold
                                                 )
@@ -959,7 +961,7 @@ fun OnlineGroupExpensesSection(
                                     style = MaterialTheme.typography.titleSmall
                                 )
                                 Text(
-                                    "₹${"%.2f".format(expense.amount)}",
+                                    "${CurrencySettings.symbol}${"%.2f".format(expense.amount)}",
                                     style = MaterialTheme.typography.titleSmall
                                 )
                             }
@@ -1031,7 +1033,7 @@ fun OnlineGroupExpensesSection(
                                             )
                                             Text(
                                                 if (memberPaid > 0.009)
-                                                    "Paid ₹${"%.2f".format(memberPaid)}"
+                                                    "Paid ${CurrencySettings.symbol}${"%.2f".format(memberPaid)}"
                                                 else "Not paid",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = if (memberPaid > 0.009)
@@ -1040,7 +1042,7 @@ fun OnlineGroupExpensesSection(
                                             )
                                         }
                                         Text(
-                                            "₹${"%.2f".format(shareAmount)}",
+                                            "${CurrencySettings.symbol}${"%.2f".format(shareAmount)}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.SemiBold,
                                             color = Color(0xFF202124)
@@ -1504,9 +1506,9 @@ fun OnlineGroupExpensesSection(
                                 val payerName = joinedMembers.firstOrNull {
                                     it.id == settlementPayerId
                                 }?.memberName ?: "Select payer"
-                                "Paid By · $payerName · ₹${"%.2f".format(totalForPaidBy)}"
+                                "Paid By · $payerName · ${CurrencySettings.symbol}${"%.2f".format(totalForPaidBy)}"
                             } else {
-                                "Paid By · ₹${"%.2f".format(paidTotal + youRemaining)}"
+                                "Paid By · ${CurrencySettings.symbol}${"%.2f".format(paidTotal + youRemaining)}"
                             }
                         )
                     }
@@ -1549,7 +1551,7 @@ fun OnlineGroupExpensesSection(
                                         settlementAmountPaise <= 0L ||
                                         settlementAmountPaise > settlementOutstandingPaise)
                                 ) {
-                                    error = "Settlement amount cannot exceed outstanding balance ₹" +
+                                    error = "Settlement amount cannot exceed outstanding balance ${CurrencySettings.symbol}" +
                                         String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
                                     return@Button
                                 }
@@ -1895,8 +1897,8 @@ private fun ExpenseApprovalComparison(
         comparisonRow("Date", oldDate, newDate)
         comparisonRow(
             "Total amount",
-            "₹${"%.2f".format(old.amount)}",
-            "₹${"%.2f".format(request.amount)}"
+            "${CurrencySettings.symbol}${"%.2f".format(old.amount)}",
+            "${CurrencySettings.symbol}${"%.2f".format(request.amount)}"
         )
         comparisonRow("Title", old.title, request.title)
 
@@ -1913,19 +1915,19 @@ private fun ExpenseApprovalComparison(
             comparisonRow(
                 "Paid by",
                 oldPayer?.let {
-                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ${CurrencySettings.symbol}${"%.2f".format(it.amount)} (${it.paymentType})"
                 } ?: "None",
                 newPayer?.let {
-                    "${memberNameById[it.memberId] ?: "Unknown member"} • ₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                    "${memberNameById[it.memberId] ?: "Unknown member"} • ${CurrencySettings.symbol}${"%.2f".format(it.amount)} (${it.paymentType})"
                 } ?: "None"
             )
             comparisonRow(
                 "Received by",
                 oldReceiver?.let {
-                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ₹${"%.2f".format(it.amount)}"
+                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ${CurrencySettings.symbol}${"%.2f".format(it.amount)}"
                 } ?: "None",
                 newReceiver?.let {
-                    "${memberNameById[it.memberId] ?: "Unknown member"} • ₹${"%.2f".format(it.amount)}"
+                    "${memberNameById[it.memberId] ?: "Unknown member"} • ${CurrencySettings.symbol}${"%.2f".format(it.amount)}"
                 } ?: "None"
             )
         } else {
@@ -1944,8 +1946,8 @@ private fun ExpenseApprovalComparison(
 
                 comparisonRow(
                     name,
-                    before?.let { "₹${"%.2f".format(it.amount)}" } ?: "Removed / —",
-                    after?.let { "₹${"%.2f".format(it.amount)}" } ?: "Removed"
+                    before?.let { "${CurrencySettings.symbol}${"%.2f".format(it.amount)}" } ?: "Removed / —",
+                    after?.let { "${CurrencySettings.symbol}${"%.2f".format(it.amount)}" } ?: "Removed"
                 )
             }
 
@@ -1969,10 +1971,10 @@ private fun ExpenseApprovalComparison(
                     comparisonRow(
                         name,
                         before?.let {
-                            "₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                            "${CurrencySettings.symbol}${"%.2f".format(it.amount)} (${it.paymentType})"
                         } ?: "Not paid",
                         after?.let {
-                            "₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                            "${CurrencySettings.symbol}${"%.2f".format(it.amount)} (${it.paymentType})"
                         } ?: "Removed"
                     )
                 }

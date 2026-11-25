@@ -1,5 +1,7 @@
 package com.ledger.app.ui
 
+import com.ledger.app.data.CurrencySettings
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -805,7 +807,7 @@ fun OnlineGroupDetailScreen(
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        text = "₹" + String.format(
+                                        text = "${CurrencySettings.symbol}" + String.format(
                                             java.util.Locale.getDefault(),
                                             "%,.2f",
                                             memberExpenseData.expenses.filterNot { it.title.equals("Settled", ignoreCase = true) }.sumOf { it.amount }
@@ -976,7 +978,7 @@ Column(
             text = if (member.status != "joined") {
                 "Invitation pending"
             } else {
-                "₹" + String.format(
+                "${CurrencySettings.symbol}" + String.format(
                     java.util.Locale.getDefault(),
                     "%,.2f",
                     kotlin.math.abs(memberBalance)
@@ -1251,7 +1253,7 @@ Column(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        "₹" + String.format(
+                                        "${CurrencySettings.symbol}" + String.format(
                                             java.util.Locale.getDefault(), "%,.2f", amount
                                         ),
                                         style = MaterialTheme.typography.titleLarge,
@@ -1351,7 +1353,7 @@ Column(
                                     modifier = Modifier.weight(1f)
                                 )
                             Text(
-                                "₹" + String.format(
+                                "${CurrencySettings.symbol}" + String.format(
                                     java.util.Locale.getDefault(), "%,.2f",
                                     kotlin.math.abs(memberBalance)
                                 ),
@@ -1472,7 +1474,7 @@ Column(
                                                 )
                                             }
                                             Text(
-                                                "₹" + String.format(
+                                                "${CurrencySettings.symbol}" + String.format(
                                                     java.util.Locale.getDefault(), "%,.2f", expense.amount
                                                 ),
                                                 style = MaterialTheme.typography.titleMedium,
@@ -1497,7 +1499,7 @@ Column(
                                                             )
                                                             Spacer(Modifier.weight(1f))
                                                             Text(
-                                                                "₹" + String.format(
+                                                                "${CurrencySettings.symbol}" + String.format(
                                                                     java.util.Locale.getDefault(),
                                                                     "%,.2f",
                                                                     payerAmount
@@ -1515,7 +1517,7 @@ Column(
                                                     Text("Share", color = Color(0xFFE53935))
                                                     Spacer(Modifier.weight(1f))
                                                     Text(
-                                                        "₹" + String.format(
+                                                        "${CurrencySettings.symbol}" + String.format(
                                                             java.util.Locale.getDefault(), "%,.2f", it.amount
                                                         ),
                                                         color = Color(0xFFE53935),
@@ -1530,7 +1532,7 @@ Column(
                                                     Text("Paid", color = Color(0xFF16804A))
                                                     Spacer(Modifier.weight(1f))
                                                     Text(
-                                                        "₹" + String.format(
+                                                        "${CurrencySettings.symbol}" + String.format(
                                                             java.util.Locale.getDefault(), "%,.2f", paid
                                                         ),
                                                         color = Color(0xFF16804A),
@@ -1678,7 +1680,7 @@ Column(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                "₹" + String.format(
+                                                "${CurrencySettings.symbol}" + String.format(
                                                     java.util.Locale.getDefault(), "%,.2f",
                                                     debt.amountPaise / 100.0
                                                 ),
@@ -1734,7 +1736,7 @@ Column(
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
-                                                "₹" + String.format(
+                                                "${CurrencySettings.symbol}" + String.format(
                                                     java.util.Locale.getDefault(), "%,.2f",
                                                     debt.amountPaise / 100.0
                                                 ),
@@ -1860,7 +1862,7 @@ Column(
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
                         "A group can only be deleted when every joined member's " +
-                            "remaining balance is exactly ₹0.00.",
+                            "remaining balance is exactly ${CurrencySettings.symbol}0.00.",
                         color = Color(0xFF424242)
                     )
 
@@ -1901,7 +1903,7 @@ Column(
                                 val paise =
                                     deleteBalances[member.id]?.remainingBalancePaise ?: 0L
                                 Text(
-                                    "${member.memberName}: ₹" +
+                                    "${member.memberName}: ${CurrencySettings.symbol}" +
                                         String.format(
                                             java.util.Locale.US,
                                             "%.2f",
@@ -2160,7 +2162,7 @@ Column(
                         }
                         removalBalance.remainingBalancePaise != 0L -> {
                             Text(
-                                "Unsettled balance: ₹" + String.format(
+                                "Unsettled balance: ${CurrencySettings.symbol}" + String.format(
                                     java.util.Locale.US,
                                     "%.2f",
                                     removalBalance.remainingBalancePaise / 100.0

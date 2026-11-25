@@ -79,6 +79,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ledger.app.cloudgroup.CloudGroupExpense
 import com.ledger.app.cloudgroup.CloudGroupExpenseApprovalRequest
+import com.ledger.app.cloudgroup.CloudGroupExpenseApprovalSnapshot
 import com.ledger.app.cloudgroup.CloudGroupExpenseData
 import com.ledger.app.cloudgroup.CloudGroupExpenseDraftCalculator
 import com.ledger.app.cloudgroup.CloudGroupExpensePaymentDraft
@@ -517,7 +518,13 @@ fun OnlineGroupExpensesSection(
                                     color = Color(0xFFE2E8F0)
                                 )
     
-                                if (isSettlementRequest) {
+                                if (request.requestType == "edit" && request.oldExpenseSnapshot != null) {
+                                    ExpenseApprovalComparison(
+                                        old = request.oldExpenseSnapshot,
+                                        request = request,
+                                        memberNameById = memberNameById
+                                    )
+                                } else if (isSettlementRequest) {
                                     Text(
                                         "Settlement details",
                                         style = MaterialTheme.typography.labelLarge,
@@ -639,6 +646,7 @@ fun OnlineGroupExpensesSection(
                                     }
                                 }
     
+
                                 if (request.status == "changes_required") {
                                     request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
                                         Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
@@ -1616,5 +1624,157 @@ fun OnlineGroupExpensesSection(
                 }
             }
         )
+    }
+}
+
+
+@Composable
+private fun ExpenseApprovalComparison(
+    old: CloudGroupExpenseApprovalSnapshot,
+    request: CloudGroupExpenseApprovalRequest,
+    memberNameById: Map<String, String>
+) {
+    val changedColor = Color(0xFFB45309)
+    val normalColor = Color(0xFF334155)
+    val dateFormatter = remember {
+        java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+    }
+    val isSettlement = old.title.trim().equals("Settled", true) ||
+        request.title.trim().equals("Settled", true)
+
+    @Composable
+    fun comparisonRow(label: String, oldValue: String, newValue: String) {
+        val changed = oldValue != newValue
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF64748B))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Old: $oldValue",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (changed) changedColor else normalColor
+                )
+                Text(
+                    "New: $newValue",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (changed) FontWeight.Bold else FontWeight.Normal,
+                    color = if (changed) changedColor else normalColor
+                )
+            }
+        }
+    }
+
+    @Composable
+    fun sectionHeading(text: String) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF334155)
+        )
+    }
+
+    val oldDate = dateFormatter.format(java.util.Date(old.expenseDateMs))
+    val newDate = dateFormatter.format(java.util.Date(request.expenseDateMs))
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            sectionHeading("Old Expense")
+            sectionHeading("Proposed Expense")
+        }
+
+        comparisonRow("Date", oldDate, newDate)
+        comparisonRow(
+            "Total amount",
+            "₹${"%.2f".format(old.amount)}",
+            "₹${"%.2f".format(request.amount)}"
+        )
+        comparisonRow("Title", old.title, request.title)
+
+        androidx.compose.material3.HorizontalDivider(color = Color(0xFFE2E8F0))
+
+        if (isSettlement) {
+            sectionHeading("Settlement comparison")
+
+            val oldPayer = old.payments.firstOrNull()
+            val newPayer = request.payments.firstOrNull()
+            val oldReceiver = old.splits.firstOrNull()
+            val newReceiver = request.splits.firstOrNull()
+
+            comparisonRow(
+                "Paid by",
+                oldPayer?.let {
+                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                } ?: "None",
+                newPayer?.let {
+                    "${memberNameById[it.memberId] ?: "Unknown member"} • ₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                } ?: "None"
+            )
+            comparisonRow(
+                "Received by",
+                oldReceiver?.let {
+                    "${it.memberNameSnapshot.ifBlank { memberNameById[it.memberId] ?: "Unknown member" }} • ₹${"%.2f".format(it.amount)}"
+                } ?: "None",
+                newReceiver?.let {
+                    "${memberNameById[it.memberId] ?: "Unknown member"} • ₹${"%.2f".format(it.amount)}"
+                } ?: "None"
+            )
+        } else {
+            sectionHeading("Member-wise share")
+
+            val oldSplits = old.splits.associateBy { it.memberId }
+            val newSplits = request.splits.associateBy { it.memberId }
+            val splitIds = (oldSplits.keys + newSplits.keys).toList().sorted()
+
+            splitIds.forEach { id ->
+                val before = oldSplits[id]
+                val after = newSplits[id]
+                val name = before?.memberNameSnapshot?.takeIf { it.isNotBlank() }
+                    ?: memberNameById[id]
+                    ?: "Unknown member"
+
+                comparisonRow(
+                    name,
+                    before?.let { "₹${"%.2f".format(it.amount)}" } ?: "Removed / —",
+                    after?.let { "₹${"%.2f".format(it.amount)}" } ?: "Removed"
+                )
+            }
+
+            androidx.compose.material3.HorizontalDivider(color = Color(0xFFE2E8F0))
+            sectionHeading("Paid By")
+
+            val oldPayments = old.payments.associateBy { it.memberId }
+            val newPayments = request.payments.associateBy { it.memberId }
+            val paymentIds = (oldPayments.keys + newPayments.keys).toList().sorted()
+
+            if (paymentIds.isEmpty()) {
+                Text("No payment entries", style = MaterialTheme.typography.bodySmall)
+            } else {
+                paymentIds.forEach { id ->
+                    val before = oldPayments[id]
+                    val after = newPayments[id]
+                    val name = before?.memberNameSnapshot?.takeIf { it.isNotBlank() }
+                        ?: memberNameById[id]
+                        ?: "Unknown member"
+
+                    comparisonRow(
+                        name,
+                        before?.let {
+                            "₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                        } ?: "Not paid",
+                        after?.let {
+                            "₹${"%.2f".format(it.amount)} (${it.paymentType})"
+                        } ?: "Removed"
+                    )
+                }
+            }
+        }
     }
 }

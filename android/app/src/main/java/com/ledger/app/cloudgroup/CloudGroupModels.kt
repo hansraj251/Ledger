@@ -104,6 +104,34 @@ data class CloudGroupExpenseApprovalPayment(
 )
 
 @Serializable
+data class CloudGroupExpenseApprovalSnapshotSplit(
+    @SerialName("member_id") val memberId: String,
+    @SerialName("member_name_snapshot") val memberNameSnapshot: String = "",
+    val amount: Double,
+    @SerialName("share_units") val shareUnits: Double = 1.0
+)
+
+@Serializable
+data class CloudGroupExpenseApprovalSnapshotPayment(
+    @SerialName("member_id") val memberId: String,
+    @SerialName("member_name_snapshot") val memberNameSnapshot: String = "",
+    val amount: Double,
+    @SerialName("payment_type") val paymentType: String = "Cash"
+)
+
+@Serializable
+data class CloudGroupExpenseApprovalSnapshot(
+    val title: String,
+    val amount: Double,
+    val category: String = "",
+    val note: String = "",
+    @SerialName("expense_date_ms") val expenseDateMs: Long,
+    @SerialName("split_mode") val splitMode: String,
+    val splits: List<CloudGroupExpenseApprovalSnapshotSplit> = emptyList(),
+    val payments: List<CloudGroupExpenseApprovalSnapshotPayment> = emptyList()
+)
+
+@Serializable
 data class CloudGroupExpenseApprovalRequest(
     val id: String,
     @SerialName("group_id") val groupId: String,
@@ -125,7 +153,8 @@ data class CloudGroupExpenseApprovalRequest(
     @SerialName("updated_at") val updatedAt: String? = null,
     @SerialName("approved_at") val approvedAt: String? = null,
     @SerialName("request_type") val requestType: String = "add",
-    @SerialName("target_expense_id") val targetExpenseId: String? = null
+    @SerialName("target_expense_id") val targetExpenseId: String? = null,
+    @SerialName("old_expense_snapshot") val oldExpenseSnapshot: CloudGroupExpenseApprovalSnapshot? = null
 )
 
 @Serializable

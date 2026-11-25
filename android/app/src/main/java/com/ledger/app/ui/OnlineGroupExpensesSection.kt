@@ -922,6 +922,7 @@ fun OnlineGroupExpensesSection(
                     filteredExpenses,
                     key = { it.id }
                 ) { expense ->
+                    val isSettlement = expense.title.trim().equals("Settled", ignoreCase = true)
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -938,9 +939,12 @@ fun OnlineGroupExpensesSection(
                                 onLongClick = { openEditExpense(expense) }
                             ),
                         shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, Color(0xFFE8B64A)),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isSettlement) Color(0xFF9AD5AF) else Color(0xFFE8B64A)
+                        ),
                         colors = androidx.compose.material3.CardDefaults.cardColors(
-                            containerColor = Color.White
+                            containerColor = if (isSettlement) Color(0xFFF0FAF3) else Color.White
                         ),
                         elevation = androidx.compose.material3.CardDefaults.cardElevation(
                             defaultElevation = 3.dp
@@ -958,18 +962,24 @@ fun OnlineGroupExpensesSection(
                             ) {
                                 Text(
                                     expense.title,
-                                    style = MaterialTheme.typography.titleSmall
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isSettlement) Color(0xFF166534) else Color(0xFF202124)
                                 )
                                 Text(
                                     "${CurrencySettings.symbol}${"%.2f".format(expense.amount)}",
-                                    style = MaterialTheme.typography.titleSmall
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSettlement) Color(0xFF166534) else Color(0xFF202124)
                                 )
                             }
-                            Text(
-                                "${expense.splitMode} • ${expense.category}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF626B78)
-                            )
+                            if (!isSettlement) {
+                                Text(
+                                    "${expense.splitMode} • ${expense.category}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF626B78)
+                                )
+                            }
                             Text(
                                 java.text.SimpleDateFormat(
                                     "dd MMM yyyy",
@@ -978,7 +988,40 @@ fun OnlineGroupExpensesSection(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color(0xFF737B87)
                             )
-                            if (expense.id in expandedExpenseIds) {
+
+                            if (isSettlement) {
+                                data.payments.filter { it.expenseId == expense.id }.forEach { payment ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Paid by: ${payment.memberNameSnapshot}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF315F45),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                data.splits.filter { it.expenseId == expense.id }.forEach { split ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Settled with: ${split.memberNameSnapshot}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF315F45),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (expense.id in expandedExpenseIds && !isSettlement) {
                                 if (expense.note.isNotBlank()) {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
@@ -1050,20 +1093,22 @@ fun OnlineGroupExpensesSection(
                                     }
                                 }
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 2.dp),
-                                    horizontalArrangement = Arrangement.End,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "Hold to Edit",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF8A9099)
-                                    )
+                                if (!isSettlement) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 2.dp),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Hold to Edit",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF8A9099)
+                                        )
+                                    }
                                 }
-                            } else {
+                            } else if (!isSettlement) {
                                 Text(
                                     "Tap to view details",
                                     style = MaterialTheme.typography.labelSmall,

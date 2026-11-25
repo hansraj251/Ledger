@@ -76,7 +76,8 @@ import androidx.compose.runtime.DisposableEffect
 fun OnlineGroupDetailScreen(
     groupId: String,
     isPremium: Boolean,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    openEditGroupNameOnOpen: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val cloudGroupCache = remember(context) {
@@ -163,6 +164,21 @@ fun OnlineGroupDetailScreen(
     val isOwner = group != null &&
         currentUserId != null &&
         group!!.ownerId == currentUserId
+
+    LaunchedEffect(groupId, openEditGroupNameOnOpen, group != null) {
+        if (openEditGroupNameOnOpen && group != null) {
+            if (isOwner) {
+                groupNameInput = group!!.name
+                showEditGroupDialog = true
+            } else {
+                android.widget.Toast.makeText(
+                    context,
+                    "Only owner can edit or delete",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     suspend fun refresh() {
         if (group == null) {

@@ -102,6 +102,7 @@ fun HomeScreen(
     onGroupSharingClick: () -> Unit,
     onGroupClick: (Long) -> Unit,
     onOnlineGroupClick: (String) -> Unit = {},
+    onOnlineGroupLongClick: (String) -> Unit = {},
     isPremium: Boolean,
     premiumPrice: String,
     onUpgradeClick: () -> Unit,
@@ -1748,7 +1749,10 @@ item {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOnlineGroupClick(group.id) },
+                            .combinedClickable(
+                                onClick = { onOnlineGroupClick(group.id) },
+                                onLongClick = { onOnlineGroupLongClick(group.id) }
+                            ),
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface

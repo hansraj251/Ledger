@@ -300,6 +300,7 @@ class MainActivity : ComponentActivity() {
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
                 var selectedOnlineGroupId by remember { mutableStateOf<String?>(null) }
+                var openOnlineGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
                 var openGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
@@ -732,7 +733,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     OnlineGroupDetailScreen(
                         groupId = selectedOnlineGroupId!!,
                         isPremium = premiumBillingState.isPremium,
-                        onBack = { selectedOnlineGroupId = null }
+                        onBack = {
+                            selectedOnlineGroupId = null
+                            openOnlineGroupEditorOnOpen = false
+                        },
+                        openEditGroupNameOnOpen = openOnlineGroupEditorOnOpen
                     )
                 } else if (showGroupSharingScreen) {
                     GroupSharingScreen(
@@ -837,6 +842,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             showGroupSharingScreen = true
                         },
                         onOnlineGroupClick = { groupId ->
+                            openOnlineGroupEditorOnOpen = false
+                            selectedOnlineGroupId = groupId
+                        },
+                        onOnlineGroupLongClick = { groupId ->
+                            openOnlineGroupEditorOnOpen = true
                             selectedOnlineGroupId = groupId
                         },
                         onGroupLongClick = { groupId ->

@@ -1776,11 +1776,26 @@ item {
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = group.name,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = group.name,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Outlined.CloudDone,
+                                        contentDescription = "Online Group",
+                                        modifier = Modifier.size(17.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                                 Spacer(Modifier.height(5.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

@@ -133,6 +133,7 @@ fun OnlineGroupDetailScreen(
         mutableStateOf("Members")
     }
     var addExpenseRequest by remember { mutableStateOf(0) }
+    var settlementRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
     var selectedMemberDetail by remember { mutableStateOf<CloudGroupMember?>(null) }
     var showSettlementPermissionDialog by remember { mutableStateOf(false) }
     var pendingSettlementPermission by remember { mutableStateOf<Boolean?>(null) }
@@ -727,7 +728,11 @@ fun OnlineGroupDetailScreen(
                             onAddExpenseRequestConsumed = {
                                 addExpenseRequest = 0
                             },
-                            addExpenseRequest = addExpenseRequest
+                            addExpenseRequest = addExpenseRequest,
+                            settlementRequest = settlementRequest,
+                            onSettlementRequestConsumed = {
+                                settlementRequest = null
+                            }
                         )
                     }
 
@@ -1608,7 +1613,15 @@ Column(
                             } else {
                                 items(getDebts, key = { "get-${it.fromMemberId}-${it.toMemberId}" }) { debt ->
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = !isBusy && debt.amountPaise > 0L) {
+                                                // Clicked member pays the selected detail member.
+                                                settlementRequest = detailMember.id to debt.fromMemberId
+                                                showBalanceBreakdown = false
+                                                selectedMemberDetail = null
+                                                selectedGroupSection = "Expenses"
+                                            },
                                         shape = RoundedCornerShape(14.dp),
                                         colors = androidx.compose.material3.CardDefaults.cardColors(
                                             containerColor = Color.White
@@ -1656,7 +1669,15 @@ Column(
                             } else {
                                 items(giveDebts, key = { "give-${it.fromMemberId}-${it.toMemberId}" }) { debt ->
                                     Card(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(enabled = !isBusy && debt.amountPaise > 0L) {
+                                                // Selected detail member pays the clicked creditor.
+                                                settlementRequest = debt.toMemberId to detailMember.id
+                                                showBalanceBreakdown = false
+                                                selectedMemberDetail = null
+                                                selectedGroupSection = "Expenses"
+                                            },
                                         shape = RoundedCornerShape(14.dp),
                                         colors = androidx.compose.material3.CardDefaults.cardColors(
                                             containerColor = Color.White

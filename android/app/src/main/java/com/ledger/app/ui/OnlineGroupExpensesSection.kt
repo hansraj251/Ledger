@@ -104,7 +104,9 @@ fun OnlineGroupExpensesSection(
     onExpenseDataChange: (CloudGroupExpenseData) -> Unit,
     onConnectivityError: () -> Unit,
     onAddExpenseRequestConsumed: () -> Unit,
-    addExpenseRequest: Int = 0
+    addExpenseRequest: Int = 0,
+    settlementRequest: Pair<String, String>? = null,
+    onSettlementRequestConsumed: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
 
@@ -394,6 +396,52 @@ fun OnlineGroupExpensesSection(
             openNewExpense()
             onAddExpenseRequestConsumed()
         }
+    }
+
+    LaunchedEffect(settlementRequest) {
+        val request = settlementRequest ?: return@LaunchedEffect
+        val receiverId = request.first
+        val payerId = request.second
+
+        val currentPairDebt = runCatching {
+            CloudGroupPairwiseBalanceCalculator.calculateFromExpenseData(
+                members = joinedMembers,
+                expenseData = data
+            ).debts.firstOrNull {
+                it.fromMemberId == payerId &&
+                    it.toMemberId == receiverId
+            }?.amountPaise ?: 0L
+        }.getOrDefault(0L)
+
+        if (
+            currentPairDebt > 0L &&
+            joinedMembers.any { it.id == receiverId } &&
+            joinedMembers.any { it.id == payerId } &&
+            receiverId != payerId
+        ) {
+            settlementMode = true
+            editingExpense = null
+            editingApprovalRequest = null
+            expenseDateMs = LocalDate.now().atStartOfDay(ZoneOffset.UTC)
+                .toInstant().toEpochMilli()
+            title = "Settled"
+            amount = String.format(
+                java.util.Locale.US,
+                "%.2f",
+                currentPairDebt / 100.0
+            )
+            note = ""
+            category = "Cash"
+            splitMode = "Custom"
+            selectedIds = setOf(receiverId)
+            customAmounts = mapOf(receiverId to amount)
+            shareUnits = joinedMembers.associate { it.id to "1" }
+            settlementPayerId = payerId
+            paidAmounts = emptyMap()
+            showEditor = true
+        }
+
+        onSettlementRequestConsumed()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

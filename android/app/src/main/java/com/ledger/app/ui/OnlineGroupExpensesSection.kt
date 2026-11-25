@@ -666,6 +666,21 @@ fun OnlineGroupExpensesSection(
                                 }
     
 
+                                if (request.status == "pending") {
+                                    Text(
+                                        "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                    if (pendingApproverNames.isNotEmpty()) {
+                                        Text(
+                                            "Pending approval from: ${pendingApproverNames.joinToString(", ")}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFFB45309)
+                                        )
+                                    }
+                                }
+
                                 if (request.status == "changes_required") {
                                     request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
                                         Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
@@ -685,7 +700,7 @@ fun OnlineGroupExpensesSection(
                                             onClick = { openEditPendingRequest(request) }
                                         ) { Text("Edit & Resubmit") }
                                     }
-                                } else if (isCreator) {
+                                } else if (request.status == "pending" && isCreator) {
                                     TextButton(
                                         enabled = enabled && !busy,
                                         onClick = {
@@ -694,19 +709,7 @@ fun OnlineGroupExpensesSection(
                                             }
                                         }
                                     ) { Text("Cancel Request") }
-                                } else if (myApproval?.approvalStatus == "pending") {
-                                    Text(
-                                        "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF64748B)
-                                    )
-                                    if (pendingApproverNames.isNotEmpty()) {
-                                        Text(
-                                            "Pending approval from: ${pendingApproverNames.joinToString(", ")}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFB45309)
-                                        )
-                                    }
+                                } else if (request.status == "pending" && myApproval?.approvalStatus == "pending") {
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         Button(
                                             enabled = enabled && !busy,
@@ -727,19 +730,6 @@ fun OnlineGroupExpensesSection(
                                                 rejectingApprovalRequest = request
                                             }
                                         ) { Text("Reject") }
-                                    }
-                                } else if (myApproval?.approvalStatus == "approved") {
-                                    Text(
-                                        "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF64748B)
-                                    )
-                                    if (pendingApproverNames.isNotEmpty()) {
-                                        Text(
-                                            "Pending approval from: ${pendingApproverNames.joinToString(", ")}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = Color(0xFFB45309)
-                                        )
                                     }
                                 }
                             }

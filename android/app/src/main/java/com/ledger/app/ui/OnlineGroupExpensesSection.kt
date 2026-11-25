@@ -422,303 +422,318 @@ fun OnlineGroupExpensesSection(
             }
         }
 
-        if (visibleApprovalRequests.isNotEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 240.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    "Expense approvals",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                visibleApprovalRequests.forEach { request ->
-                    val isCreator = request.createdBy == currentUserId
-                    val myApproval = data.approvals.firstOrNull {
-                        it.requestId == request.id &&
-                            it.revision == request.revision &&
-                            it.memberId == youMember?.id
-                    }
-                    val approvalsForRevision = data.approvals.filter {
-                        it.requestId == request.id && it.revision == request.revision
-                    }
-                    val statusText = when {
-                        request.status == "changes_required" -> "Changes required"
-                        isCreator -> "Waiting for member approvals"
-                        myApproval?.approvalStatus == "pending" -> "Your approval is required"
-                        myApproval?.approvalStatus == "approved" -> "You approved • waiting for others"
-                        else -> "Awaiting approval"
-                    }
-                    Card(
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (visibleApprovalRequests.isNotEmpty()) {
+                item(key = "approval_requests") {
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color(0xFFD8E4F2)),
-                        colors = androidx.compose.material3.CardDefaults.cardColors(
-                            containerColor = Color(0xFFF8FBFF)
-                        )
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                    Text(
+                        "Expense approvals",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    visibleApprovalRequests.forEach { request ->
+                        val isCreator = request.createdBy == currentUserId
+                        val myApproval = data.approvals.firstOrNull {
+                            it.requestId == request.id &&
+                                it.revision == request.revision &&
+                                it.memberId == youMember?.id
+                        }
+                        val approvalsForRevision = data.approvals.filter {
+                            it.requestId == request.id && it.revision == request.revision
+                        }
+                        val statusText = when {
+                            request.status == "changes_required" -> "Changes required"
+                            isCreator -> "Waiting for member approvals"
+                            myApproval?.approvalStatus == "pending" -> "Your approval is required"
+                            myApproval?.approvalStatus == "approved" -> "You approved • waiting for others"
+                            else -> "Awaiting approval"
+                        }
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, Color(0xFFD8E4F2)),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color(0xFFF8FBFF)
+                            )
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(request.title, fontWeight = FontWeight.SemiBold)
-                                Text("₹${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
-                            }
-                            Text(
-                                statusText,
-                                color = if (request.status == "changes_required") Color(0xFFB45309)
-                                else Color(0xFF315F91),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            Text(
-                                when (request.requestType) {
-                                    "edit" -> "Edit request"
-                                    "delete" -> "Delete request"
-                                    else -> "New expense request"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF64748B)
-                            )
-
-                            // Resolve request member IDs against this group's joined members.
-                            // Amounts are read from the submitted approval revision.
-                            val requestSplits = request.splits
-                            val requestPayments = request.payments
-                            val isSettlementRequest = request.title.trim().equals(
-                                "Settled",
-                                ignoreCase = true
-                            )
-                            val memberNameById = joinedMembers.associate {
-                                it.id to it.memberName
-                            }
-
-                            androidx.compose.material3.HorizontalDivider(
-                                color = Color(0xFFE2E8F0)
-                            )
-
-                            if (isSettlementRequest) {
-                                Text(
-                                    "Settlement details",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF334155)
-                                )
-                                val payer = requestPayments.firstOrNull()
-                                val receiver = requestSplits.firstOrNull()
-
-                                if (payer != null) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Paid by: ${memberNameById[payer.memberId] ?: "Unknown member"}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                        Text(
-                                            "₹${"%.2f".format(payer.amount)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                    Text(request.title, fontWeight = FontWeight.SemiBold)
                                     Text(
-                                        payer.paymentType,
+                                        java.text.SimpleDateFormat(
+                                            "dd MMM yyyy",
+                                            java.util.Locale.getDefault()
+                                        ).format(java.util.Date(request.expenseDateMs)),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color(0xFF64748B)
+                                        color = Color(0xFF737B87)
                                     )
                                 }
-                                if (receiver != null) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            "Received by: ${memberNameById[receiver.memberId] ?: "Unknown member"}",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                        Text(
-                                            "₹${"%.2f".format(receiver.amount)}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
+                                    Text("₹${"%.2f".format(request.amount)}", fontWeight = FontWeight.SemiBold)
                                 }
-                            } else {
                                 Text(
-                                    "Member-wise share",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF334155)
+                                    statusText,
+                                    color = if (request.status == "changes_required") Color(0xFFB45309)
+                                    else Color(0xFF315F91),
+                                    style = MaterialTheme.typography.bodySmall
                                 )
-                                if (requestSplits.isEmpty()) {
-                                    Text(
-                                        "No share entries",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF64748B)
-                                    )
-                                } else {
-                                    requestSplits.forEach { split ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text(
-                                                memberNameById[split.memberId] ?: "Unknown member",
-                                                modifier = Modifier.weight(1f),
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                            Text(
-                                                "₹${"%.2f".format(split.amount)}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
+                                Text(
+                                    when (request.requestType) {
+                                        "edit" -> "Edit request"
+                                        "delete" -> "Delete request"
+                                        else -> "New expense request"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color(0xFF64748B)
+                                )
+    
+                                // Resolve request member IDs against this group's joined members.
+                                // Amounts are read from the submitted approval revision.
+                                val requestSplits = request.splits
+                                val requestPayments = request.payments
+                                val isSettlementRequest = request.title.trim().equals(
+                                    "Settled",
+                                    ignoreCase = true
+                                )
+                                val memberNameById = joinedMembers.associate {
+                                    it.id to it.memberName
                                 }
-
+    
                                 androidx.compose.material3.HorizontalDivider(
                                     color = Color(0xFFE2E8F0)
                                 )
-                                Text(
-                                    "Paid by",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF334155)
-                                )
-                                if (requestPayments.isEmpty()) {
+    
+                                if (isSettlementRequest) {
                                     Text(
-                                        "No payment entries",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF64748B)
+                                        "Settlement details",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF334155)
                                     )
-                                } else {
-                                    requestPayments.forEach { payment ->
+                                    val payer = requestPayments.firstOrNull()
+                                    val receiver = requestSplits.firstOrNull()
+    
+                                    if (payer != null) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Column(Modifier.weight(1f)) {
-                                                Text(
-                                                    memberNameById[payment.memberId] ?: "Unknown member",
-                                                    style = MaterialTheme.typography.bodySmall
-                                                )
-                                                Text(
-                                                    payment.paymentType,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = Color(0xFF64748B)
-                                                )
-                                            }
                                             Text(
-                                                "₹${"%.2f".format(payment.amount)}",
+                                                "Paid by: ${memberNameById[payer.memberId] ?: "Unknown member"}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Text(
+                                                "₹${"%.2f".format(payer.amount)}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        Text(
+                                            payer.paymentType,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    }
+                                    if (receiver != null) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                "Received by: ${memberNameById[receiver.memberId] ?: "Unknown member"}",
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Text(
+                                                "₹${"%.2f".format(receiver.amount)}",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                         }
                                     }
+                                } else {
+                                    Text(
+                                        "Member-wise share",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF334155)
+                                    )
+                                    if (requestSplits.isEmpty()) {
+                                        Text(
+                                            "No share entries",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    } else {
+                                        requestSplits.forEach { split ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    memberNameById[split.memberId] ?: "Unknown member",
+                                                    modifier = Modifier.weight(1f),
+                                                    style = MaterialTheme.typography.bodySmall
+                                                )
+                                                Text(
+                                                    "₹${"%.2f".format(split.amount)}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+    
+                                    androidx.compose.material3.HorizontalDivider(
+                                        color = Color(0xFFE2E8F0)
+                                    )
+                                    Text(
+                                        "Paid by",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF334155)
+                                    )
+                                    if (requestPayments.isEmpty()) {
+                                        Text(
+                                            "No payment entries",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    } else {
+                                        requestPayments.forEach { payment ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(
+                                                        memberNameById[payment.memberId] ?: "Unknown member",
+                                                        style = MaterialTheme.typography.bodySmall
+                                                    )
+                                                    Text(
+                                                        payment.paymentType,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = Color(0xFF64748B)
+                                                    )
+                                                }
+                                                Text(
+                                                    "₹${"%.2f".format(payment.amount)}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                            }
-
-                            if (request.status == "changes_required") {
-                                request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
-                                    Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
-                                }
-                                if (isCreator && request.requestType == "delete") {
-                                    OutlinedButton(
+    
+                                if (request.status == "changes_required") {
+                                    request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
+                                        Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    if (isCreator && request.requestType == "delete") {
+                                        OutlinedButton(
+                                            enabled = enabled && !busy,
+                                            onClick = {
+                                                runAction {
+                                                    repository.cancelGroupExpenseApprovalRequest(groupId, request.id)
+                                                }
+                                            }
+                                        ) { Text("Cancel Delete Request") }
+                                    } else if (isCreator) {
+                                        Button(
+                                            enabled = enabled && !busy,
+                                            onClick = { openEditPendingRequest(request) }
+                                        ) { Text("Edit & Resubmit") }
+                                    }
+                                } else if (isCreator) {
+                                    TextButton(
                                         enabled = enabled && !busy,
                                         onClick = {
                                             runAction {
                                                 repository.cancelGroupExpenseApprovalRequest(groupId, request.id)
                                             }
                                         }
-                                    ) { Text("Cancel Delete Request") }
-                                } else if (isCreator) {
-                                    Button(
-                                        enabled = enabled && !busy,
-                                        onClick = { openEditPendingRequest(request) }
-                                    ) { Text("Edit & Resubmit") }
-                                }
-                            } else if (isCreator) {
-                                TextButton(
-                                    enabled = enabled && !busy,
-                                    onClick = {
-                                        runAction {
-                                            repository.cancelGroupExpenseApprovalRequest(groupId, request.id)
-                                        }
-                                    }
-                                ) { Text("Cancel Request") }
-                            } else if (myApproval?.approvalStatus == "pending") {
-                                Text(
-                                    "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF64748B)
-                                )
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(
-                                        enabled = enabled && !busy,
-                                        onClick = {
-                                            runAction {
-                                                repository.respondToGroupExpenseApproval(
-                                                    groupId = groupId,
-                                                    requestId = request.id,
-                                                    approve = true
-                                                )
+                                    ) { Text("Cancel Request") }
+                                } else if (myApproval?.approvalStatus == "pending") {
+                                    Text(
+                                        "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B)
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            enabled = enabled && !busy,
+                                            onClick = {
+                                                runAction {
+                                                    repository.respondToGroupExpenseApproval(
+                                                        groupId = groupId,
+                                                        requestId = request.id,
+                                                        approve = true
+                                                    )
+                                                }
                                             }
-                                        }
-                                    ) { Text("Approve") }
-                                    OutlinedButton(
-                                        enabled = enabled && !busy,
-                                        onClick = {
-                                            rejectionNote = ""
-                                            rejectingApprovalRequest = request
-                                        }
-                                    ) { Text("Reject") }
+                                        ) { Text("Approve") }
+                                        OutlinedButton(
+                                            enabled = enabled && !busy,
+                                            onClick = {
+                                                rejectionNote = ""
+                                                rejectingApprovalRequest = request
+                                            }
+                                        ) { Text("Reject") }
+                                    }
+                                } else if (myApproval?.approvalStatus == "approved") {
+                                    Text(
+                                        "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF64748B)
+                                    )
                                 }
-                            } else if (myApproval?.approvalStatus == "approved") {
-                                Text(
-                                    "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFF64748B)
-                                )
                             }
                         }
                     }
+                    }
                 }
             }
-        }
 
-        if (loading) {
-            CircularProgressIndicator()
-        }
-
-        error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error)
-        }
-
-        if (!loading && filteredExpenses.isEmpty()) {
-            val emptyMessage = if (data.expenses.isEmpty()) {
-                "No expenses added yet."
-            } else {
-                "No transactions for ${selectedMonth.format(monthFormatter)}."
+            if (loading) {
+                item(key = "expenses_loading") {
+                    CircularProgressIndicator()
+                }
             }
-            Text(
-                emptyMessage,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (filteredExpenses.isNotEmpty()) {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+
+            error?.let { message ->
+                item(key = "expenses_error") {
+                    Text(message, color = MaterialTheme.colorScheme.error)
+                }
+            }
+
+            if (!loading && filteredExpenses.isEmpty()) {
+                item(key = "expenses_empty") {
+                    val emptyMessage = if (data.expenses.isEmpty()) {
+                        "No expenses added yet."
+                    } else {
+                        "No transactions for ${selectedMonth.format(monthFormatter)}."
+                    }
+                    Text(
+                        emptyMessage,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
                 items(
                     filteredExpenses,
                     key = { it.id }
@@ -874,7 +889,6 @@ fun OnlineGroupExpensesSection(
                         }
                     }
                 }
-            }
         }
         }
     }

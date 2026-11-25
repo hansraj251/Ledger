@@ -547,7 +547,7 @@ fun OnlineGroupDetailScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 20.dp, top = 2.dp, end = 20.dp, bottom = 14.dp),
+                                .padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(onClick = onBack) {

@@ -431,7 +431,7 @@ class CloudSupabaseRemoteDataSource(
             if (e.code == "23505" &&
                 e.message.orEmpty().contains("uq_group_expense_active_change_target")
             ) {
-                throw IllegalStateException("Edit request already pending for this expense.")
+                throw IllegalStateException("A request is already pending for this expense/settlement.")
             }
             throw e
         }
@@ -455,7 +455,7 @@ class CloudSupabaseRemoteDataSource(
             if (e.code == "23505" &&
                 e.message.orEmpty().contains("uq_group_expense_active_change_target")
             ) {
-                throw IllegalStateException("Delete request already pending for this expense.")
+                throw IllegalStateException("A request is already pending for this expense/settlement.")
             }
             throw e
         }

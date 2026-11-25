@@ -5,6 +5,7 @@ import com.ledger.app.cloudgroup.CloudAuthenticatedUser
 import com.ledger.app.cloudgroup.CloudGroup
 import com.ledger.app.cloudgroup.CloudGroupRepository
 import com.ledger.app.cloudgroup.CloudGroupCache
+import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -232,6 +233,8 @@ fun HomeScreen(
     var receivableInterestTotal by remember { mutableStateOf(0.0) }
     var payableInterestTotal by remember { mutableStateOf(0.0) }
     var groupReceivableTotal by remember { mutableStateOf(0.0) }
+    var onlineGroupReceivableTotal by remember { mutableStateOf(0.0) }
+    var onlineGroupPayableTotal by remember { mutableStateOf(0.0) }
     var totalStaffAdvanceOutstanding by remember { mutableStateOf(0.0) }
     var groupPayableTotal by remember { mutableStateOf(0.0) }
     var totalRemainingStaffSalary by remember { mutableStateOf(0.0) }
@@ -361,26 +364,108 @@ fun HomeScreen(
         onlineGroupExpenseTotals = onlineGroups.associate { group ->
             group.id to (
                 cloudGroupCache.loadDetail(group.id)
-                    ?.expenseData?.expenses?.filterNot { it.title.trim().equals("Settled", ignoreCase = true) }?.sumOf { it.amount }
+                    ?.expenseData?.expenses
+                    ?.filterNot { it.title.trim().equals("Settled", ignoreCase = true) }
+                    ?.sumOf { it.amount }
                     ?: onlineGroupExpenseTotals[group.id]
                     ?: 0.0
             )
         }
 
-        if (cloudUser != null) {
-            onlineGroups.forEach { group ->
+        fun memberBalanceFromCache(group: CloudGroup): Pair<Double, Double> {
+            val detail = cloudGroupCache.loadDetail(group.id)
+                ?: return 0.0 to 0.0
+            val userId = detail.currentUserId
+                ?: return 0.0 to 0.0
+            val member = detail.members.firstOrNull {
+                it.userId == userId && it.status == "joined"
+            } ?: return 0.0 to 0.0
+            val data = detail.expenseData ?: return 0.0 to 0.0
+
+            val balancePaise = CloudGroupBalanceCalculator.calculate(
+                members = detail.members,
+                splits = data.splits,
+                payments = data.payments,
+                settlements = data.settlements
+            )[member.id]?.remainingBalancePaise ?: 0L
+
+            return if (balancePaise < 0L) {
+                -balancePaise / 100.0 to 0.0
+            } else {
+                0.0 to balancePaise / 100.0
+            }
+        }
+
+        val balancesByGroup = onlineGroups.associate { group ->
+            group.id to memberBalanceFromCache(group)
+        }.toMutableMap()
+
+        fun publishOnlineGroupBalances() {
+            onlineGroupReceivableTotal =
+                balancesByGroup.values.sumOf { it.first }
+            onlineGroupPayableTotal =
+                balancesByGroup.values.sumOf { it.second }
+        }
+
+        // Show cached balances immediately, including when offline.
+        publishOnlineGroupBalances()
+
+        val userId = cloudUser?.userId
+        if (userId != null) {
+            for (group in onlineGroups) {
                 try {
-                    val expenseData = withContext(Dispatchers.IO) {
-                        cloudGroupRepository.loadGroupExpenses(group.id)
+                    val result = withContext(Dispatchers.IO) {
+                        val members = cloudGroupRepository.loadMembers(group.id)
+                        val expenseData = cloudGroupRepository.loadGroupExpenses(group.id)
+                        members to expenseData
                     }
+
+                    val members = result.first
+                    val expenseData = result.second
+
+                    cloudGroupCache.saveDetail(
+                        groupId = group.id,
+                        group = group,
+                        members = members,
+                        currentUserId = userId,
+                        expenseData = expenseData
+                    )
+
+                    val accountMember = members.firstOrNull {
+                        it.userId == userId && it.status == "joined"
+                    }
+
+                    val balancePaise = if (accountMember != null) {
+                        CloudGroupBalanceCalculator.calculate(
+                            members = members,
+                            splits = expenseData.splits,
+                            payments = expenseData.payments,
+                            settlements = expenseData.settlements
+                        )[accountMember.id]?.remainingBalancePaise ?: 0L
+                    } else {
+                        0L
+                    }
+
+                    balancesByGroup[group.id] = if (balancePaise < 0L) {
+                        -balancePaise / 100.0 to 0.0
+                    } else {
+                        0.0 to balancePaise / 100.0
+                    }
+
                     onlineGroupExpenseTotals =
                         onlineGroupExpenseTotals + (
-                            group.id to expenseData.expenses.filterNot { it.title.trim().equals("Settled", ignoreCase = true) }.sumOf { it.amount }
+                            group.id to expenseData.expenses
+                                .filterNot {
+                                    it.title.trim().equals("Settled", ignoreCase = true)
+                                }
+                                .sumOf { it.amount }
                         )
+
+                    publishOnlineGroupBalances()
                 } catch (error: CancellationException) {
                     throw error
                 } catch (_: Exception) {
-                    // Keep cached total when cloud data cannot be loaded.
+                    // Preserve cached balance for groups that cannot be refreshed.
                 }
             }
         }
@@ -1560,6 +1645,7 @@ item {
                             + receivableInterestTotal
                             + receivableEmiTotal
                             + groupReceivableTotal
+                            + onlineGroupReceivableTotal
                             + totalStaffAdvanceOutstanding,
                         modifier = Modifier.weight(1f),
                         amountColor = Color(0xFFC62828),
@@ -1568,7 +1654,8 @@ item {
                         details = listOf(
                             "Receivable Int." to receivableInterestTotal,
                             "Receivable EMI" to receivableEmiTotal,
-                            "Group Receivable" to groupReceivableTotal,
+                            "Offline Group" to groupReceivableTotal,
+                            "Online Group" to onlineGroupReceivableTotal,
                             "Advanced Salary" to totalStaffAdvanceOutstanding
                         ).filter { kotlin.math.abs(it.second) >= 0.01 }
                     )
@@ -1579,6 +1666,7 @@ item {
                             + payableInterestTotal
                             + payableEmiTotal
                             + groupPayableTotal
+                            + onlineGroupPayableTotal
                             + totalRemainingStaffSalary,
                         modifier = Modifier.weight(1f),
                         amountColor = Color(0xFF2E7D32),
@@ -1587,7 +1675,8 @@ item {
                         details = listOf(
                             "Payable Int." to payableInterestTotal,
                             "Payable EMI" to payableEmiTotal,
-                            "Group Payable" to groupPayableTotal,
+                            "Offline Group" to groupPayableTotal,
+                            "Online Group" to onlineGroupPayableTotal,
                             "Salaries" to totalRemainingStaffSalary
                         ).filter { kotlin.math.abs(it.second) >= 0.01 }
                     )

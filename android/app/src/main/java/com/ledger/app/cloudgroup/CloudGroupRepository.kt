@@ -361,6 +361,48 @@ class CloudGroupRepository(
         )
     }
 
+    suspend fun submitGroupExpenseEditForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        requireValidId(groupId, "Group")
+        requireValidId(expenseId, "Expense")
+        if (requestId != null) requireValidId(requestId, "Approval request")
+        return remote.submitGroupExpenseEditForApproval(
+            groupId, expenseId, requestId, title.trim(), amount, category,
+            note.trim(), expenseDateMs, splitMode, splits, payments
+        )
+    }
+
+    suspend fun submitGroupExpenseDeleteForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String? = null
+    ): String {
+        requireValidId(groupId, "Group")
+        requireValidId(expenseId, "Expense")
+        if (requestId != null) requireValidId(requestId, "Approval request")
+        return remote.submitGroupExpenseDeleteForApproval(groupId, expenseId, requestId)
+    }
+
+    suspend fun cancelGroupExpenseApprovalRequest(
+        groupId: String,
+        requestId: String
+    ): String {
+        requireValidId(groupId, "Group")
+        requireValidId(requestId, "Approval request")
+        return remote.cancelGroupExpenseApprovalRequest(groupId, requestId)
+    }
+
     suspend fun deleteGroupExpense(
         groupId: String,
         expenseId: String

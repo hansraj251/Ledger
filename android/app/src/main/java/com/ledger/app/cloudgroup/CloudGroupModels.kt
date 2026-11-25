@@ -123,7 +123,9 @@ data class CloudGroupExpenseApprovalRequest(
     @SerialName("created_at_ms") val createdAtMs: Long,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
-    @SerialName("approved_at") val approvedAt: String? = null
+    @SerialName("approved_at") val approvedAt: String? = null,
+    @SerialName("request_type") val requestType: String = "add",
+    @SerialName("target_expense_id") val targetExpenseId: String? = null
 )
 
 @Serializable

@@ -91,6 +91,37 @@ interface CloudGroupRemoteDataSource {
         throw UnsupportedOperationException("Expense approvals are not supported by this data source.")
     }
 
+    suspend fun submitGroupExpenseEditForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        throw UnsupportedOperationException("Expense edit approvals are not supported by this data source.")
+    }
+
+    suspend fun submitGroupExpenseDeleteForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String? = null
+    ): String {
+        throw UnsupportedOperationException("Expense delete approvals are not supported by this data source.")
+    }
+
+    suspend fun cancelGroupExpenseApprovalRequest(
+        groupId: String,
+        requestId: String
+    ): String {
+        throw UnsupportedOperationException("Cancelling expense approval requests is not supported by this data source.")
+    }
+
     suspend fun deleteGroupExpense(
         groupId: String,
         expenseId: String

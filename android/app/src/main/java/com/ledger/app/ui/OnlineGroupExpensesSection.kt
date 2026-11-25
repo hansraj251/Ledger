@@ -477,6 +477,15 @@ fun OnlineGroupExpensesSection(
                                 else Color(0xFF315F91),
                                 style = MaterialTheme.typography.bodySmall
                             )
+                            Text(
+                                when (request.requestType) {
+                                    "edit" -> "Edit request"
+                                    "delete" -> "Delete request"
+                                    else -> "New expense request"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF64748B)
+                            )
 
                             // Resolve request member IDs against this group's joined members.
                             // Amounts are read from the submitted approval revision.
@@ -620,13 +629,31 @@ fun OnlineGroupExpensesSection(
                                 request.rejectionReason?.takeIf { it.isNotBlank() }?.let {
                                     Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
                                 }
-                                if (isCreator) {
+                                if (isCreator && request.requestType == "delete") {
+                                    OutlinedButton(
+                                        enabled = enabled && !busy,
+                                        onClick = {
+                                            runAction {
+                                                repository.cancelGroupExpenseApprovalRequest(groupId, request.id)
+                                            }
+                                        }
+                                    ) { Text("Cancel Delete Request") }
+                                } else if (isCreator) {
                                     Button(
                                         enabled = enabled && !busy,
                                         onClick = { openEditPendingRequest(request) }
                                     ) { Text("Edit & Resubmit") }
                                 }
-                            } else if (!isCreator && myApproval?.approvalStatus == "pending") {
+                            } else if (isCreator) {
+                                TextButton(
+                                    enabled = enabled && !busy,
+                                    onClick = {
+                                        runAction {
+                                            repository.cancelGroupExpenseApprovalRequest(groupId, request.id)
+                                        }
+                                    }
+                                ) { Text("Cancel Request") }
+                            } else if (myApproval?.approvalStatus == "pending") {
                                 Text(
                                     "${approvalsForRevision.count { it.approvalStatus == "approved" }} of ${approvalsForRevision.size} approvals received",
                                     style = MaterialTheme.typography.labelSmall,
@@ -1341,10 +1368,14 @@ fun OnlineGroupExpensesSection(
                                     val pendingRequest = editingApprovalRequest
                                     showEditor = false
                                     runAction {
-                                        if (existing != null) {
-                                            repository.saveGroupExpense(
+                                        if (existing != null || pendingRequest?.requestType == "edit") {
+                                            val targetExpenseId = existing?.id
+                                                ?: pendingRequest?.targetExpenseId
+                                                ?: throw IllegalStateException("Original expense reference is missing.")
+                                            repository.submitGroupExpenseEditForApproval(
                                                 groupId = groupId,
-                                                expenseId = existing.id,
+                                                expenseId = targetExpenseId,
+                                                requestId = pendingRequest?.id,
                                                 title = title.trim(),
                                                 amount = total,
                                                 category = category,
@@ -1546,8 +1577,8 @@ fun OnlineGroupExpensesSection(
         AlertDialog(
             onDismissRequest = { if (!busy) deletingExpense = null },
             containerColor = androidx.compose.ui.graphics.Color.White,
-            title = { Text("Delete Expense?") },
-            text = { Text("Delete '${expense.title}' and its split/payment records?") },
+            title = { Text("Send Delete Request?") },
+            text = { Text("Members whose shares are part of '${expense.title}' must approve. The expense remains unchanged until approval is complete.") },
             confirmButton = {
                 TextButton(
                     enabled = !busy,
@@ -1555,11 +1586,11 @@ fun OnlineGroupExpensesSection(
                         deletingExpense = null
                         showEditor = false
                         runAction {
-                            repository.deleteGroupExpense(groupId, expense.id)
+                            repository.submitGroupExpenseDeleteForApproval(groupId, expense.id)
                         }
                     }
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Send Request", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {

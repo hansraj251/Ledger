@@ -378,6 +378,83 @@ class CloudSupabaseRemoteDataSource(
         ).decodeAs<String>()
     }
 
+    override suspend fun submitGroupExpenseEditForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String?,
+        title: String,
+        amount: Double,
+        category: String,
+        note: String,
+        expenseDateMs: Long,
+        splitMode: String,
+        splits: List<CloudGroupExpenseSplitDraft>,
+        payments: List<CloudGroupExpensePaymentDraft>
+    ): String {
+        val splitJson = buildJsonArray {
+            splits.forEach { item ->
+                add(buildJsonObject {
+                    put("member_id", item.memberId)
+                    put("amount", item.amount)
+                    put("share_units", item.shareUnits)
+                })
+            }
+        }
+        val paymentJson = buildJsonArray {
+            payments.forEach { item ->
+                add(buildJsonObject {
+                    put("member_id", item.memberId)
+                    put("amount", item.amount)
+                    put("payment_type", item.paymentType)
+                })
+            }
+        }
+        return supabase.postgrest.rpc(
+            "submit_cloud_group_expense_edit_for_approval",
+            buildJsonObject {
+                put("p_group_id", groupId)
+                put("p_expense_id", expenseId)
+                put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+                put("p_title", title)
+                put("p_amount", amount)
+                put("p_category", category)
+                put("p_note", note)
+                put("p_expense_date_ms", expenseDateMs)
+                put("p_split_mode", splitMode)
+                put("p_splits", splitJson)
+                put("p_payments", paymentJson)
+            }
+        ).decodeAs<String>()
+    }
+
+    override suspend fun submitGroupExpenseDeleteForApproval(
+        groupId: String,
+        expenseId: String,
+        requestId: String?
+    ): String {
+        return supabase.postgrest.rpc(
+            "submit_cloud_group_expense_delete_for_approval",
+            buildJsonObject {
+                put("p_group_id", groupId)
+                put("p_expense_id", expenseId)
+                put("p_request_id", requestId?.let { JsonPrimitive(it) } ?: JsonNull)
+            }
+        ).decodeAs<String>()
+    }
+
+    override suspend fun cancelGroupExpenseApprovalRequest(
+        groupId: String,
+        requestId: String
+    ): String {
+        return supabase.postgrest.rpc(
+            "cancel_cloud_group_expense_approval_request",
+            buildJsonObject {
+                put("p_group_id", groupId)
+                put("p_request_id", requestId)
+            }
+        ).decodeAs<String>()
+    }
+
     override suspend fun deleteGroupExpense(
         groupId: String,
         expenseId: String

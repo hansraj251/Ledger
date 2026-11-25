@@ -332,8 +332,11 @@ fun HomeScreen(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            onlineGroupsError = error.message
-                ?: "Could not load Online Groups."
+            onlineGroupsError = if (error.isConnectivityError()) {
+                null
+            } else {
+                "Unable to load Online Groups. Please try again."
+            }
         } finally {
             isOnlineGroupsLoading = false
         }
@@ -1752,8 +1755,11 @@ item {
                                             } catch (error: CancellationException) {
                                                 throw error
                                             } catch (error: Exception) {
-                                                onlineGroupsError = error.message
-                                                    ?: "Could not load Online Groups."
+                                                onlineGroupsError = if (error.isConnectivityError()) {
+                                                    null
+                                                } else {
+                                                    "Unable to load Online Groups. Please try again."
+                                                }
                                             } finally {
                                                 isOnlineGroupsLoading = false
                                             }
@@ -3266,3 +3272,15 @@ private fun AddPartyDialog(
         }
     )
 }
+
+
+private fun Throwable.isConnectivityError(): Boolean =
+    generateSequence(this) { it.cause }.any { error ->
+        error is java.net.UnknownHostException ||
+            error is java.net.ConnectException ||
+            error is java.net.NoRouteToHostException ||
+            error is java.net.SocketException ||
+            error.message.orEmpty().contains("unable to resolve host", true) ||
+            error.message.orEmpty().contains("no address associated with hostname", true) ||
+            error.message.orEmpty().contains("network is unreachable", true)
+    }

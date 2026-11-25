@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material3.Surface
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Column
@@ -104,6 +105,7 @@ fun OnlineGroupDetailScreen(
     }
     var isBusy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isOffline by remember(groupId) { mutableStateOf(false) }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var showEditGroupDialog by remember { mutableStateOf(false) }
@@ -175,6 +177,7 @@ fun OnlineGroupDetailScreen(
                     Triple(loadedGroup, loadedMembers, loadedUserId)
                 }
             group = result.first
+            isOffline = false
             members = result.second
 
             // Keep the open Member Detail screen in sync with refreshed data.
@@ -198,7 +201,9 @@ fun OnlineGroupDetailScreen(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            errorMessage = error.message ?: "Could not load Online Group."
+            isOffline = error.isConnectivityError()
+            errorMessage = if (isOffline) null
+                else "Unable to refresh this group. Please try again."
         } finally {
             isLoading = false
         }
@@ -306,8 +311,9 @@ fun OnlineGroupDetailScreen(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                memberExpenseError = error.message
-                    ?: "Could not load member expense details."
+                isOffline = error.isConnectivityError()
+                memberExpenseError = if (isOffline) null
+                    else "Unable to load member expense details."
             } finally {
                 memberExpenseLoading = false
             }
@@ -339,8 +345,9 @@ fun OnlineGroupDetailScreen(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                memberExpenseError = error.message
-                    ?: "Could not refresh member expense details."
+                isOffline = error.isConnectivityError()
+                memberExpenseError = if (isOffline) null
+                    else "Unable to refresh member expense details."
             }
         }
     }
@@ -370,8 +377,9 @@ fun OnlineGroupDetailScreen(
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Exception) {
-                            memberExpenseError = error.message
-                                ?: "Could not refresh member expense details."
+                            isOffline = error.isConnectivityError()
+                            memberExpenseError = if (isOffline) null
+                                else "Unable to refresh member expense details."
                         }
                     }
                 }
@@ -606,7 +614,8 @@ fun OnlineGroupDetailScreen(
 
                 group == null -> {
                     Text(
-                        text = errorMessage ?: "Group unavailable.",
+                        text = if (isOffline) "No Internet Connection"
+                            else errorMessage ?: "Group unavailable.",
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(Modifier.height(12.dp))
@@ -616,6 +625,78 @@ fun OnlineGroupDetailScreen(
                 }
 
                 else -> {
+                    if (isOffline) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFF3E0)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CloudOff,
+                                        contentDescription = null,
+                                        tint = Color(0xFFB45309)
+                                    )
+                                    Text(
+                                        "No Internet Connection",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF92400E)
+                                    )
+                                }
+                                Text(
+                                    "Please check your internet connection. " +
+                                        "Your saved group data is still available on this device.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF92400E)
+                                )
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            refresh()
+                                            try {
+                                                val loadedData = withContext(Dispatchers.IO) {
+                                                    repository.loadGroupExpenses(groupId)
+                                                }
+                                                memberExpenseData = loadedData
+                                                memberExpenseDataLoaded = true
+                                                memberExpenseError = null
+                                                cloudGroupCache.saveDetail(
+                                                    groupId = groupId,
+                                                    group = group,
+                                                    members = members,
+                                                    currentUserId = currentUserId,
+                                                    expenseData = loadedData
+                                                )
+                                                isOffline = false
+                                            } catch (error: CancellationException) {
+                                                throw error
+                                            } catch (error: Exception) {
+                                                isOffline = error.isConnectivityError()
+                                                if (!isOffline) {
+                                                    memberExpenseError =
+                                                        "Unable to refresh group expenses. Please try again."
+                                                }
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+
                     if (selectedGroupSection == "Expenses") {
                         OnlineGroupExpensesSection(
                             groupId = groupId,
@@ -708,7 +789,7 @@ fun OnlineGroupDetailScreen(
                                         Spacer(Modifier.height(6.dp))
                                         CircularProgressIndicator()
                                     }
-                                    memberExpenseError?.let {
+                                    memberExpenseError?.takeUnless { isOffline }?.let {
                                         Spacer(Modifier.height(4.dp))
                                         Text(
                                             it,
@@ -2203,3 +2284,15 @@ Column(
         )
     }
 }
+
+
+private fun Throwable.isConnectivityError(): Boolean =
+    generateSequence(this) { it.cause }.any { error ->
+        error is java.net.UnknownHostException ||
+            error is java.net.ConnectException ||
+            error is java.net.NoRouteToHostException ||
+            error is java.net.SocketException ||
+            error.message.orEmpty().contains("unable to resolve host", true) ||
+            error.message.orEmpty().contains("no address associated with hostname", true) ||
+            error.message.orEmpty().contains("network is unreachable", true)
+    }

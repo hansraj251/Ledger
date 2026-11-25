@@ -239,6 +239,87 @@ object CloudGroupPairwiseBalanceCalculator {
         )
     }
 
+
+    fun calculateFromExpenseData(
+        members: List<CloudGroupMember>,
+        expenseData: CloudGroupExpenseData,
+        excludeExpenseId: String? = null
+    ): CloudGroupPairwiseBalanceResult {
+        val expenses = expenseData.expenses.filter { it.id != excludeExpenseId }
+
+        val settlementExpenses = expenses.filter {
+            it.title.trim().equals("Settled", ignoreCase = true)
+        }
+
+        val validSettlementIds = mutableSetOf<String>()
+        val settlementTransactions = mutableListOf<CloudGroupSettlementTransaction>()
+
+        settlementExpenses.forEach { expense ->
+            val expenseSplits = expenseData.splits.filter {
+                it.expenseId == expense.id
+            }
+            val expensePayments = expenseData.payments.filter {
+                it.expenseId == expense.id
+            }
+
+            if (expenseSplits.size != 1 || expensePayments.size != 1) {
+                return@forEach
+            }
+
+            val split = expenseSplits.single()
+            val payment = expensePayments.single()
+
+            val amountsMatch = runCatching {
+                val expensePaise = toPaise(expense.amount)
+                expensePaise > 0L &&
+                    toPaise(split.amount) == expensePaise &&
+                    toPaise(payment.amount) == expensePaise
+            }.getOrDefault(false)
+
+            if (!amountsMatch || split.memberId == payment.memberId) {
+                return@forEach
+            }
+
+            validSettlementIds += expense.id
+
+            settlementTransactions += CloudGroupSettlementTransaction(
+                id = expense.id,
+                groupId = expense.groupId,
+                fromMemberId = payment.memberId,
+                toMemberId = split.memberId,
+                amount = payment.amount,
+                paymentType = payment.paymentType,
+                settlementDateMs = expense.expenseDateMs,
+                createdBy = expense.createdBy,
+                createdAt = java.time.Instant
+                    .ofEpochMilli(expense.createdAtMs)
+                    .toString()
+            )
+        }
+
+        val ordinaryExpenses = expenses.filter {
+            it.id !in validSettlementIds
+        }
+
+        val ordinarySplits = expenseData.splits.filter {
+            it.expenseId != excludeExpenseId &&
+                it.expenseId !in validSettlementIds
+        }
+
+        val ordinaryPayments = expenseData.payments.filter {
+            it.expenseId != excludeExpenseId &&
+                it.expenseId !in validSettlementIds
+        }
+
+        return calculate(
+            members = members,
+            expenses = ordinaryExpenses,
+            splits = ordinarySplits,
+            payments = ordinaryPayments,
+            settlements = settlementTransactions
+        )
+    }
+
     private fun toPaise(amount: Double): Long {
         require(amount.isFinite() && amount >= 0.0) {
             "Amount must be finite and non-negative."

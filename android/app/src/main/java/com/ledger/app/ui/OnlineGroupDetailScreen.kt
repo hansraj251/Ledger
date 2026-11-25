@@ -1451,13 +1451,6 @@ Column(
                                             ) {
                                                 Column(Modifier.weight(1f)) {
                                                     Text(
-                                                        "SETTLEMENT",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = Color(0xFF16804A),
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Spacer(Modifier.height(3.dp))
-                                                    Text(
                                                         settlementTitle,
                                                         style = MaterialTheme.typography.titleMedium,
                                                         fontWeight = FontWeight.SemiBold,
@@ -1503,12 +1496,6 @@ Column(
                                                                 "Paid by $payerName",
                                                                 style = MaterialTheme.typography.bodyMedium,
                                                                 color = Color(0xFF397451)
-                                                            )
-                                                            Spacer(Modifier.weight(1f))
-                                                            Text(
-                                                                "${CurrencySettings.symbol}" + formatOnlineMemberCardAmount(payerAmount),
-                                                                fontWeight = FontWeight.SemiBold,
-                                                                color = Color(0xFF16804A)
                                                             )
                                                         }
                                                     }

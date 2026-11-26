@@ -3,3 +3,6 @@
 **/*.bak*
 **/*.backup*
 **/*-backup.*
+
+# Supabase local temporary files
+supabase/.temp/

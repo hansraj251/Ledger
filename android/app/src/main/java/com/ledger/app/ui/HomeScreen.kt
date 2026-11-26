@@ -2635,7 +2635,8 @@ title = { Text("Delete Party?") },
                                     scope.launch {
                                         viewModel.addParty(
                                             partyName.trim(),
-                                            partyMobile.trim()
+                                            partyMobile.trim(),
+                                            isStudent = isStudentMode
                                         )
 
                                         partyName = ""

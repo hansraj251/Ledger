@@ -10,7 +10,8 @@ interface LedgerDataSource {
 
     fun addParty(
         name: String,
-        mobile: String = ""
+        mobile: String = "",
+        isStudent: Boolean = false
     ): PartyEntity
 
     fun getParties(): List<PartyEntity>

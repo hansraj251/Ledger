@@ -12,5 +12,6 @@ data class PartyEntity(
     val mobile: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(defaultValue = "0") val hideInterestButton: Boolean = false,
-    @ColumnInfo(defaultValue = "0") val hideSellButton: Boolean = false
+    @ColumnInfo(defaultValue = "0") val hideSellButton: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val isStudent: Boolean = false
 )

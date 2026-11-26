@@ -26,11 +26,13 @@ class LedgerRepository(
 
     override fun addParty(
         name: String,
-        mobile: String
+        mobile: String,
+        isStudent: Boolean
     ): PartyEntity {
         val party = PartyEntity(
             name = name,
-            mobile = mobile
+            mobile = mobile,
+            isStudent = isStudent
         )
 
         val id = partyDao.insert(party)

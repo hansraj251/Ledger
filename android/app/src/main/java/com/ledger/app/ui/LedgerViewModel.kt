@@ -217,7 +217,8 @@ class LedgerViewModel(
 
     suspend fun addParty(
         name: String,
-        mobile: String
+        mobile: String,
+        isStudent: Boolean = false
     ) {
         val cleanName = name.trim()
         val cleanMobile = mobile.trim()
@@ -241,7 +242,8 @@ class LedgerViewModel(
             withContext(Dispatchers.IO) {
                 dataSource.addParty(
                     name = cleanName,
-                    mobile = cleanMobile
+                    mobile = cleanMobile,
+                    isStudent = isStudent
                 )
             }
 

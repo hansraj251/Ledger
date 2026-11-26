@@ -1021,12 +1021,13 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                 TransactionComposer(
                     isPremium = isPremium,
                     partyId = party.id.toLong(),
+                    isStudent = party.isStudent,
                     amount = amount,
                     note = note,
                     transactionDate = transactionDate,
                     interestRate = interestRate,
                     interestRateText = interestRateText,
-                    showInterestInput = true,
+                    showInterestInput = !party.isStudent,
                     hideInterestButton = hideInterestButton,
                     hideSellButton = hideSellButton,
                     onInterestClick = {
@@ -1064,7 +1065,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                             val transactionType = selectedType
                             val transactionNote = note.trim()
                             val transactionTimestamp = transactionDate
-                            val transactionRate = interestRate
+                            val transactionRate = if (party.isStudent) 0.0 else interestRate
 
                             scope.launch {
                                 if (selectedEmiFrequency != null && selectedEmiCount !in 1..600) {
@@ -1302,6 +1303,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                 ) { entry ->
                     TransactionCard(
                         entry = entry,
+                        isStudent = party.isStudent,
                         settlements = uiState.settlements.filter {
                             it.transactionId == entry.id
                         },
@@ -1749,6 +1751,7 @@ private fun PartyHeader(
 
         val context = LocalContext.current
 
+        if (!party.isStudent) {
         Box {
             IconButton(
                 onClick = { showMenu = true }
@@ -1796,6 +1799,7 @@ private fun PartyHeader(
                     }
                 )
             }
+        }
         }
     }
 }
@@ -3085,6 +3089,7 @@ private data class PartySellItem(
 private fun TransactionComposer(
     isPremium: Boolean,
     partyId: Long,
+    isStudent: Boolean = false,
     amount: String,
     note: String,
     transactionDate: Long,
@@ -3324,7 +3329,7 @@ private fun TransactionComposer(
                         onTypeChange(EntryType.CREDIT)
                     },
                     label = {
-                        Text("You Gave", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                        Text(if (isStudent) "Record" else "You Gave", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     }
                 )
 
@@ -3335,11 +3340,12 @@ private fun TransactionComposer(
                         onTypeChange(EntryType.DEBIT)
                     },
                     label = {
-                        Text("You Got", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                        Text(if (isStudent) "Receive" else "You Got", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     }
                 )
 
-                FilterChip(
+                                if (!isStudent) {
+FilterChip(
                     modifier = Modifier.weight(0.8f),
                     selected = emiEnabled,
                     onClick = {
@@ -3353,6 +3359,7 @@ private fun TransactionComposer(
                         Text("EMI", style = MaterialTheme.typography.labelSmall, maxLines = 1)
                     }
                 )
+                }
 
 
 
@@ -3576,7 +3583,7 @@ private fun TransactionComposer(
             )
             }
 
-            if (emiEnabled) {
+            if (!isStudent && emiEnabled) {
                 val emiFrequencies = listOf("Monthly", "Quarterly", "Half-Yearly")
 
                 Column(
@@ -3707,7 +3714,7 @@ private fun TransactionComposer(
 
             Button(
                 onClick = {
-                    if (emiEnabled &&
+                    if (!isStudent && emiEnabled &&
                         (interestRateText.isBlank() || interestRate <= 0.0)
                     ) {
                         Toast.makeText(
@@ -4538,6 +4545,7 @@ private fun SettlementDialog(
 @Composable
 private fun TransactionCard(
     entry: LedgerEntryEntity,
+    isStudent: Boolean = false,
     settlements: List<TransactionSettlementEntity> = emptyList(),
     emiSchedules: List<EmiScheduleEntity> = emptyList(),
     emiChargeSettlements: List<com.ledger.app.data.EmiChargeSettlementEntity> = emptyList(),
@@ -4616,7 +4624,7 @@ private fun TransactionCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isCredit) "You Gave" else "You Got",
+                        text = if (isStudent) { if (isCredit) "Record" else "Receive" } else { if (isCredit) "You Gave" else "You Got" },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )

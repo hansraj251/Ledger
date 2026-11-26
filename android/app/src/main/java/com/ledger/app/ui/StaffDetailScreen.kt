@@ -59,6 +59,7 @@ import com.ledger.app.data.SalaryPaymentEntity
 import com.ledger.app.data.StaffAdvanceTransactionEntity
 import com.ledger.app.data.StaffBonusEntity
 import com.ledger.app.data.StaffSalaryDeductionEntity
+import com.ledger.app.attendance.AttendanceOwnerRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -1768,7 +1769,6 @@ fun StaffDetailScreen(
                                     is SalaryPaymentEntity -> "payment-${entry.id}"
                                     is StaffAdvanceTransactionEntity -> "advance-history-${entry.id}"
                                     is StaffBonusEntity -> "bonus-history-${entry.id}"
-                                    is StaffBonusEntity -> "bonus-history-${entry.id}"
                                     is StaffSalaryDeductionEntity -> "salary-deduction-${entry.id}"
                                     else -> entry.hashCode().toString()
                                 }
@@ -2080,6 +2080,7 @@ fun StaffDetailScreen(
                 initialMobile = currentStaff.mobile,
                 initialRole = currentStaff.role,
                 initialJoiningDate = currentStaff.joiningDate,
+                showAttendanceEmail = true,
                 showDelete = true,
                 saving = isSavingStaffEdit,
                 onDismiss = { if (!isSavingStaffEdit) showStaffEditDialog = false },
@@ -2087,7 +2088,7 @@ fun StaffDetailScreen(
                     showStaffEditDialog = false
                     showDeleteStaffConfirm = true
                 },
-                onSave = { name, mobile, role, date, _ ->
+                onSave = { name, mobile, role, date, _, attendanceEmail ->
                     isSavingStaffEdit = true
                     scope.launch {
                         try {
@@ -2102,13 +2103,27 @@ fun StaffDetailScreen(
                                     )
                                 )
                             }
+                            if (attendanceEmail.isNotBlank()) {
+                                withContext(Dispatchers.IO) {
+                                    AttendanceOwnerRepository().registerStaff(
+                                        localStaffId = currentStaff.id,
+                                        displayName = name,
+                                        email = attendanceEmail
+                                    )
+                                }
+                            }
                             staff = withContext(Dispatchers.IO) {
                                 LedgerDatabaseProvider.get(context).staffDao().getStaff(staffId)
                             }
                             showStaffEditDialog = false
                             onDataChanged()
                         } catch (error: Exception) {
-                            android.util.Log.e("LedgerStaff", "Unable to update staff", error)
+                            android.util.Log.e("LedgerStaff", "Unable to update/register staff", error)
+                            android.widget.Toast.makeText(
+                                context,
+                                error.localizedMessage ?: "Unable to update staff attendance.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
                         } finally {
                             isSavingStaffEdit = false
                         }

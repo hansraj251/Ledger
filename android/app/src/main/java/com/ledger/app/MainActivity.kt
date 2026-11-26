@@ -90,6 +90,10 @@ import com.ledger.app.ui.LedgerTheme
 import com.ledger.app.ui.LedgerViewModel
 import com.ledger.app.ui.PartyLedgerScreen
 import com.ledger.app.ui.StaffDetailScreen
+import com.ledger.app.ui.AttendanceScreen
+import com.ledger.app.ui.StaffAttendanceScreen
+import com.ledger.app.attendance.AttendanceAuthManager
+import com.ledger.app.attendance.AttendanceRepository
 import com.ledger.app.billing.PremiumBillingManager
 
 class MainActivity : ComponentActivity() {
@@ -250,6 +254,32 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.mutableStateOf(false)
             }
 
+            val attendanceAuthManager = remember {
+                AttendanceAuthManager(this@MainActivity)
+            }
+            val attendanceRepository = remember { AttendanceRepository() }
+            val attendanceAuthScope = androidx.compose.runtime.rememberCoroutineScope()
+            var attendanceUserEmail by remember { mutableStateOf<String?>(null) }
+            var attendanceHasLinkedStaff by remember { mutableStateOf(false) }
+            var attendanceAuthBusy by remember { mutableStateOf(false) }
+            var attendanceAuthError by remember { mutableStateOf<String?>(null) }
+
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                try {
+                    val restoredUser = attendanceAuthManager.restoreSession()
+                    attendanceUserEmail = restoredUser?.email
+                    attendanceHasLinkedStaff = if (restoredUser != null) {
+                        attendanceRepository.claimStaffLinks()
+                        attendanceRepository.fetchMyStaff().isNotEmpty()
+                    } else {
+                        false
+                    }
+                } catch (error: Exception) {
+                    attendanceHasLinkedStaff = false
+                    attendanceAuthError = error.message
+                }
+            }
+
             LedgerTheme {
                 val premiumBillingState by premiumBillingManager.state.collectAsState()
                 LaunchedEffect(premiumBillingState.message) {
@@ -273,6 +303,8 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf<PartyEntity?>(null)
                 }
                 var selectedStaffId by remember { mutableStateOf<Long?>(null) }
+                var showAttendanceScreen by remember { mutableStateOf(false) }
+                var showStaffAttendanceScreen by remember { mutableStateOf(false) }
                 var openStaffEditorOnOpen by remember { mutableStateOf(false) }
 
                 var showProfileScreen by remember {
@@ -331,8 +363,12 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         .apply()
                 }
 
-                BackHandler(enabled = showDailyExpenseScreen || showGroupSharingScreen) {
-                    if (showGroupSharingScreen) {
+                BackHandler(enabled = showAttendanceScreen || showStaffAttendanceScreen || showDailyExpenseScreen || showGroupSharingScreen) {
+                    if (showStaffAttendanceScreen) {
+                        showStaffAttendanceScreen = false
+                    } else if (showAttendanceScreen) {
+                        showAttendanceScreen = false
+                    } else if (showGroupSharingScreen) {
                         showGroupSharingScreen = false
                     } else {
                         setDailyExpenseScreenVisible(false)
@@ -589,8 +625,74 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     )
                 } else if (showHelpScreen) {
                     HelpScreen(onBack = { showHelpScreen = false })
+                } else if (showStaffAttendanceScreen) {
+                    StaffAttendanceScreen(
+                        onBack = { showStaffAttendanceScreen = false }
+                    )
+                } else if (showAttendanceScreen) {
+                    AttendanceScreen(
+                        onBack = { showAttendanceScreen = false }
+                    )
                 } else if (showProfileScreen) {
                     ProfileScreen(
+                        attendanceUserEmail = attendanceUserEmail,
+                        attendanceHasLinkedStaff = attendanceHasLinkedStaff,
+                        attendanceAuthBusy = attendanceAuthBusy,
+                        attendanceAuthError = attendanceAuthError,
+                        onAttendanceLoginClick = {
+                            attendanceAuthScope.launch {
+                                attendanceAuthBusy = true
+                                attendanceAuthError = null
+                                try {
+                                    val user = attendanceAuthManager.signInWithGoogle()
+                                    attendanceUserEmail = user.email
+                                    attendanceRepository.claimStaffLinks()
+                                    val hasLinkedStaff = attendanceRepository.fetchMyStaff().isNotEmpty()
+                                    attendanceHasLinkedStaff = hasLinkedStaff
+                                    if (!hasLinkedStaff) {
+                                        attendanceAuthError =
+                                            "This Google account is signed in, but no matching staff registration was found. Ask the owner to register this Gmail."
+                                    }
+                                } catch (error: Exception) {
+                                    attendanceAuthError = error.message ?: "Attendance Google sign-in failed."
+                                } finally {
+                                    attendanceAuthBusy = false
+                                }
+                            }
+                        },
+                        onAttendanceRefreshClick = {
+                            attendanceAuthScope.launch {
+                                attendanceAuthBusy = true
+                                attendanceAuthError = null
+                                try {
+                                    attendanceAuthManager.restoreSession()
+                                    attendanceRepository.claimStaffLinks()
+                                    attendanceHasLinkedStaff = attendanceRepository.fetchMyStaff().isNotEmpty()
+                                    if (!attendanceHasLinkedStaff) {
+                                        attendanceAuthError = "No matching staff registration found for this Gmail yet."
+                                    }
+                                } catch (error: Exception) {
+                                    attendanceAuthError = error.message ?: "Unable to refresh attendance access."
+                                } finally {
+                                    attendanceAuthBusy = false
+                                }
+                            }
+                        },
+                        onAttendanceLogoutClick = {
+                            attendanceAuthScope.launch {
+                                attendanceAuthBusy = true
+                                try {
+                                    attendanceAuthManager.signOut()
+                                    attendanceUserEmail = null
+                                    attendanceHasLinkedStaff = false
+                                    attendanceAuthError = null
+                                } catch (error: Exception) {
+                                    attendanceAuthError = error.message ?: "Unable to sign out."
+                                } finally {
+                                    attendanceAuthBusy = false
+                                }
+                            }
+                        },
                         onChangeDriveEmail = { onUpdated -> connectGoogleDrive(onUpdated) },
                         onConnectDrive = {
                             showProfileScreen = false
@@ -886,6 +988,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                 selectedStaffId = staffId
                             },
                             onDriveConnectionRequired = { connectGoogleDrive() },
+                            onAttendanceClick = { showAttendanceScreen = true },
+                            hasAttendanceAccess = attendanceHasLinkedStaff,
+                            onStaffAttendanceClick = { showStaffAttendanceScreen = true },
                             onDataChanged = {
                             android.util.Log.d("LedgerSyncDebug", "MainActivity PartyLedgerScreen callback reached")
                             googleDriveSyncCoordinator.requestAutoSync()
@@ -2220,6 +2325,13 @@ private fun InitialGoogleDriveSetupScreen(
 
 @androidx.compose.runtime.Composable
 private fun ProfileScreen(
+    attendanceUserEmail: String?,
+    attendanceHasLinkedStaff: Boolean,
+    attendanceAuthBusy: Boolean,
+    attendanceAuthError: String?,
+    onAttendanceLoginClick: () -> Unit,
+    onAttendanceRefreshClick: () -> Unit,
+    onAttendanceLogoutClick: () -> Unit,
     onBack: () -> Unit,
     onProfileSaved: () -> Unit,
     onChangeDriveEmail: ((String) -> Unit) -> Unit,
@@ -2961,6 +3073,131 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
 
             item {
                 com.ledger.app.cloudgroup.CloudAccountCard()
+            }
+
+            item {
+                androidx.compose.material3.Card(
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    shape = androidx.compose.material3.MaterialTheme.shapes.large,
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = androidx.compose.ui.graphics.Color.White
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    )
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = androidx.compose.ui.Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+                        ) {
+                            androidx.compose.material3.Surface(
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                color = androidx.compose.ui.graphics.Color(0xFFE8F5E9)
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = androidx.compose.ui.graphics.Color(0xFF2E7D32),
+                                    modifier = androidx.compose.ui.Modifier.padding(12.dp)
+                                )
+                            }
+                            androidx.compose.foundation.layout.Column(
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(3.dp)
+                            ) {
+                                androidx.compose.material3.Text(
+                                    text = "Staff Attendance Login",
+                                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                                androidx.compose.material3.Text(
+                                    text = "Sign in with the Gmail registered by your employer",
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        androidx.compose.material3.HorizontalDivider(
+                            color = androidx.compose.ui.graphics.Color(0xFFEAEAEA)
+                        )
+
+                        if (attendanceUserEmail != null) {
+                            androidx.compose.material3.Text(
+                                text = attendanceUserEmail,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                            androidx.compose.material3.Text(
+                                text = if (attendanceHasLinkedStaff) {
+                                    "Attendance account connected"
+                                } else {
+                                    "No matching staff registration found"
+                                },
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = if (attendanceHasLinkedStaff) {
+                                    androidx.compose.material3.MaterialTheme.colorScheme.primary
+                                } else {
+                                    androidx.compose.material3.MaterialTheme.colorScheme.error
+                                }
+                            )
+                            if (!attendanceHasLinkedStaff) {
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = onAttendanceRefreshClick,
+                                    enabled = !attendanceAuthBusy,
+                                    modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                                ) {
+                                    androidx.compose.material3.Text("Check Registration Again")
+                                }
+                            }
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = onAttendanceLogoutClick,
+                                enabled = !attendanceAuthBusy,
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                            ) {
+                                androidx.compose.material3.Text("Sign Out")
+                            }
+                        } else {
+                            androidx.compose.material3.Text(
+                                text = "Staff can sign in here. The Attendance card will appear on Home after a matching staff registration is found.",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            androidx.compose.material3.Button(
+                                onClick = onAttendanceLoginClick,
+                                enabled = !attendanceAuthBusy,
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                            ) {
+                                if (attendanceAuthBusy) {
+                                    androidx.compose.material3.CircularProgressIndicator(
+                                        modifier = androidx.compose.ui.Modifier.size(18.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    androidx.compose.foundation.layout.Spacer(
+                                        modifier = androidx.compose.ui.Modifier.width(8.dp)
+                                    )
+                                }
+                                androidx.compose.material3.Text("Continue with Google")
+                            }
+                        }
+
+                        if (!attendanceAuthError.isNullOrBlank()) {
+                            androidx.compose.material3.Text(
+                                text = attendanceAuthError,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
             }
 
             item {

@@ -7,6 +7,7 @@ import com.ledger.app.cloudgroup.CloudGroupRepository
 import com.ledger.app.cloudgroup.CloudGroupCache
 import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
+import com.ledger.app.attendance.AttendanceOwnerRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Search
@@ -126,6 +128,9 @@ fun HomeScreen(
     onStaffClick: (Long) -> Unit = {},
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
     onDriveConnectionRequired: () -> Unit = {},
+    onAttendanceClick: () -> Unit = {},
+    hasAttendanceAccess: Boolean = false,
+    onStaffAttendanceClick: () -> Unit = {},
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -156,6 +161,7 @@ fun HomeScreen(
     var newStaffSalary by rememberSaveable { mutableStateOf("") }
     var newStaffJoiningDate by rememberSaveable { mutableStateOf(java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())) }
     var isSavingStaff by remember { mutableStateOf(false) }
+    var attendanceSetupError by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -1489,6 +1495,7 @@ if (showTipsDialog) {
             newStaffMobile = ""
             newStaffRole = ""
             newStaffSalary = ""
+            attendanceSetupError = null
             newStaffJoiningDate = java.text.SimpleDateFormat(
                 "yyyy-MM-dd", java.util.Locale.US
             ).format(java.util.Date())
@@ -2024,6 +2031,63 @@ item {
                 }
             }
 
+            item(key = "owner-attendance-report-entry") {
+                OutlinedButton(
+                    onClick = onAttendanceClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text("Attendance Report")
+                }
+            }
+
+            if (hasAttendanceAccess) {
+                item(key = "staff-attendance-entry") {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onStaffAttendanceClick),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 17.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            androidx.compose.material3.Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.primaryContainer
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Staff Attendance",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Mark attendance and view your records",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (staffMembers.isNotEmpty()) {
                 items(items = visibleStaff, key = { "staff-${it.id}" }) { staff ->
                     Card(
@@ -2201,6 +2265,7 @@ item {
                             newStaffMobile = ""
                             newStaffRole = ""
                             newStaffSalary = ""
+                            attendanceSetupError = null
                             newStaffJoiningDate =
                                 java.text.SimpleDateFormat(
                                     "yyyy-MM-dd",
@@ -2237,6 +2302,8 @@ item {
             initialMobile = newStaffMobile,
             initialRole = newStaffRole,
             initialSalary = newStaffSalary,
+            showAttendanceEmail = true,
+            attendanceSetupError = attendanceSetupError,
             initialJoiningDate = runCatching {
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     .apply { isLenient = false }
@@ -2245,55 +2312,94 @@ item {
             showSalary = true,
             saving = isSavingStaff,
             onDismiss = { if (!isSavingStaff) showAddStaffDialog = false },
-            onSave = { name, mobile, role, date, salaryText ->
+            onSave = { name, mobile, role, date, salaryText, attendanceEmail ->
                 if (com.ledger.app.backup.DriveAccountBinding.currentAccountId(context) == null) {
                     onDriveConnectionRequired()
+                } else if (attendanceEmail.isNotBlank() && cloudUser == null) {
+                    attendanceSetupError =
+                        "Connect the owner's Google account from Profile before enabling online attendance."
                 } else {
-                isSavingStaff = true
-                val salary = salaryText.toDoubleOrNull() ?: 0.0
-                scope.launch {
-                    try {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            val dao = LedgerDatabaseProvider.get(context).staffDao()
-                            val id = dao.insertStaff(
-                                StaffEntity(
-                                    name = name,
-                                    mobile = mobile,
-                                    role = role,
-                                    joiningDate = date
-                                )
-                            )
-                            if (salary > 0.0) {
-                                dao.insertSalaryRevision(
-                                    SalaryRevisionEntity(
-                                        staffId = id,
-                                        amount = salary,
-                                        effectiveDate = date,
-                                        note = "Starting salary"
+                    isSavingStaff = true
+                    attendanceSetupError = null
+                    val salary = salaryText.toDoubleOrNull() ?: 0.0
+                    scope.launch {
+                        var insertedStaffId: Long? = null
+                        var attendanceRegistered = false
+                        try {
+                            insertedStaffId = kotlinx.coroutines.withContext(
+                                kotlinx.coroutines.Dispatchers.IO
+                            ) {
+                                val dao = LedgerDatabaseProvider.get(context).staffDao()
+                                val id = dao.insertStaff(
+                                    StaffEntity(
+                                        name = name,
+                                        mobile = mobile,
+                                        role = role,
+                                        joiningDate = date
                                     )
                                 )
+                                if (salary > 0.0) {
+                                    dao.insertSalaryRevision(
+                                        SalaryRevisionEntity(
+                                            staffId = id,
+                                            amount = salary,
+                                            effectiveDate = date,
+                                            note = "Starting salary"
+                                        )
+                                    )
+                                }
+                                id
                             }
+
+                            if (attendanceEmail.isNotBlank()) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    AttendanceOwnerRepository().registerStaff(
+                                        localStaffId = insertedStaffId!!,
+                                        displayName = name,
+                                        email = attendanceEmail
+                                    )
+                                }
+                                attendanceRegistered = true
+                            }
+
+                            staffMembers = kotlinx.coroutines.withContext(
+                                kotlinx.coroutines.Dispatchers.IO
+                            ) {
+                                LedgerDatabaseProvider.get(context).staffDao().getAllStaff()
+                            }
+                            showAddStaffDialog = false
+                            newStaffName = ""
+                            newStaffMobile = ""
+                            newStaffRole = ""
+                            newStaffSalary = ""
+                            attendanceSetupError = null
+                            newStaffJoiningDate = java.text.SimpleDateFormat(
+                                "yyyy-MM-dd", java.util.Locale.US
+                            ).format(java.util.Date())
+                            onDataChanged()
+                        } catch (error: Exception) {
+                            android.util.Log.e("LedgerStaff", "Unable to save/register staff", error)
+                            if (insertedStaffId != null && !attendanceRegistered && attendanceEmail.isNotBlank()) {
+                                runCatching {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        val dao = LedgerDatabaseProvider.get(context).staffDao()
+                                        dao.deleteSalaryRevisionsForStaff(insertedStaffId!!)
+                                        dao.deleteStaffById(insertedStaffId!!)
+                                    }
+                                }
+                                attendanceSetupError =
+                                    "Online attendance registration failed: ${error.localizedMessage ?: "Please try again."} Staff was not added."
+                            } else {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    error.localizedMessage ?: "Unable to save staff.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        } finally {
+                            isSavingStaff = false
                         }
-                        staffMembers = kotlinx.coroutines.withContext(
-                            kotlinx.coroutines.Dispatchers.IO
-                        ) {
-                            LedgerDatabaseProvider.get(context).staffDao().getAllStaff()
-                        }
-                        showAddStaffDialog = false
-                        newStaffName = ""
-                        newStaffMobile = ""
-                        newStaffRole = ""
-                        newStaffSalary = ""
-                        newStaffJoiningDate = java.text.SimpleDateFormat(
-                            "yyyy-MM-dd", java.util.Locale.US
-                        ).format(java.util.Date())
-                        onDataChanged()
-                    } catch (error: Exception) {
-                        android.util.Log.e("LedgerStaff", "Unable to save staff", error)
-                    } finally {
-                        isSavingStaff = false
                     }
-                }
                 }
             }
         )

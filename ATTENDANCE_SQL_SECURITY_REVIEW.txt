@@ -1,0 +1,37 @@
+ALIGN LEDGER — ONLINE ATTENDANCE SQL SECURITY REVIEW
+Final decision: one verified Google Gmail may be linked to active staff registrations in multiple workplaces.
+
+Multi-workplace behavior:
+- Each employer/owner has a separate attendance_workplaces row.
+- attendance_staff email uniqueness is scoped to workplace_id, not global.
+- claim_my_attendance_staff() links all active, pending staff rows whose normalized email matches the signed-in verified Google account, across workplaces.
+- Rows already linked to a different auth user are not taken over.
+- Staff login can therefore show multiple linked workplace registrations for the same Google account.
+
+Security hardening in this migration:
+- RLS enabled on all attendance tables.
+- Owner reads are scoped by owner_id.
+- Staff reads are scoped by auth_user_id.
+- Direct table writes are not granted for attendance tables.
+- SECURITY DEFINER RPC execution is revoked from PUBLIC and anon, and granted only to authenticated.
+- claim_my_attendance_staff additionally requires email_confirmed_at and Google provider metadata.
+- mark_my_attendance checks auth.uid() against the linked active staff row and computes date using workplace timezone.
+- Unique (staff_id, attendance_date) prevents duplicate daily marks.
+
+Before execution:
+1. Confirm this is the intended Supabase project.
+2. Review the SQL file.
+3. Ensure Google provider is enabled in Supabase Auth.
+4. Run the migration once in Supabase SQL Editor.
+5. Test with two different owner accounts registering the same verified Gmail, then sign in as that Gmail and verify both workplace registrations appear.
+6. Also test that a different Gmail cannot see or mark those records.
+
+Important limitation:
+- This migration does not calculate absences. Weekly offs and holidays are stored/configured for later report logic.
+- Do not manually create or modify attendance_records; mark attendance through the app RPC.
+
+
+SQL syntax correction (2026-11-26):
+- Fixed mark_my_attendance(): PostgreSQL does not allow a composite row variable (v_staff) as one element in a multi-target INTO list.
+- The function now selects s.* into v_staff, then reads the workplace timezone in a separate SELECT.
+- It also validates the configured timezone against pg_timezone_names before computing the local attendance date.

@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -42,14 +45,17 @@ fun StaffFormDialog(
     initialRole: String = "",
     initialJoiningDate: Long = System.currentTimeMillis(),
     initialSalary: String = "",
+    initialAttendanceEmail: String = "",
+    showAttendanceEmail: Boolean = false,
+    attendanceSetupError: String? = null,
     showSalary: Boolean = false,
     showDelete: Boolean = false,
     saving: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Long, String) -> Unit,
+    onSave: (String, String, String, Long, String, String) -> Unit,
     onDelete: () -> Unit = {}
 ) {
-    key(title, initialName, initialMobile, initialRole, initialJoiningDate, initialSalary) {
+    key(title, initialName, initialMobile, initialRole, initialJoiningDate, initialSalary, initialAttendanceEmail) {
         var name by remember { mutableStateOf(initialName) }
         var mobile by remember { mutableStateOf(initialMobile) }
         var role by remember { mutableStateOf(initialRole) }
@@ -60,6 +66,8 @@ fun StaffFormDialog(
             )
         }
         var salary by remember { mutableStateOf(initialSalary) }
+        var attendanceEmail by remember { mutableStateOf(initialAttendanceEmail) }
+        var emailError by remember { mutableStateOf(false) }
         var dateError by remember { mutableStateOf(false) }
 
         val context = LocalContext.current
@@ -94,7 +102,13 @@ fun StaffFormDialog(
             onDismissRequest = { if (!saving) onDismiss() },
             title = { Text(title) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 440.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
@@ -120,6 +134,41 @@ fun StaffFormDialog(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    if (showAttendanceEmail) {
+                        OutlinedTextField(
+                            value = attendanceEmail,
+                            onValueChange = {
+                                attendanceEmail = it.trim()
+                                emailError = false
+                            },
+                            label = { Text("Staff Gmail for attendance") },
+                            placeholder = { Text("staff@gmail.com") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            isError = emailError,
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = "Staff must sign in with this same Google account to mark attendance.",
+                            color = Color(0xFF666666),
+                            fontSize = 11.sp
+                        )
+                        if (emailError) {
+                            Text(
+                                "Enter a valid email address.",
+                                color = Color(0xFFB42318),
+                                fontSize = 12.sp
+                            )
+                        }
+                        attendanceSetupError?.takeIf { it.isNotBlank() }?.let {
+                            Text(
+                                text = it,
+                                color = Color(0xFFB42318),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                     OutlinedTextField(
                         value = runCatching {
                             displayDateFormat.format(dateFormat.parse(joiningDate) ?: Date(initialJoiningDate))
@@ -187,10 +236,22 @@ fun StaffFormDialog(
                             val validSalary = !showSalary ||
                                 (salaryValue != null && salaryValue > 0.0)
 
-                            if (parsed == null || !validSalary || name.isBlank()) {
+                            val validEmail = !showAttendanceEmail ||
+                                attendanceEmail.isBlank() ||
+                                android.util.Patterns.EMAIL_ADDRESS.matcher(attendanceEmail.trim()).matches()
+
+                            if (parsed == null || !validSalary || name.isBlank() || !validEmail) {
                                 dateError = parsed == null
+                                emailError = !validEmail
                             } else {
-                                onSave(name.trim(), mobile.trim(), role.trim(), parsed, salary)
+                                onSave(
+                                    name.trim(),
+                                    mobile.trim(),
+                                    role.trim(),
+                                    parsed,
+                                    salary,
+                                    attendanceEmail.trim().lowercase(Locale.ROOT)
+                                )
                             }
                         },
                         enabled = !saving && name.isNotBlank(),

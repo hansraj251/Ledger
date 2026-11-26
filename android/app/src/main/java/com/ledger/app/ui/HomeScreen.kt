@@ -137,6 +137,9 @@ fun HomeScreen(
     var partyMobile by rememberSaveable {
         mutableStateOf("")
     }
+    var isStudentMode by rememberSaveable {
+        mutableStateOf(false)
+    }
 
     var isSavingParty by rememberSaveable {
         mutableStateOf(false)
@@ -311,6 +314,7 @@ fun HomeScreen(
     var showUpgradeDialog by remember { mutableStateOf(false) }
     val requestAddParty: () -> Unit = {
         if (isPremium || uiState.parties.size < 10) {
+            isStudentMode = false
             showAddPartyDialog = true
         } else {
             showUpgradeDialog = true
@@ -2451,17 +2455,38 @@ title = { Text("Delete Party?") },
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    Text(
-                        text = "Add Party",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (isStudentMode) "Add Student" else "Add Party",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Student",
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            androidx.compose.material3.Switch(
+                                checked = isStudentMode,
+                                onCheckedChange = { isStudentMode = it },
+                                enabled = !isSavingParty
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "PARTY DETAILS",
+                        text = if (isStudentMode) "STUDENT DETAILS" else "PARTY DETAILS",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
@@ -2515,10 +2540,10 @@ title = { Text("Delete Party?") },
                         singleLine = true,
                         enabled = !isSavingParty,
                         label = {
-                            Text("Party name")
+                            Text(if (isStudentMode) "Student name" else "Party name")
                         },
                         placeholder = {
-                            Text("e.g. Sharma Traders")
+                            Text(if (isStudentMode) "e.g. Rahul Sharma" else "e.g. Sharma Traders")
                         },
                         leadingIcon = {
                             Icon(
@@ -2641,7 +2666,7 @@ title = { Text("Delete Party?") },
                                 )
                             } else {
                                 Text(
-                                    text = "Create",
+                                    text = if (isStudentMode) "Create Student" else "Create",
                                     maxLines = 1,
                                     softWrap = false,
                                     fontWeight = FontWeight.Bold

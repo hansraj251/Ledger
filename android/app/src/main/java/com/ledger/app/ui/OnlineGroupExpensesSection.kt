@@ -1177,12 +1177,6 @@ fun OnlineGroupExpensesSection(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            if (settlementMode) "Settle amounts between group members"
-                            else "Split and track group spending",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                     Switch(
                         checked = settlementMode,

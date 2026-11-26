@@ -33,20 +33,6 @@ class LedgerViewModelTest {
         }
 
        
-       override fun addParty(
-       name: String,
-       mobile: String,
-       isStudent: Boolean
-       ): PartyEntity {
-       val party = PartyEntity(
-        id = (parties.size + 1).toLong(),
-        name = name,
-        mobile = mobile,
-        isStudent = isStudent
-          )
-       parties.add(party)
-       return party
-       }
         override fun saveProfile(
             profile: ProfileEntity
         ) {
@@ -54,12 +40,14 @@ class LedgerViewModelTest {
 
         override fun addParty(
             name: String,
-            mobile: String
+            mobile: String,
+            isStudent: Boolean
         ): PartyEntity {
             val party = PartyEntity(
                 id = (parties.size + 1).toLong(),
                 name = name,
-                mobile = mobile
+                mobile = mobile,
+                isStudent = isStudent
             )
             parties.add(party)
             return party

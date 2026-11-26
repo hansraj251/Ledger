@@ -999,6 +999,35 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                     }
                                 }
                             },
+                            onAttendanceInviteReject = { staffId ->
+                                attendanceAuthScope.launch {
+                                    attendanceAuthBusy = true
+                                    attendanceAuthError = null
+                                    try {
+                                        attendanceRepository.rejectMyInvite(staffId)
+                                        attendancePendingInvites =
+                                            attendanceRepository.fetchMyInvites()
+
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            "Attendance invitation rejected.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } catch (error: Exception) {
+                                        val message = error.message
+                                            ?: "Unable to reject attendance invitation."
+                                        attendanceAuthError = message
+
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            message,
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    } finally {
+                                        attendanceAuthBusy = false
+                                    }
+                                }
+                            },
                             onDataChanged = {
                             android.util.Log.d("LedgerSyncDebug", "MainActivity PartyLedgerScreen callback reached")
                             googleDriveSyncCoordinator.requestAutoSync()

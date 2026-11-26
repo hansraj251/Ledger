@@ -66,10 +66,12 @@ fun AttendanceScreen(onBack: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var ownerStaff by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
+    var ownerPendingInvites by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
     var ownerRecords by remember { mutableStateOf<List<AttendanceRecord>>(emptyList()) }
     var ownerLoaded by remember { mutableStateOf(false) }
     var selectedStaff by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
     var staffPendingDelete by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
+    var pendingInviteToCancel by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
 
     suspend fun loadOwnerReport() {
         busy = true
@@ -78,11 +80,20 @@ fun AttendanceScreen(onBack: () -> Unit) {
             check(repository.ownerSignedIn()) {
                 "Owner Google account is not connected. Connect it from Profile, then reopen Attendance Report."
             }
-            ownerStaff = repository.fetchOwnerStaffForReport()
+            val allOwnerStaff = repository.fetchOwnerStaffForReport()
+                .filter { it.isActive }
+
+            ownerStaff = allOwnerStaff
                 .filter {
-                    it.isActive &&
-                        it.linkStatus == "linked" &&
+                    it.linkStatus == "linked" &&
                         it.approvalStatus == "accepted"
+                }
+                .sortedBy { it.displayName.lowercase() }
+
+            ownerPendingInvites = allOwnerStaff
+                .filter {
+                    it.linkStatus == "pending" &&
+                        it.approvalStatus == "pending"
                 }
                 .sortedBy { it.displayName.lowercase() }
             ownerRecords = repository.fetchOwnerRecords()
@@ -137,7 +148,51 @@ fun AttendanceScreen(onBack: () -> Unit) {
                 ) {
                     Text("Cancel")
                 }
-            }
+            },
+            containerColor = Color.White
+        )
+    }
+
+    pendingInviteToCancel?.let { inviteToCancel ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) pendingInviteToCancel = null },
+            title = { Text("Cancel attendance invitation?") },
+            text = {
+                Text(
+                    "This will cancel the pending online attendance invitation for ${inviteToCancel.displayName}. No attendance records will be deleted."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            error = null
+                            try {
+                                repository.cancelOwnerAttendanceInvite(inviteToCancel.id)
+                                pendingInviteToCancel = null
+                                loadOwnerReport()
+                            } catch (e: Exception) {
+                                error = e.message ?: "Unable to cancel attendance invitation."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    },
+                    enabled = !busy
+                ) {
+                    Text("Cancel invitation", color = Color(0xFFB42318))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingInviteToCancel = null },
+                    enabled = !busy
+                ) {
+                    Text("Keep invitation")
+                }
+            },
+            containerColor = Color.White
         )
     }
 
@@ -224,7 +279,197 @@ fun AttendanceScreen(onBack: () -> Unit) {
                     }
                 }
 
-                if (ownerStaff.isEmpty() && !busy && ownerLoaded) {
+                if (ownerPendingInvites.isNotEmpty()) {
+
+                    items(ownerPendingInvites, key = { "pending-${it.id}" }) { invite ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(42.dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFFFFF4E5)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            invite.displayName.trim().take(1).uppercase(),
+                                            color = Color(0xFFB54708),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        invite.displayName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF202124)
+                                    )
+                                    Text(
+                                        invite.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF667085)
+                                    )
+                                    Text(
+                                        "Pending",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFB54708)
+                                    )
+                                }
+
+                                TextButton(
+                                    onClick = { pendingInviteToCancel = invite },
+                                    enabled = !busy
+                                ) {
+                                    Text("Cancel", color = Color(0xFFB42318))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (ownerStaff.isNotEmpty()) {
+                    val today = LocalDate.now(ZoneId.of("Asia/Kolkata")).toString()
+                    val todayStaffRecords = ownerStaff.mapNotNull { staff ->
+                        ownerRecords.firstOrNull {
+                            it.staffId == staff.id && it.attendanceDate == today
+                        }
+                    }
+
+                    val presentToday = todayStaffRecords.count {
+                        it.status.equals("present", true)
+                    }
+                    val absentToday = todayStaffRecords.count {
+                        it.status.equals("absent", true)
+                    }
+                    val notMarkedToday = ownerStaff.size - presentToday - absentToday
+                    val presentPercentage = presentToday * 100 / ownerStaff.size
+
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFFE5E7EB))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Text(
+                                    "Today's Attendance",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF202124)
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Total Staff",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFF667085)
+                                        )
+                                        Text(
+                                            "${ownerStaff.size}",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF3448C5)
+                                        )
+                                    }
+
+                                    Column(
+                                        modifier = Modifier.weight(1f),
+                                        horizontalAlignment = Alignment.End
+                                    ) {
+                                        Text(
+                                            "Present %",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFF667085)
+                                        )
+                                        Text(
+                                            "$presentPercentage%",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF16803D)
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Present",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFF16803D)
+                                        )
+                                        Text(
+                                            "$presentToday",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF16803D)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Absent",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFFB42318)
+                                        )
+                                        Text(
+                                            "$absentToday",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFB42318)
+                                        )
+                                    }
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "Not Marked",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color(0xFF667085)
+                                        )
+                                        Text(
+                                            "$notMarkedToday",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF667085)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (ownerStaff.isEmpty() && ownerPendingInvites.isEmpty() && !busy && ownerLoaded) {
                     item {
                         Card(
                             shape = RoundedCornerShape(18.dp),
@@ -370,7 +615,12 @@ private fun OwnerStaffAttendanceScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = onRefresh) { Text("Refresh") }
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "Refresh"
+                        )
+                    }
                 }
             )
         }

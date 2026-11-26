@@ -146,14 +146,47 @@ fun StaffDetailScreen(
     var advanceError by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
     var showStaffEditDialog by remember { mutableStateOf(false) }
+    var isLoadingStaffEdit by remember { mutableStateOf(false) }
+    var attendanceEmailForEdit by remember { mutableStateOf("") }
+    var autoEditHandled by remember(staffId) { mutableStateOf(false) }
 
-    LaunchedEffect(staff, openStaffEditorOnOpen) {
-        if (openStaffEditorOnOpen && staff != null) {
-            showStaffEditDialog = true
-        }
-    }
     var showDeleteStaffConfirm by remember { mutableStateOf(false) }
     var isSavingStaffEdit by remember { mutableStateOf(false) }
+
+    fun openStaffEditor() {
+        val currentStaff = staff ?: return
+        if (isLoadingStaffEdit || isSavingStaffEdit) return
+
+        isLoadingStaffEdit = true
+        scope.launch {
+            try {
+                attendanceEmailForEdit = withContext(Dispatchers.IO) {
+                    AttendanceOwnerRepository().fetchStaffEmail(currentStaff.id).orEmpty()
+                }
+                showStaffEditDialog = true
+            } catch (error: Exception) {
+                android.util.Log.e(
+                    "LedgerStaff",
+                    "Unable to load staff attendance email",
+                    error
+                )
+                android.widget.Toast.makeText(
+                    context,
+                    "Unable to load attendance email. Please check your internet connection and try again.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                isLoadingStaffEdit = false
+            }
+        }
+    }
+
+    LaunchedEffect(staff, openStaffEditorOnOpen) {
+        if (openStaffEditorOnOpen && staff != null && !autoEditHandled) {
+            autoEditHandled = true
+            openStaffEditor()
+        }
+    }
     var showRevisionDialog by remember { mutableStateOf(false) }
     var editingRevision by remember { mutableStateOf<SalaryRevisionEntity?>(null) }
     var showDeleteRevisionConfirm by remember { mutableStateOf(false) }
@@ -611,7 +644,7 @@ fun StaffDetailScreen(
                         else if (showRevisionHistory) "Salary Revision History"
                         else (staff?.name ?: "Staff Details"),
                         modifier = if (showRevisionHistory || staff == null) Modifier
-                        else Modifier.clickable { showStaffEditDialog = true }
+                        else Modifier.clickable { openStaffEditor() }
                     )
                 },
                 navigationIcon = {
@@ -2080,6 +2113,7 @@ fun StaffDetailScreen(
                 initialMobile = currentStaff.mobile,
                 initialRole = currentStaff.role,
                 initialJoiningDate = currentStaff.joiningDate,
+                initialAttendanceEmail = attendanceEmailForEdit,
                 showAttendanceEmail = true,
                 showDelete = true,
                 saving = isSavingStaffEdit,

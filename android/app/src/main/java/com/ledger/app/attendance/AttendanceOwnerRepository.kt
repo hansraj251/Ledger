@@ -3,6 +3,7 @@ package com.ledger.app.attendance
 import com.ledger.app.cloudgroup.CloudSupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.rpc
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -30,6 +31,16 @@ class AttendanceOwnerRepository {
         require(!isSameAttendanceEmail(currentUser.email, email)) {
             "You cannot add your own Ledger Online Gmail as staff. Enter the staff member's Gmail."
         }
+    }
+
+    suspend fun fetchStaffEmail(localStaffId: Long): String? {
+        if (supabase.auth.currentUserOrNull() == null) return null
+
+        return supabase.from("attendance_staff")
+            .select()
+            .decodeList<AttendanceStaffRecord>()
+            .firstOrNull { it.localStaffId == localStaffId }
+            ?.let { it.emailNormalized.ifBlank { it.email }.trim() }
     }
 
     suspend fun registerStaff(

@@ -136,6 +136,7 @@ fun HomeScreen(
     pendingAttendanceInvites: List<AttendanceInviteRecord> = emptyList(),
     attendanceInviteBusy: Boolean = false,
     onAttendanceInviteAccept: (String) -> Unit = {},
+    onAttendanceInviteReject: (String) -> Unit = {},
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -1725,51 +1726,68 @@ Spacer(Modifier.weight(1f))
 
 
 item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    BalanceSummaryCard(
-                        title = "Receivable",
-                        amount = receivable
-                            + receivableInterestTotal
-                            + receivableEmiTotal
-                            + groupReceivableTotal
-                            + onlineGroupReceivableTotal
-                            + totalStaffAdvanceOutstanding,
-                        modifier = Modifier.weight(1f),
-                        amountColor = Color(0xFFC62828),
-                        expanded = isReceivableExpanded,
-                        onClick = { isReceivableExpanded = !isReceivableExpanded },
-                        details = listOf(
-                            "Receivable Int." to receivableInterestTotal,
-                            "Receivable EMI" to receivableEmiTotal,
-                            "Offline Group" to groupReceivableTotal,
-                            "Online Group" to onlineGroupReceivableTotal,
-                            "Advanced Salary" to totalStaffAdvanceOutstanding
-                        ).filter { kotlin.math.abs(it.second) >= 0.01 }
-                    )
+                val receivableTotal = receivable
+                    + receivableInterestTotal
+                    + receivableEmiTotal
+                    + groupReceivableTotal
+                    + onlineGroupReceivableTotal
+                    + totalStaffAdvanceOutstanding
 
-                    BalanceSummaryCard(
-                        title = "Payable",
-                        amount = payable
-                            + payableInterestTotal
-                            + payableEmiTotal
-                            + groupPayableTotal
-                            + onlineGroupPayableTotal
-                            + totalRemainingStaffSalary,
-                        modifier = Modifier.weight(1f),
-                        amountColor = Color(0xFF2E7D32),
-                        expanded = isPayableExpanded,
-                        onClick = { isPayableExpanded = !isPayableExpanded },
-                        details = listOf(
-                            "Payable Int." to payableInterestTotal,
-                            "Payable EMI" to payableEmiTotal,
-                            "Offline Group" to groupPayableTotal,
-                            "Online Group" to onlineGroupPayableTotal,
-                            "Salaries" to totalRemainingStaffSalary
-                        ).filter { kotlin.math.abs(it.second) >= 0.01 }
-                    )
+                val payableTotal = payable
+                    + payableInterestTotal
+                    + payableEmiTotal
+                    + groupPayableTotal
+                    + onlineGroupPayableTotal
+                    + totalRemainingStaffSalary
+
+                val showReceivable = receivableTotal >= 0.01
+                val showPayable = payableTotal >= 0.01
+
+                if (showReceivable || showPayable) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (showReceivable) {
+                            BalanceSummaryCard(
+                                title = "Receivable",
+                                amount = receivableTotal,
+                                modifier = Modifier.weight(if (showPayable) 1f else 2f),
+                                amountColor = Color(0xFFC62828),
+                                expanded = isReceivableExpanded,
+                                onClick = {
+                                    isReceivableExpanded = !isReceivableExpanded
+                                },
+                                details = listOf(
+                                    "Party Int." to receivableInterestTotal,
+                                    "Party EMIs" to receivableEmiTotal,
+                                    "Offline Group" to groupReceivableTotal,
+                                    "Online Group" to onlineGroupReceivableTotal,
+                                    "Advanced Salary" to totalStaffAdvanceOutstanding
+                                ).filter { kotlin.math.abs(it.second) >= 0.01 }
+                            )
+                        }
+
+                        if (showPayable) {
+                            BalanceSummaryCard(
+                                title = "Payable",
+                                amount = payableTotal,
+                                modifier = Modifier.weight(if (showReceivable) 1f else 2f),
+                                amountColor = Color(0xFF2E7D32),
+                                expanded = isPayableExpanded,
+                                onClick = {
+                                    isPayableExpanded = !isPayableExpanded
+                                },
+                                details = listOf(
+                                    "Party Int." to payableInterestTotal,
+                                    "Party EMIs" to payableEmiTotal,
+                                    "Offline Group" to groupPayableTotal,
+                                    "Online Group" to onlineGroupPayableTotal,
+                                    "Salaries" to totalRemainingStaffSalary
+                                ).filter { kotlin.math.abs(it.second) >= 0.01 }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -2113,20 +2131,39 @@ item {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Button(
-                                onClick = { onAttendanceInviteAccept(invite.staffId) },
-                                enabled = !attendanceInviteBusy,
-                                modifier = Modifier.align(Alignment.End),
-                                shape = RoundedCornerShape(12.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (attendanceInviteBusy) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(Modifier.width(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        onAttendanceInviteReject(invite.staffId)
+                                    },
+                                    enabled = !attendanceInviteBusy,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Reject")
                                 }
-                                Text("Accept Invitation")
+
+                                Button(
+                                    onClick = {
+                                        onAttendanceInviteAccept(invite.staffId)
+                                    },
+                                    enabled = !attendanceInviteBusy,
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (attendanceInviteBusy) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    Text("Accept Invitation")
+                                }
                             }
                         }
                     }

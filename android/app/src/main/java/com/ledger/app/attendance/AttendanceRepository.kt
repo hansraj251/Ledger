@@ -129,6 +129,19 @@ class AttendanceRepository {
         }
     }
 
+    suspend fun cancelOwnerAttendanceInvite(staffId: String) {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+
+        onlineClient.postgrest.rpc(
+            "cancel_owner_attendance_invite",
+            buildJsonObject { put("p_staff_id", staffId) }
+        ).decodeAs<Int>().also {
+            check(it == 1) { "Pending attendance invitation was not cancelled." }
+        }
+    }
+
     suspend fun setOwnerAttendance(
         staffId: String,
         attendanceDate: String,
@@ -181,6 +194,18 @@ class AttendanceRepository {
         return onlineClient.postgrest
             .rpc(
                 "accept_my_attendance_invite",
+                buildJsonObject { put("p_staff_id", staffId) }
+            )
+            .decodeAs<Int>()
+    }
+
+    suspend fun rejectMyInvite(staffId: String): Int {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Staff is not signed in."
+        }
+        return onlineClient.postgrest
+            .rpc(
+                "reject_my_attendance_invite",
                 buildJsonObject { put("p_staff_id", staffId) }
             )
             .decodeAs<Int>()

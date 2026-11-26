@@ -13,8 +13,8 @@ android {
         applicationId = "in.alignos.ledger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 37
-        versionName = "0.8.1"
+        versionCode = 38
+        versionName = "0.8.2"
     }
 
     signingConfigs {

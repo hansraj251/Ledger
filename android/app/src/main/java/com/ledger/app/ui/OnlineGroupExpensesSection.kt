@@ -1243,10 +1243,7 @@ fun OnlineGroupExpensesSection(
                                 if (settlementMode && hasSettlementPair) {
                                     val entered = newValue.toDoubleOrNull()
                                     amount = when {
-                                        newValue.isBlank() ->
-                                            if (settlementOutstandingPaise > 0L)
-                                                String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)
-                                            else ""
+                                        newValue.isBlank() -> ""
                                         entered != null && entered.isFinite() &&
                                             entered > settlementMaximumAmount ->
                                             String.format(java.util.Locale.US, "%.2f", settlementMaximumAmount)

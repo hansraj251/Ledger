@@ -124,6 +124,7 @@ fun HomeScreen(
 
     onStaffClick: (Long) -> Unit = {},
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
+    onDriveConnectionRequired: () -> Unit = {},
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -2240,6 +2241,9 @@ item {
             saving = isSavingStaff,
             onDismiss = { if (!isSavingStaff) showAddStaffDialog = false },
             onSave = { name, mobile, role, date, salaryText ->
+                if (com.ledger.app.backup.DriveAccountBinding.currentAccountId(context) == null) {
+                    onDriveConnectionRequired()
+                } else {
                 isSavingStaff = true
                 val salary = salaryText.toDoubleOrNull() ?: 0.0
                 scope.launch {
@@ -2284,6 +2288,7 @@ item {
                     } finally {
                         isSavingStaff = false
                     }
+                }
                 }
             }
         )
@@ -2597,7 +2602,9 @@ title = { Text("Delete Party?") },
                                     else MaterialTheme.colorScheme.onPrimary
                             ),
                             onClick = {
-                                if (partyName.isNotBlank()) {
+                                if (partyName.isNotBlank() && com.ledger.app.backup.DriveAccountBinding.currentAccountId(context) == null) {
+                                    onDriveConnectionRequired()
+                                } else if (partyName.isNotBlank()) {
                                     isSavingParty = true
 
                                     scope.launch {
@@ -2923,7 +2930,9 @@ title = { Text("Delete Party?") },
                         enabled = newGroupName.isNotBlank() && !isSavingGroup,
                         onClick = {
                             val name = newGroupName.trim()
-                            if (name.isNotEmpty()) {
+                            if (name.isNotEmpty() && com.ledger.app.backup.DriveAccountBinding.currentAccountId(context) == null) {
+                                onDriveConnectionRequired()
+                            } else if (name.isNotEmpty()) {
                                 isSavingGroup = true
                                 scope.launch {
                                     val latestGroups =

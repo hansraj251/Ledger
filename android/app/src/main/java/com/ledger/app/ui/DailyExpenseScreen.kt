@@ -332,6 +332,7 @@ fun DailyExpenseScreen(
     onGroupSharingClick: () -> Unit,
     onProfileClick: () -> Unit,
     onExpenseDataChanged: () -> Unit,
+    onDriveConnectionRequired: () -> Unit = {},
     isPremium: Boolean,
     onUpgradeClick: () -> Unit = {
 
@@ -1725,6 +1726,10 @@ var isReportLimitReached by remember { mutableStateOf(false) }
             onSave = { amount, category, note, date ->
                 val old = editingExpense
                 scope.launch {
+                    if (old == null && com.ledger.app.backup.DriveAccountBinding.currentAccountId(context) == null) {
+                        onDriveConnectionRequired()
+                        return@launch
+                    }
                     if (old == null && !isPremium) {
                         val expenseCount = withContext(Dispatchers.IO) {
                             dao.getAll().size

@@ -798,6 +798,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         onExpenseDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
                         },
+                        onDriveConnectionRequired = { connectGoogleDrive() },
                         isPremium = premiumBillingState.isPremium,
                         onUpgradeClick = { launchPremiumPurchase() }
                     )
@@ -877,9 +878,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             onStaffLongClick = { staffId ->
                                 openStaffEditorOnOpen = true
                                 selectedStaffId = staffId
-                            }
-                    ,
-                        onDataChanged = {
+                            },
+                            onDriveConnectionRequired = { connectGoogleDrive() },
+                            onDataChanged = {
                             android.util.Log.d("LedgerSyncDebug", "MainActivity PartyLedgerScreen callback reached")
                             googleDriveSyncCoordinator.requestAutoSync()
                         }

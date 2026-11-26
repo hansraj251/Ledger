@@ -70,6 +70,17 @@ class GoogleDriveSyncCoordinator(
     }
 
     fun resume() {
+        if (DriveAccountBinding.currentAccountId(applicationContext) == null) {
+            synchronized(lock) {
+                paused = false
+                running = false
+            }
+            android.util.Log.d(
+                "LedgerSyncDebug",
+                "Skipping startup sync: Google Drive account not connected"
+            )
+            return
+        }
         val shouldCheckRemote = synchronized(lock) {
             if (running) {
                 false
@@ -283,6 +294,13 @@ class GoogleDriveSyncCoordinator(
     }
 
     private fun requestSync(manual: Boolean) {
+        if (DriveAccountBinding.currentAccountId(applicationContext) == null) {
+            android.util.Log.d(
+                "LedgerSyncDebug",
+                "Skipping sync request: Google Drive account not connected"
+            )
+            return
+        }
         val shouldStart = synchronized(lock) {
             generation.incrementAndGet()
             persistPendingGeneration()

@@ -210,6 +210,26 @@ fun OnlineGroupExpensesSection(
     }
 
     val settlementReceiverId = selectedIds.singleOrNull()
+
+    val settlementDebts = if (settlementMode) {
+        runCatching {
+            CloudGroupPairwiseBalanceCalculator.calculateFromExpenseData(
+                members = joinedMembers,
+                expenseData = data,
+                excludeExpenseId = editingExpense?.takeIf { settlementMode }?.id
+            ).debts.filter { it.amountPaise > 0L }
+        }.getOrDefault(emptyList())
+    } else emptyList()
+
+    val settlementReceiverMemberIds = settlementDebts
+        .map { it.toMemberId }
+        .toSet()
+
+    val settlementPayerMemberIds = settlementDebts
+        .filter { it.toMemberId == settlementReceiverId }
+        .map { it.fromMemberId }
+        .toSet()
+
     val hasSettlementPair = settlementMode &&
         settlementReceiverId != null &&
         settlementPayerId != null &&
@@ -1197,7 +1217,7 @@ fun OnlineGroupExpensesSection(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
+                        if (!settlementMode) OutlinedTextField(
                             value = title,
                             onValueChange = { newTitle ->
                                 if (!settlementMode) {
@@ -1243,7 +1263,37 @@ fun OnlineGroupExpensesSection(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = RoundedCornerShape(15.dp)
                         )
-                    }
+
+                        if (settlementMode) {
+                            Box(
+                                modifier = Modifier.weight(1f).clickable {
+                                    if (!busy) showDatePicker = true
+                                }
+                            ) {
+                                val dateText = Instant.ofEpochMilli(expenseDateMs)
+                                    .atZone(ZoneOffset.UTC)
+                                    .toLocalDate()
+                                    .format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
+
+                                OutlinedTextField(
+                                    value = dateText,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    enabled = false,
+                                    label = { Text("Date") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(15.dp),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surface,
+                                        disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                            }
+                        }
+}
 
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -1286,7 +1336,7 @@ fun OnlineGroupExpensesSection(
                         }
                     }
 
-                    Row(
+                    if (!settlementMode) Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -1403,10 +1453,13 @@ fun OnlineGroupExpensesSection(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         (if (settlementMode) {
-                            joinedMembers.filter {
-                                it.allowSettlementByOthers ||
-                                    (currentUserId != null && it.userId == currentUserId) ||
-                                    it.id in selectedIds
+                            joinedMembers.filter { member ->
+                                member.id in settlementReceiverMemberIds &&
+                                    (
+                                        member.allowSettlementByOthers ||
+                                            (currentUserId != null && member.userId == currentUserId) ||
+                                            member.id in selectedIds
+                                    )
                             }
                         } else {
                             joinedMembers
@@ -1745,7 +1798,9 @@ fun OnlineGroupExpensesSection(
                     if (settlementMode) {
                         Text("Select the member who paid the full settlement amount.")
 
-                        joinedMembers.filter { it.id !in selectedIds }.forEach { member ->
+                        joinedMembers.filter {
+                            it.id in settlementPayerMemberIds
+                        }.forEach { member ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

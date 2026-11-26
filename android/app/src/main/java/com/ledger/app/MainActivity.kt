@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
 
     private var initialDriveSetupCompletion: (() -> Unit)? = null
     private var pendingDriveEmailChange: ((String) -> Unit)? = null
+    private var pendingDriveRestoreOnlyConnection = false
     private var pendingBackupDownloadFile: java.io.File? = null
 
 
@@ -591,6 +592,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 } else if (showProfileScreen) {
                     ProfileScreen(
                         onChangeDriveEmail = { onUpdated -> connectGoogleDrive(onUpdated) },
+                        onConnectDrive = {
+                            showProfileScreen = false
+                            initialDriveSetupRunning = false
+                            initialDriveSetupRequired = true
+                        },
                         onDownloadBackup = { downloadGoogleDriveBackupToDevice() },
                         onRestoreBackup = { launchLocalBackupRestorePicker() },
                         onClearData = {
@@ -1075,41 +1081,179 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
     }
 
     private fun connectGoogleDrive(onEmailChanged: ((String) -> Unit)? = null) {
-        if (onEmailChanged != null) pendingDriveEmailChange = onEmailChanged
+        pendingDriveRestoreOnlyConnection = onEmailChanged == null
+        if (onEmailChanged != null) {
+            pendingDriveEmailChange = onEmailChanged
+        } else {
+            googleDriveSyncCoordinator.pause()
+        }
+
         googleDriveAuthorization
             .authorize(forceSelectAccount = onEmailChanged != null)
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
                     try {
-                        result.pendingIntent?.let { pendingIntent ->
-                            startIntentSenderForResult(
-                                pendingIntent.intentSender,
-                                GOOGLE_DRIVE_AUTH_REQUEST_CODE,
-                                null,
-                                0,
-                                0,
-                                0
-                            )
+                        val pendingIntent = result.pendingIntent
+                        if (pendingIntent == null) {
+                            pendingDriveRestoreOnlyConnection = false
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(
+                                this,
+                                "Google Drive authorization is required.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@addOnSuccessListener
                         }
+
+                        startIntentSenderForResult(
+                            pendingIntent.intentSender,
+                            GOOGLE_DRIVE_AUTH_REQUEST_CODE,
+                            null,
+                            0,
+                            0,
+                            0
+                        )
                     } catch (error: Exception) {
+                        pendingDriveRestoreOnlyConnection = false
+                        googleDriveSyncCoordinator.onAuthorizationCancelled()
                         Toast.makeText(
                             this,
                             "Unable to open Google Drive authorization.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
+                } else if (pendingDriveRestoreOnlyConnection) {
+                    restoreFromNewDriveAccount(result.accessToken)
                 } else {
                     captureDriveAccountIdentity(result.accessToken)
                 }
             }
             .addOnFailureListener {
                 pendingDriveEmailChange = null
+                pendingDriveRestoreOnlyConnection = false
+                googleDriveSyncCoordinator.onAuthorizationCancelled()
                 Toast.makeText(
                     this,
                     "Google Drive authorization failed.",
                     Toast.LENGTH_LONG
                 ).show()
             }
+    }
+
+    /*
+     * A first-time Drive connection must check and restore the remote backup
+     * before local data can be synced to that account.
+     */
+    private fun restoreFromNewDriveAccount(accessToken: String?) {
+        if (accessToken.isNullOrBlank()) {
+            pendingDriveRestoreOnlyConnection = false
+            googleDriveSyncCoordinator.onAuthorizationCancelled()
+            Toast.makeText(
+                this,
+                "Google Drive access token is unavailable.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        Toast.makeText(
+            this,
+            "Checking Google Drive backup...",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        googleDriveRestore.findBackupMetadata(accessToken) { backupResult ->
+            backupResult
+                .onSuccess { metadata ->
+                    if (metadata == null || metadata.fileId.isBlank()) {
+                        DriveAccountBinding.capture(applicationContext, accessToken) {
+                            runOnUiThread {
+                                pendingDriveRestoreOnlyConnection = false
+                                val verified =
+                                    DriveAccountBinding.currentAccountId(applicationContext) != null
+
+                                if (verified) {
+                                    if (::premiumBillingManager.isInitialized) {
+                                        premiumBillingManager.refreshOwnership()
+                                    }
+                                    markInitialDriveSetupComplete()
+                                    googleDriveSyncCoordinator.markNoRemoteBackupFound()
+                                    Toast.makeText(
+                                        this,
+                                        "No Google Drive backup found. Your local data is unchanged.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                    Toast.makeText(
+                                        this,
+                                        "Google Drive account verification failed.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
+                            }
+                        }
+                        return@onSuccess
+                    }
+
+                    Toast.makeText(
+                        this,
+                        "Backup found. Restoring...",
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    googleDriveRestore.restore(
+                        accessToken,
+                        metadata.fileId
+                    ) { restoreResult ->
+                        restoreResult
+                            .onSuccess {
+                                DriveAccountBinding.capture(applicationContext, accessToken) {
+                                    runOnUiThread {
+                                        pendingDriveRestoreOnlyConnection = false
+                                        val verified =
+                                            DriveAccountBinding.currentAccountId(applicationContext) != null
+
+                                        if (verified) {
+                                            if (::premiumBillingManager.isInitialized) {
+                                                premiumBillingManager.refreshOwnership()
+                                            }
+                                            replaceDatabaseAndRestart(
+                                                onComplete = {},
+                                                remoteModifiedTime = metadata.modifiedTime
+                                            )
+                                        } else {
+                                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                            Toast.makeText(
+                                                this,
+                                                "Google Drive account verification failed. Local data was not replaced.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            }
+                            .onFailure { error ->
+                                pendingDriveRestoreOnlyConnection = false
+                                googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                Toast.makeText(
+                                    this,
+                                    "Backup restore failed: ${error.message ?: "Unknown error"}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                    }
+                }
+                .onFailure { error ->
+                    pendingDriveRestoreOnlyConnection = false
+                    googleDriveSyncCoordinator.onAuthorizationCancelled()
+                    Toast.makeText(
+                        this,
+                        "Unable to check Google Drive: ${error.message ?: "Unknown error"}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+        }
     }
 
     /*
@@ -1775,7 +1919,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 500
             )
         } catch (error: Exception) {
-            googleDriveSyncCoordinator.resume()
+            if (remoteModifiedTime != null) {
+                googleDriveSyncCoordinator.onAuthorizationCancelled()
+            } else {
+                googleDriveSyncCoordinator.resume()
+            }
 
             Toast.makeText(
                 this,
@@ -1875,11 +2023,15 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                 Toast.LENGTH_LONG
                             ).show()
                         }
+                    } else if (pendingDriveRestoreOnlyConnection) {
+                        restoreFromNewDriveAccount(authorizationResult.accessToken)
                     } else {
                         captureDriveAccountIdentity(authorizationResult.accessToken)
                     }
                 } catch (error: Exception) {
                     pendingDriveEmailChange = null
+                    pendingDriveRestoreOnlyConnection = false
+                    googleDriveSyncCoordinator.onAuthorizationCancelled()
                     Toast.makeText(
                         this,
                         "Google Drive account verification failed.",
@@ -1888,9 +2040,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 }
             } else {
                 pendingDriveEmailChange = null
+                pendingDriveRestoreOnlyConnection = false
+                googleDriveSyncCoordinator.onAuthorizationCancelled()
                 Toast.makeText(
                     this,
-                    "Google Drive account change cancelled.",
+                    "Google Drive connection cancelled.",
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -2069,6 +2223,7 @@ private fun ProfileScreen(
     onBack: () -> Unit,
     onProfileSaved: () -> Unit,
     onChangeDriveEmail: ((String) -> Unit) -> Unit,
+    onConnectDrive: () -> Unit,
     onDownloadBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
     onClearData: () -> Unit,
@@ -2887,7 +3042,11 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
 
                         androidx.compose.material3.Button(
                             onClick = {
-                                showDriveAccountChangeConfirmation = true
+                                if (driveEmail.isNullOrBlank()) {
+                                    onConnectDrive()
+                                } else {
+                                    showDriveAccountChangeConfirmation = true
+                                }
                             },
                             modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
@@ -2902,7 +3061,11 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                                 modifier = androidx.compose.ui.Modifier.width(8.dp)
                             )
                             androidx.compose.material3.Text(
-                                text = "Change Google Account",
+                                text = if (driveEmail.isNullOrBlank()) {
+                                    "Connect Google Account"
+                                } else {
+                                    "Change Google Account"
+                                },
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )
                         }

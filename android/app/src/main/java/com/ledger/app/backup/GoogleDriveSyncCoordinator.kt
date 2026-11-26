@@ -273,6 +273,27 @@ class GoogleDriveSyncCoordinator(
         )
     }
 
+    fun markNoRemoteBackupFound() {
+        synchronized(lock) {
+            val currentGeneration = generation.get()
+            completedGeneration = currentGeneration
+
+            prefs.edit()
+                .putLong(PENDING_GENERATION, currentGeneration)
+                .putLong(COMPLETED_GENERATION, currentGeneration)
+                .remove(LAST_SYNCED_DRIVE_MODIFIED_TIME)
+                .apply()
+
+            paused = false
+            running = false
+        }
+
+        android.util.Log.d(
+            "LedgerSyncDebug",
+            "No remote backup found. Local data retained; no initial upload requested."
+        )
+    }
+
     fun markRemoteBackupSynced(
         modifiedTime: String
     ) {

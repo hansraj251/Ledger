@@ -1436,6 +1436,44 @@ if (showTipsDialog) {
                                                     }
                                                 }
 
+
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            showMenu = false
+                                                            if (cloudUser == null) {
+                                                                onProfileClick()
+                                                            } else {
+                                                                newOnlineGroupName = ""
+                                                                createOnlineGroupError = null
+                                                                showCreateOnlineGroupDialog = true
+                                                            }
+                                                        },
+                                                    shape = RoundedCornerShape(13.dp),
+                                                    color = Color.Transparent
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(
+                                                            horizontal = 14.dp,
+                                                            vertical = 13.dp
+                                                        ),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Outlined.CloudDone,
+                                                            contentDescription = null,
+                                                            tint = Color(0xFF6D6557)
+                                                        )
+                                                        Text(
+                                                            text = "Add Online Group",
+                                                            modifier = Modifier.padding(start = 12.dp),
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = Color(0xFF303030)
+                                                        )
+                                                    }
+                                                }
+
                                                 Surface(
     modifier = Modifier
         .fillMaxWidth()

@@ -144,25 +144,39 @@ fun OnlineGroupExpensesSection(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var selectedMonth by remember(groupId) { mutableStateOf(YearMonth.now()) }
-    var monthMenuExpanded by remember { mutableStateOf(false) }
+    var showYearRecords by remember(groupId) { mutableStateOf(false) }
+    var selectedExpenseYear by remember(groupId) {
+        mutableStateOf(YearMonth.now().year)
+    }
+    var showMonthPicker by remember { mutableStateOf(false) }
+    var showExpenseYearPicker by remember { mutableStateOf(false) }
+    var pickerYear by remember { mutableStateOf(selectedMonth.year) }
+    var expenseYearPickerValue by remember {
+        mutableStateOf(selectedExpenseYear)
+    }
 
     val monthFormatter = remember {
         DateTimeFormatter.ofPattern("MMMM yyyy")
     }
-    val availableMonths = remember(data.expenses, selectedMonth) {
-        (data.expenses.map {
-            YearMonth.from(
-                Instant.ofEpochMilli(it.expenseDateMs).atZone(ZoneOffset.UTC)
-            )
-        } + selectedMonth).distinct().sortedDescending()
-    }
-    val filteredExpenses = remember(data.expenses, selectedMonth) {
+
+    val filteredExpenses = remember(
+        data.expenses,
+        selectedMonth,
+        showYearRecords,
+        selectedExpenseYear
+    ) {
         data.expenses.filter { expense ->
-            YearMonth.from(
-                Instant.ofEpochMilli(expense.expenseDateMs).atZone(ZoneOffset.UTC)
-            ) == selectedMonth
+            val expenseDate = Instant.ofEpochMilli(expense.expenseDateMs)
+                .atZone(ZoneOffset.UTC)
+
+            if (showYearRecords) {
+                expenseDate.year == selectedExpenseYear
+            } else {
+                YearMonth.from(expenseDate) == selectedMonth
+            }
         }.sortedByDescending { it.expenseDateMs }
     }
+
     var showEditor by remember { mutableStateOf(false) }
     var settlementMode by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -494,6 +508,129 @@ fun OnlineGroupExpensesSection(
         onSettlementRequestConsumed()
     }
 
+    if (showExpenseYearPicker) {
+        AlertDialog(
+            onDismissRequest = { showExpenseYearPicker = false },
+            containerColor = Color.White,
+            title = { Text("Select year") },
+            text = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { expenseYearPickerValue-- }) {
+                        Text("‹")
+                    }
+                    Text(
+                        expenseYearPickerValue.toString(),
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    TextButton(onClick = { expenseYearPickerValue++ }) {
+                        Text("›")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedExpenseYear = expenseYearPickerValue
+                        showYearRecords = true
+                        showExpenseYearPicker = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showExpenseYearPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showMonthPicker) {
+        val monthNames = listOf(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        )
+
+        AlertDialog(
+            onDismissRequest = { showMonthPicker = false },
+            containerColor = Color.White,
+            title = { Text("Select month") },
+            text = {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { pickerYear-- }) {
+                            Text("‹")
+                        }
+                        Text(
+                            pickerYear.toString(),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        TextButton(onClick = { pickerYear++ }) {
+                            Text("›")
+                        }
+                    }
+
+                    (0..11 step 3).forEach { rowStart ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            (rowStart until rowStart + 3).forEach { month ->
+                                val selected =
+                                    selectedMonth.year == pickerYear &&
+                                    selectedMonth.monthValue == month + 1
+
+                                val chooseMonth = {
+                                    selectedMonth = YearMonth.of(pickerYear, month + 1)
+                                    showYearRecords = false
+                                    showMonthPicker = false
+                                }
+
+                                if (selected) {
+                                    Button(
+                                        onClick = { chooseMonth() },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 2.dp,
+                                            vertical = 8.dp
+                                        )
+                                    ) {
+                                        Text(monthNames[month])
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { chooseMonth() },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(
+                                            horizontal = 2.dp,
+                                            vertical = 8.dp
+                                        )
+                                    ) {
+                                        Text(monthNames[month])
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMonthPicker = false }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -501,78 +638,63 @@ fun OnlineGroupExpensesSection(
         ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box {
+            if (showYearRecords) {
                 OutlinedButton(
-                    onClick = { monthMenuExpanded = true },
-                    modifier = Modifier.height(36.dp),
-                    contentPadding = PaddingValues(horizontal = 9.dp, vertical = 0.dp),
+                    onClick = {
+                        showYearRecords = false
+                        selectedMonth = YearMonth.now()
+                    },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     shape = RoundedCornerShape(11.dp),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
-                        contentColor = Color(0xFF263449)
-                    )
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Text("This Month", fontSize = 11.sp)
+                }
+            } else {
+                Button(
+                    onClick = {
+                        pickerYear = selectedMonth.year
+                        showMonthPicker = true
+                    },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(11.dp)
                 ) {
                     Text(
-                        "▦",
-                        color = Color(0xFF3975C6),
-                        fontSize = 14.sp
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        selectedMonth.format(monthFormatter),
-                        fontWeight = FontWeight.SemiBold,
+                        "This Month · ${selectedMonth.format(DateTimeFormatter.ofPattern("MMM yyyy"))}",
                         fontSize = 11.sp
                     )
-                    Spacer(Modifier.width(4.dp))
-                    Text("⌄", color = Color(0xFF64748B))
                 }
+            }
 
-                DropdownMenu(
-                    expanded = monthMenuExpanded,
-                    onDismissRequest = { monthMenuExpanded = false },
-                    modifier = Modifier.background(Color.White),
-                    shape = RoundedCornerShape(16.dp),
-                    containerColor = Color.White,
-                    tonalElevation = 5.dp,
-                    shadowElevation = 8.dp
+            if (showYearRecords) {
+                Button(
+                    onClick = {
+                        expenseYearPickerValue = selectedExpenseYear
+                        showExpenseYearPicker = true
+                    },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(11.dp)
                 ) {
-                    availableMonths.forEach { month ->
-                        val isSelected = month == selectedMonth
-
-                        DropdownMenuItem(
-                            modifier = Modifier
-                                .padding(horizontal = 6.dp)
-                                .background(
-                                    color = if (isSelected) Color(0xFFEAF2FF)
-                                    else Color.Transparent,
-                                    shape = RoundedCornerShape(10.dp)
-                                ),
-                            text = {
-                                Text(
-                                    month.format(monthFormatter),
-                                    color = if (isSelected) Color(0xFF245DA8)
-                                    else Color(0xFF263449),
-                                    fontWeight = if (isSelected) FontWeight.Bold
-                                    else FontWeight.Normal
-                                )
-                            },
-                            leadingIcon = {
-                                Text(
-                                    if (isSelected) "✓" else " ",
-                                    color = Color(0xFF2872C8),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            onClick = {
-                                selectedMonth = month
-                                monthMenuExpanded = false
-                            }
-                        )
-                    }
+                    Text("This Year · $selectedExpenseYear", fontSize = 11.sp)
+                }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        selectedExpenseYear = YearMonth.now().year
+                        showYearRecords = true
+                    },
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(11.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Text("This Year", fontSize = 11.sp)
                 }
             }
         }
@@ -930,6 +1052,8 @@ fun OnlineGroupExpensesSection(
                 item(key = "expenses_empty") {
                     val emptyMessage = if (data.expenses.isEmpty()) {
                         "No expenses added yet."
+                    } else if (showYearRecords) {
+                        "No transactions for $selectedExpenseYear."
                     } else {
                         "No transactions for ${selectedMonth.format(monthFormatter)}."
                     }

@@ -1315,7 +1315,9 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                             .padding(horizontal = 20.dp)
                             .combinedClickable(
                                 onClick = {
-                                    if (emiSchedules.any { it.transactionId == entry.id }) {
+                                    if (party.isStudent) {
+                                        editingEntry = entry
+                                    } else if (emiSchedules.any { it.transactionId == entry.id }) {
                                         emiPageEntry = entry
                                         showEmiPage = true
                                     } else {
@@ -1323,7 +1325,9 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
                                     }
                                 },
                                 onLongClick = {
-                                    if (emiSchedules.any { it.transactionId == entry.id }) {
+                                    if (party.isStudent) {
+                                        editingEntry = entry
+                                    } else if (emiSchedules.any { it.transactionId == entry.id }) {
                                         deleteTargetEntry = entry
                                         showDeleteEntryDialog = true
                                     } else {
@@ -1979,7 +1983,7 @@ private fun EditTransactionDialog(
                             selectedType = EntryType.DEBIT
                         },
                         label = {
-                            Text(if (isStudent) "Receive" else "You Got")
+                            Text(if (isStudent) "Received" else "You Got")
                         },
                         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                             containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
@@ -2332,8 +2336,8 @@ private fun BalanceHero(
     }
 
     val title = when {
-        positive -> "Receivable"
-        negative -> "Payable"
+        positive -> if (party.isStudent) "Pending" else "Receivable"
+        negative -> if (party.isStudent) "Excess Paid" else "Payable"
         else -> "Settled"
     }
 
@@ -2507,35 +2511,61 @@ Spacer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = if (party.isStudent) Arrangement.End else Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(
-                    onClick = {
-                        val phone = party.mobile.trim()
-                        if (phone.isNotBlank()) {
-                            context.startActivity(
-                                Intent(
-                                    Intent.ACTION_DIAL,
-                                    Uri.parse("tel:" + Uri.encode(phone))
+                if (party.isStudent) {
+                    OutlinedButton(
+                        onClick = {
+                            val phone = party.mobile.trim()
+                            if (phone.isNotBlank()) {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_DIAL,
+                                        Uri.parse("tel:" + Uri.encode(phone))
+                                    )
                                 )
-                            )
-                        }
-                    },
-                    enabled = party.mobile.isNotBlank(),
-                    modifier = Modifier.weight(1f).height(34.dp),
-                    contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Call,
-                        contentDescription = "Call party",
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text("Call", style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                }
+                            }
+                        },
+                        enabled = party.mobile.isNotBlank(),
+                        modifier = Modifier.width(110.dp).height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Call,
+                            contentDescription = "Call party",
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Call", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            val phone = party.mobile.trim()
+                            if (phone.isNotBlank()) {
+                                context.startActivity(
+                                    Intent(
+                                        Intent.ACTION_DIAL,
+                                        Uri.parse("tel:" + Uri.encode(phone))
+                                    )
+                                )
+                            }
+                        },
+                        enabled = party.mobile.isNotBlank(),
+                        modifier = Modifier.weight(1f).height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Call,
+                            contentDescription = "Call party",
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Call", style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
 
-                if (!party.isStudent) {
                     OutlinedButton(
                         onClick = onSendReport,
                         enabled = balance > 0.0 &&
@@ -3351,7 +3381,7 @@ private fun TransactionComposer(
                         onTypeChange(EntryType.DEBIT)
                     },
                     label = {
-                        Text(if (isStudent) "Receive" else "You Got", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                        Text(if (isStudent) "Received" else "You Got", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     }
                 )
 
@@ -4635,7 +4665,7 @@ private fun TransactionCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isStudent) { if (isCredit) "Record" else "Receive" } else { if (isCredit) "You Gave" else "You Got" },
+                        text = if (isStudent) { if (isCredit) "Record" else "Received" } else { if (isCredit) "You Gave" else "You Got" },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )

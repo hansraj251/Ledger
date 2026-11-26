@@ -1,5 +1,6 @@
 package com.ledger.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Surface
 import androidx.compose.foundation.shape.CircleShape
@@ -108,6 +109,10 @@ fun AttendanceScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { loadOwnerReport() }
 
     val activeStaff = selectedStaff
+
+    BackHandler(enabled = selectedStaff != null) {
+        selectedStaff = null
+    }
 
     staffPendingDelete?.let { staffToDelete ->
         AlertDialog(
@@ -362,7 +367,7 @@ fun AttendanceScreen(onBack: () -> Unit) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(vertical = 8.dp),
                             shape = RoundedCornerShape(18.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = Color.White

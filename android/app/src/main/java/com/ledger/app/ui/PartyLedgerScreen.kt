@@ -1422,6 +1422,7 @@ var requestOpenSellDialog by remember { mutableStateOf(false) }
         editingEntry?.let { entry ->
             EditTransactionDialog(
                 entry = entry,
+                isStudent = party.isStudent,
                 hasSettlementHistory = uiState.settlements.any {
                     it.transactionId == entry.id
                 },
@@ -1743,7 +1744,11 @@ private fun PartyHeader(
             )
 
             Text(
-                text = party.mobile.ifBlank { "Customer / supplier" },
+                text = if (party.isStudent) {
+                    party.mobile.ifBlank { "Student" }
+                } else {
+                    party.mobile.ifBlank { "Customer / supplier" }
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1807,6 +1812,7 @@ private fun PartyHeader(
 @Composable
 private fun EditTransactionDialog(
     entry: LedgerEntryEntity,
+    isStudent: Boolean = false,
     hasSettlementHistory: Boolean,
     onDismiss: () -> Unit,
     onSettle: () -> Unit,
@@ -1908,7 +1914,7 @@ private fun EditTransactionDialog(
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(15.dp)
                     )
 
-                    if (showInterestInput) {
+                    if (!isStudent && showInterestInput) {
                         OutlinedTextField(
                             value = interestRateText,
                             onValueChange = { value ->
@@ -1950,7 +1956,7 @@ private fun EditTransactionDialog(
                             selectedType = EntryType.CREDIT
                         },
                         label = {
-                            Text("You Gave")
+                            Text(if (isStudent) "Record" else "You Gave")
                         },
                         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                             containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
@@ -1973,7 +1979,7 @@ private fun EditTransactionDialog(
                             selectedType = EntryType.DEBIT
                         },
                         label = {
-                            Text("You Got")
+                            Text(if (isStudent) "Receive" else "You Got")
                         },
                         colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                             containerColor = androidx.compose.ui.graphics.Color(0xFFF1F5F9),
@@ -1989,7 +1995,7 @@ private fun EditTransactionDialog(
                         ),
                         modifier = Modifier.weight(1f)
                     )
-                    if (!hideInterestButton) {
+                    if (!isStudent && !hideInterestButton) {
 FilterChip(
                         selected = interestRate > 0.0,
                         onClick = { showInterestInput = !showInterestInput },
@@ -2165,7 +2171,7 @@ FilterChip(
                                     selectedType,
                                     note.trim(),
                                     transactionDate,
-                                    interestRate
+                                    if (isStudent) 0.0 else interestRate
                                 )
                             }
                         },
@@ -2529,26 +2535,28 @@ Spacer(
                     Text("Call", style = MaterialTheme.typography.labelSmall, maxLines = 1)
                 }
 
-                OutlinedButton(
-                    onClick = onSendReport,
-                    enabled = balance > 0.0 &&
-                        party.mobile.isNotBlank() &&
-                        !isSharingReport,
-                    modifier = Modifier.weight(1f).height(34.dp),
-                    contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Message,
-                        contentDescription = "Send party report link",
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        if (isSharingReport) "Preparing..." else "Message",
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
-                    )
+                if (!party.isStudent) {
+                    OutlinedButton(
+                        onClick = onSendReport,
+                        enabled = balance > 0.0 &&
+                            party.mobile.isNotBlank() &&
+                            !isSharingReport,
+                        modifier = Modifier.weight(1f).height(34.dp),
+                        contentPadding = PaddingValues(horizontal = 3.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Message,
+                            contentDescription = "Send party report link",
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            if (isSharingReport) "Preparing..." else "Message",
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
 
@@ -3287,12 +3295,14 @@ private fun TransactionComposer(
                     )
 
                     Text(
-                        text = "Record money received or paid",
+                        text = if (isStudent) "Record fees received or paid"
+                            else "Record money received or paid",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
+                if (!isStudent) {
                 Spacer(modifier = Modifier.weight(1f))
 
                 Switch(
@@ -3317,6 +3327,7 @@ private fun TransactionComposer(
                         .scale(0.80f)
                         .height(36.dp)
                 )
+                }
             }
 
             Row(

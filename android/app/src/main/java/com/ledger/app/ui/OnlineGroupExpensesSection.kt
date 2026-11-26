@@ -1586,10 +1586,14 @@ fun OnlineGroupExpensesSection(
 
                     OutlinedButton(
                         onClick = { showPaidByDialog = true },
-                        enabled = !busy && totalForPaidBy > 0.0 &&
-                            (if (settlementMode) selectedIds.size == 1 &&
-                                joinedMembers.any { it.id !in selectedIds }
-                            else youMember != null),
+                        enabled = !busy && (
+                            if (settlementMode) {
+                                selectedIds.size == 1 &&
+                                    settlementPayerMemberIds.isNotEmpty()
+                            } else {
+                                totalForPaidBy > 0.0 && youMember != null
+                            }
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp)
                     ) {

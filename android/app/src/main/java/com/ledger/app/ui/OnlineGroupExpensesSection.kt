@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.GroupAdd
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -1177,7 +1179,11 @@ fun OnlineGroupExpensesSection(
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.GroupAdd,
+                            imageVector = if (settlementMode) {
+                                Icons.Outlined.Payments
+                            } else {
+                                Icons.Outlined.ReceiptLong
+                            },
                             contentDescription = null,
                             modifier = Modifier.padding(11.dp).size(24.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer

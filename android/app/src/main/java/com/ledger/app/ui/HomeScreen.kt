@@ -8,6 +8,7 @@ import com.ledger.app.cloudgroup.CloudGroupCache
 import com.ledger.app.cloudgroup.CloudGroupBalanceCalculator
 import com.ledger.app.cloudgroup.CloudSupabaseRemoteDataSource
 import com.ledger.app.attendance.AttendanceOwnerRepository
+import com.ledger.app.attendance.AttendanceInviteRecord
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,8 +130,12 @@ fun HomeScreen(
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
     onDriveConnectionRequired: () -> Unit = {},
     onAttendanceClick: () -> Unit = {},
+    showOwnerAttendanceReport: Boolean = false,
     hasAttendanceAccess: Boolean = false,
     onStaffAttendanceClick: () -> Unit = {},
+    pendingAttendanceInvites: List<AttendanceInviteRecord> = emptyList(),
+    attendanceInviteBusy: Boolean = false,
+    onAttendanceInviteAccept: (String) -> Unit = {},
 ) {
     var profileName by rememberSaveable {
         mutableStateOf("")
@@ -2031,13 +2036,100 @@ item {
                 }
             }
 
-            item(key = "owner-attendance-report-entry") {
-                OutlinedButton(
-                    onClick = onAttendanceClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text("Attendance Report")
+            if (showOwnerAttendanceReport) {
+                item(key = "owner-attendance-report-entry") {
+                    OutlinedButton(
+                        onClick = onAttendanceClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Attendance Report")
+                    }
+                }
+            }
+
+            if (pendingAttendanceInvites.isNotEmpty()) {
+                items(
+                    items = pendingAttendanceInvites,
+                    key = { "attendance-invite-${it.staffId}" }
+                ) { invite ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.PersonAdd,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(12.dp)
+                                    )
+                                }
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                                ) {
+                                    Text(
+                                        text = "Attendance Invitation",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "You are invited as ${invite.displayName}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "From ${invite.ownerName}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = invite.ownerEmail,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Accept this request to enable Staff Attendance on your Home screen.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(
+                                onClick = { onAttendanceInviteAccept(invite.staffId) },
+                                enabled = !attendanceInviteBusy,
+                                modifier = Modifier.align(Alignment.End),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                if (attendanceInviteBusy) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text("Accept Invitation")
+                            }
+                        }
+                    }
                 }
             }
 

@@ -150,7 +150,7 @@ fun StaffFormDialog(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
-                            text = "Staff must sign in with this same Google account to mark attendance.",
+                            text = "An attendance invitation will be sent to this Google account. Staff must accept it before attendance is enabled.",
                             color = Color(0xFF666666),
                             fontSize = 11.sp
                         )

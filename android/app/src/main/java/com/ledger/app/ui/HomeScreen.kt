@@ -2471,10 +2471,6 @@ title = { Text("Delete Party?") },
                         Row(
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Student",
-                                style = MaterialTheme.typography.labelMedium
-                            )
                             Spacer(modifier = Modifier.width(6.dp))
                             androidx.compose.material3.Switch(
                                 checked = isStudentMode,
@@ -2496,41 +2492,43 @@ title = { Text("Delete Party?") },
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    OutlinedButton(
-                        onClick = {
-                            contactPicker.launch(
-                                android.content.Intent(
-                                    android.content.Intent.ACTION_PICK,
-                                    android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                    if (!isStudentMode) {
+                        OutlinedButton(
+                            onClick = {
+                                contactPicker.launch(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_PICK,
+                                        android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                                    )
                                 )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 8.dp,
+                                vertical = 0.dp
+                            ),
+                            enabled = !isSavingParty,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PersonAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
                             )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            horizontal = 8.dp,
-                            vertical = 0.dp
-                        ),
-                        enabled = !isSavingParty,
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PersonAdd,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            "Add from Contacts",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "Add from Contacts",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     OutlinedTextField(
                         value = partyName,
@@ -2668,7 +2666,7 @@ title = { Text("Delete Party?") },
                                 )
                             } else {
                                 Text(
-                                    text = if (isStudentMode) "Create Student" else "Create",
+                                    text = "Add",
                                     maxLines = 1,
                                     softWrap = false,
                                     fontWeight = FontWeight.Bold
@@ -3270,13 +3268,13 @@ private fun PartyCard(
 
                 if (balance > 0.0) {
                     Text(
-                        text = "You will get",
+                        text = if (party.isStudent) "Pending" else "You will get",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFFC62828)
                     )
                 } else if (balance < 0.0) {
                     Text(
-                        text = "You will give",
+                        text = if (party.isStudent) "Excess Paid" else "You will give",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF2E7D32)
                     )

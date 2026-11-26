@@ -2057,10 +2057,15 @@ FilterChip(
 
                 OutlinedTextField(
                     value = note,
-                    onValueChange = { note = it },
+                    onValueChange = { note = it.take(20) },
                     modifier = Modifier.weight(1.15f),
                     singleLine = true,
-                    label = { Text("Note") },
+                    label = {
+                        Text(
+                            if (isStudent && selectedType == EntryType.CREDIT) "Fee, etc."
+                            else "Note"
+                        )
+                    },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Outlined.Edit,
@@ -2167,16 +2172,27 @@ FilterChip(
 
                     Button(
                         onClick = {
-                            val parsedAmount = amount.toDoubleOrNull()
+                            if (isStudent &&
+                                selectedType == EntryType.CREDIT &&
+                                note.isBlank()
+                            ) {
+                                Toast.makeText(
+                                    editDialogContext,
+                                    "Enter fee details.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                val parsedAmount = amount.toDoubleOrNull()
 
-                            if (parsedAmount != null && parsedAmount > 0.0) {
-                                onSave(
-                                    parsedAmount,
-                                    selectedType,
-                                    note.trim(),
-                                    transactionDate,
-                                    if (isStudent) 0.0 else interestRate
-                                )
+                                if (parsedAmount != null && parsedAmount > 0.0) {
+                                    onSave(
+                                        parsedAmount,
+                                        selectedType,
+                                        note.trim(),
+                                        transactionDate,
+                                        if (isStudent) 0.0 else interestRate
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier
@@ -2954,7 +2970,7 @@ title = { Text("Delete interest record?") },
 
                             OutlinedTextField(
                                 value = noteText,
-                                onValueChange = { noteText = it },
+                                onValueChange = { noteText = it.take(20) },
                                 modifier = Modifier.weight(1.15f),
                                 singleLine = true,
                                 label = { Text("Note") },
@@ -3608,11 +3624,14 @@ FilterChip(
 
             OutlinedTextField(
                 value = note,
-                onValueChange = onNoteChange,
+                onValueChange = { onNoteChange(it.take(20)) },
                 modifier = Modifier.weight(1.15f),
                 singleLine = true,
                 label = {
-                    Text("Note")
+                    Text(
+                        if (isStudent && selectedType == EntryType.CREDIT) "Fee, etc."
+                        else "Note"
+                    )
                 },
                 leadingIcon = {
                     Icon(
@@ -3755,7 +3774,16 @@ FilterChip(
 
             Button(
                 onClick = {
-                    if (!isStudent && emiEnabled &&
+                    if (isStudent &&
+                        selectedType == EntryType.CREDIT &&
+                        note.isBlank()
+                    ) {
+                        Toast.makeText(
+                            context,
+                            "Enter fee details.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else if (!isStudent && emiEnabled &&
                         (interestRateText.isBlank() || interestRate <= 0.0)
                     ) {
                         Toast.makeText(
@@ -4665,7 +4693,15 @@ private fun TransactionCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isStudent) { if (isCredit) "Record" else "Received" } else { if (isCredit) "You Gave" else "You Got" },
+                        text = if (isStudent && isCredit) {
+                            entry.note.ifBlank { "Record" }
+                        } else if (isStudent) {
+                            "Received"
+                        } else if (isCredit) {
+                            "You Gave"
+                        } else {
+                            "You Got"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -4860,7 +4896,7 @@ val accruedInterest = if (emiSchedules.isEmpty()) {
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (entry.note.isNotBlank()) {
+                    if (entry.note.isNotBlank() && !(isStudent && isCredit)) {
                         Text(
                             text = entry.note,
                             style = MaterialTheme.typography.bodySmall,

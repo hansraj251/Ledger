@@ -257,8 +257,32 @@ class MainActivity : ComponentActivity() {
 
             val attendanceRepository = remember { AttendanceRepository() }
             val attendanceAuthScope = androidx.compose.runtime.rememberCoroutineScope()
-            var attendanceHasOwnerReportEntries by remember { mutableStateOf(false) }
-            var attendanceHasLinkedStaff by remember { mutableStateOf(false) }
+            val attendanceCachePrefs = remember {
+                getSharedPreferences("ledger_attendance_home_cache", MODE_PRIVATE)
+            }
+            // Render the last account's cached card visibility immediately. Once the
+            // persisted Ledger Online session is restored, its user ID selects the
+            // correct account-specific cache before a background refresh starts.
+            val lastAttendanceCacheUserId = remember {
+                attendanceCachePrefs.getString("last_user_id", null)
+            }
+            var attendanceCacheUserId by remember {
+                mutableStateOf(lastAttendanceCacheUserId)
+            }
+            var attendanceHasOwnerReportEntries by remember {
+                mutableStateOf(
+                    lastAttendanceCacheUserId?.let {
+                        attendanceCachePrefs.getBoolean("owner_$it", false)
+                    } ?: false
+                )
+            }
+            var attendanceHasLinkedStaff by remember {
+                mutableStateOf(
+                    lastAttendanceCacheUserId?.let {
+                        attendanceCachePrefs.getBoolean("staff_$it", false)
+                    } ?: false
+                )
+            }
             var attendancePendingInvites by remember {
                 mutableStateOf<List<AttendanceInviteRecord>>(emptyList())
             }
@@ -266,7 +290,7 @@ class MainActivity : ComponentActivity() {
             var attendanceRefreshQueued by remember { mutableStateOf(false) }
             var attendanceAuthError by remember { mutableStateOf<String?>(null) }
 
-            suspend fun refreshAttendanceForOnlineAccount() {
+            suspend fun refreshAttendanceForOnlineAccount(expectedUserId: String) {
                 if (attendanceAuthBusy) {
                     attendanceRefreshQueued = true
                     return
@@ -275,21 +299,31 @@ class MainActivity : ComponentActivity() {
                 attendanceAuthBusy = true
                 attendanceAuthError = null
                 try {
-                    // HomeScreen restores the Ledger Online session before invoking
-                    // this refresh. Read the authenticated account only afterwards.
+                    // Do not allow a response for a previous account to overwrite
+                    // the currently selected account's cards or local cache.
+                    if (attendanceRepository.currentOnlineAccountUserId() != expectedUserId) {
+                        return
+                    }
+
                     val email = attendanceRepository.currentOnlineAccountEmail()
                     if (email.isNullOrBlank()) {
-                        attendanceHasOwnerReportEntries = false
-                        attendanceHasLinkedStaff = false
-                        attendancePendingInvites = emptyList()
+                        if (attendanceRepository.currentOnlineAccountUserId() == expectedUserId) {
+                            attendanceHasOwnerReportEntries = false
+                            attendanceHasLinkedStaff = false
+                            attendancePendingInvites = emptyList()
+                            attendanceCachePrefs.edit()
+                                .putBoolean("owner_$expectedUserId", false)
+                                .putBoolean("staff_$expectedUserId", false)
+                                .apply()
+                        }
                     } else {
                         attendanceRepository.claimStaffLinks()
-                        attendancePendingInvites = attendanceRepository.fetchMyInvites()
-                        attendanceHasLinkedStaff =
+                        val latestInvites = attendanceRepository.fetchMyInvites()
+                        val hasLinkedStaff =
                             attendanceRepository.fetchMyStaffForHomeCard().isNotEmpty()
 
                         val isOwner = attendanceRepository.hasOwnerAttendanceAccess()
-                        attendanceHasOwnerReportEntries = isOwner &&
+                        val hasOwnerReportEntries = isOwner &&
                             attendanceRepository.fetchOwnerStaffForReport().any { staff ->
                                 staff.isActive && (
                                     (staff.linkStatus == "linked" &&
@@ -298,19 +332,33 @@ class MainActivity : ComponentActivity() {
                                         staff.approvalStatus == "pending")
                                 )
                             }
+
+                        // Re-check identity after all requests; ignore stale results
+                        // if the user switched Ledger Online accounts mid-refresh.
+                        if (attendanceRepository.currentOnlineAccountUserId() == expectedUserId) {
+                            attendancePendingInvites = latestInvites
+                            attendanceHasLinkedStaff = hasLinkedStaff
+                            attendanceHasOwnerReportEntries = hasOwnerReportEntries
+                            attendanceCachePrefs.edit()
+                                .putString("last_user_id", expectedUserId)
+                                .putBoolean("owner_$expectedUserId", hasOwnerReportEntries)
+                                .putBoolean("staff_$expectedUserId", hasLinkedStaff)
+                                .apply()
+                        }
                     }
                 } catch (error: Exception) {
-                    attendanceHasOwnerReportEntries = false
-                    attendanceHasLinkedStaff = false
-                    attendancePendingInvites = emptyList()
+                    // Keep the cached card visibility on network/auth refresh failure.
                     attendanceAuthError =
                         error.message ?: "Unable to refresh attendance access."
                 } finally {
                     attendanceAuthBusy = false
                     if (attendanceRefreshQueued) {
                         attendanceRefreshQueued = false
-                        attendanceAuthScope.launch {
-                            refreshAttendanceForOnlineAccount()
+                        val userId = attendanceCacheUserId
+                        if (!userId.isNullOrBlank()) {
+                            attendanceAuthScope.launch {
+                                refreshAttendanceForOnlineAccount(userId)
+                            }
                         }
                     }
                 }
@@ -967,14 +1015,34 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             },
                             onDriveConnectionRequired = { connectGoogleDrive() },
                             onAttendanceClick = { showAttendanceScreen = true },
-                            onOnlineAccountSessionReady = {
-                                attendanceAuthScope.launch {
-                                    refreshAttendanceForOnlineAccount()
+                            onOnlineAccountSessionReady = { userId ->
+                                attendanceCacheUserId = userId
+                                if (userId.isNullOrBlank()) {
+                                    attendanceHasOwnerReportEntries = false
+                                    attendanceHasLinkedStaff = false
+                                    attendancePendingInvites = emptyList()
+                                    attendanceCachePrefs.edit().remove("last_user_id").apply()
+                                } else {
+                                    // Swap to this account's cached state immediately;
+                                    // refreshAttendanceForOnlineAccount runs asynchronously.
+                                    attendanceHasOwnerReportEntries =
+                                        attendanceCachePrefs.getBoolean("owner_$userId", false)
+                                    attendanceHasLinkedStaff =
+                                        attendanceCachePrefs.getBoolean("staff_$userId", false)
+                                    attendanceCachePrefs.edit()
+                                        .putString("last_user_id", userId)
+                                        .apply()
+                                    attendanceAuthScope.launch {
+                                        refreshAttendanceForOnlineAccount(userId)
+                                    }
                                 }
                             },
                             onAttendanceDataChanged = {
-                                attendanceAuthScope.launch {
-                                    refreshAttendanceForOnlineAccount()
+                                val userId = attendanceCacheUserId
+                                if (!userId.isNullOrBlank()) {
+                                    attendanceAuthScope.launch {
+                                        refreshAttendanceForOnlineAccount(userId)
+                                    }
                                 }
                             },
                             showOwnerAttendanceReport = attendanceHasOwnerReportEntries,
@@ -988,20 +1056,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                     attendanceAuthError = null
                                     try {
                                         attendanceRepository.acceptMyInvite(staffId)
-                                        attendanceRepository.claimStaffLinks()
                                         attendancePendingInvites = attendanceRepository.fetchMyInvites()
-                                        attendanceHasLinkedStaff =
-                                            attendanceRepository.fetchMyStaffForHomeCard().isNotEmpty()
-                                        val isOwner = attendanceRepository.hasOwnerAttendanceAccess()
-                                        attendanceHasOwnerReportEntries = isOwner &&
-                                            attendanceRepository.fetchOwnerStaffForReport().any { staff ->
-                                                staff.isActive && (
-                                                    (staff.linkStatus == "linked" &&
-                                                        staff.approvalStatus == "accepted") ||
-                                                    (staff.linkStatus == "pending" &&
-                                                        staff.approvalStatus == "pending")
-                                                )
-                                            }
+                                        val userId = attendanceCacheUserId
+                                        if (!userId.isNullOrBlank()) {
+                                            refreshAttendanceForOnlineAccount(userId)
+                                        }
                                     } catch (error: Exception) {
                                         val message =
                                             error.message ?: "Unable to accept attendance invitation."

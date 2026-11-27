@@ -130,7 +130,7 @@ fun HomeScreen(
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
     onDriveConnectionRequired: () -> Unit = {},
     onAttendanceClick: () -> Unit = {},
-    onOnlineAccountSessionReady: () -> Unit = {},
+    onOnlineAccountSessionReady: (String?) -> Unit = {},
     onAttendanceDataChanged: () -> Unit = {},
     showOwnerAttendanceReport: Boolean = false,
     hasAttendanceAccess: Boolean = false,
@@ -367,7 +367,7 @@ fun HomeScreen(
                     cloudUser = restoredUser
                     // Attendance must wait until the persisted Ledger Online
                     // account has been restored from Supabase storage.
-                    onOnlineAccountSessionReady()
+                    onOnlineAccountSessionReady(restoredUser?.userId)
 
                     val latestGroups = if (restoredUser != null) {
                         withContext(Dispatchers.IO) {
@@ -2280,7 +2280,8 @@ item {
                 visibleGroups.isEmpty() &&
                 visibleOnlineGroups.isEmpty() &&
                 visibleStaff.isEmpty() &&
-                !isOnlineGroupsLoading
+                !isOnlineGroupsLoading &&
+                uiState.searchQuery.isNotBlank()
             ) {
                 item {
                     EmptyPartyState(

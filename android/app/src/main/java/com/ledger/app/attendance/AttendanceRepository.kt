@@ -60,6 +60,9 @@ class AttendanceRepository {
     suspend fun currentOnlineAccountEmail(): String? =
         onlineClient.auth.currentUserOrNull()?.email
 
+    suspend fun currentOnlineAccountUserId(): String? =
+        onlineClient.auth.currentUserOrNull()?.id
+
     suspend fun ownerSignedIn(): Boolean =
         onlineClient.auth.currentUserOrNull() != null
 

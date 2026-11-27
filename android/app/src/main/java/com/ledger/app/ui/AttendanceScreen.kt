@@ -1,5 +1,10 @@
 package com.ledger.app.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Surface
@@ -8,6 +13,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +43,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,11 +58,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ledger.app.attendance.AttendanceRecord
 import com.ledger.app.attendance.AttendanceMarkRequest
 import com.ledger.app.attendance.AttendanceRepository
 import com.ledger.app.attendance.AttendanceStaffRecord
+import com.ledger.app.attendance.readAttendanceLocation
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -65,6 +76,7 @@ import java.time.format.DateTimeFormatter
 fun AttendanceScreen(onBack: () -> Unit) {
     val repository = remember { AttendanceRepository() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -73,6 +85,10 @@ fun AttendanceScreen(onBack: () -> Unit) {
     var ownerRecords by remember { mutableStateOf<List<AttendanceRecord>>(emptyList()) }
     var ownerPendingRequests by remember { mutableStateOf<List<AttendanceMarkRequest>>(emptyList()) }
     var showVerificationSettings by remember { mutableStateOf(false) }
+    var ownerVerificationMode by remember { mutableStateOf("owner_approval") }
+    var gpsLatitude by remember { mutableStateOf<Double?>(null) }
+    var gpsLongitude by remember { mutableStateOf<Double?>(null) }
+    var gpsRadiusMeters by remember { mutableStateOf(200f) }
     var ownerLoaded by remember { mutableStateOf(false) }
     var selectedStaff by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
     var staffPendingDelete by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
@@ -87,6 +103,12 @@ fun AttendanceScreen(onBack: () -> Unit) {
             }
             val allOwnerStaff = repository.fetchOwnerStaffForReport()
                 .filter { it.isActive }
+            val ownerWorkplace = repository.fetchOwnerWorkplace()
+            val loadedVerificationMode = ownerWorkplace?.verificationMode ?: "owner_approval"
+            gpsLatitude = ownerWorkplace?.gpsLatitude
+            gpsLongitude = ownerWorkplace?.gpsLongitude
+            gpsRadiusMeters = (ownerWorkplace?.attendanceRadiusM ?: 200).toFloat()
+            ownerVerificationMode = loadedVerificationMode
 
             ownerStaff = allOwnerStaff
                 .filter {
@@ -109,6 +131,106 @@ fun AttendanceScreen(onBack: () -> Unit) {
         } finally {
             busy = false
         }
+    }
+
+    suspend fun saveOwnerGpsLocation() {
+        busy = true
+        error = null
+        try {
+            val fix = readAttendanceLocation(context)
+                ?: error("Unable to get workplace location. Enable Location and try again.")
+            check(!fix.isMock) { "Mock location cannot be saved as the workplace location." }
+            check(fix.accuracyMeters <= 50.0) {
+                "GPS accuracy is ${fix.accuracyMeters.toInt()} m. Move to an open area and try again."
+            }
+            repository.setOwnerGpsSettings(
+                fix.latitude,
+                fix.longitude,
+                gpsRadiusMeters.toInt().coerceIn(50, 300)
+            )
+            gpsLatitude = fix.latitude
+            gpsLongitude = fix.longitude
+            error = null
+        } catch (e: Exception) {
+            error = e.message ?: "Unable to save workplace location."
+        } finally {
+            busy = false
+        }
+    }
+
+    suspend fun saveOwnerGpsRadius() {
+        val latitude = gpsLatitude
+        val longitude = gpsLongitude
+        check(latitude != null && longitude != null) {
+            "Set the workplace location first."
+        }
+        repository.setOwnerGpsSettings(
+            latitude,
+            longitude,
+            gpsRadiusMeters.toInt().coerceIn(50, 300)
+        )
+    }
+
+    val ownerGpsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        val hasLocationPermission =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (hasLocationPermission) {
+            scope.launch { saveOwnerGpsLocation() }
+        } else {
+            error = "Location permission is required to set the workplace location."
+        }
+    }
+
+    fun requestOwnerGpsLocation() {
+        val required = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        val missing = required.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            scope.launch { saveOwnerGpsLocation() }
+        } else {
+            ownerGpsPermissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    suspend fun applyOwnerVerificationMode(mode: String) {
+        require(mode == "owner_approval" || mode == "gps_auto")
+        busy = true
+        error = null
+        try {
+            if (mode == "gps_auto") {
+                val workplace = repository.fetchOwnerWorkplace()
+                    ?: error("Attendance workplace was not found for this owner account.")
+                val workplaceLatitude = workplace.gpsLatitude
+                    ?: error("Set the workplace GPS location before enabling GPS Attendance.")
+                val workplaceLongitude = workplace.gpsLongitude
+                    ?: error("Set the workplace GPS location before enabling GPS Attendance.")
+                check(workplace.attendanceRadiusM in 50..300) {
+                    "Set a valid attendance radius between 50 and 300 metres."
+                }
+                repository.setOwnerGpsSettings(
+                    workplaceLatitude,
+                    workplaceLongitude,
+                    gpsRadiusMeters.toInt().coerceIn(50, 300)
+                )
+            }
+            repository.setOwnerAttendanceVerificationMode(mode)
+            ownerVerificationMode = mode
+        } catch (e: Exception) {
+            error = e.message ?: "Unable to update attendance verification."
+        } finally {
+            busy = false
+        }
+    }
+
+    fun selectOwnerVerificationMode(mode: String) {
+        scope.launch { applyOwnerVerificationMode(mode) }
     }
 
     LaunchedEffect(Unit) { loadOwnerReport() }
@@ -208,24 +330,105 @@ fun AttendanceScreen(onBack: () -> Unit) {
 
     if (showVerificationSettings) {
         AlertDialog(
-            onDismissRequest = { showVerificationSettings = false },
+            onDismissRequest = { if (!busy) showVerificationSettings = false },
             title = { Text("Attendance Verification") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("On Approval of Owner", fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Workplace GPS Location", fontWeight = FontWeight.Bold)
                     Text(
-                        "Staff attendance is recorded only after you approve the request in Attendance Report.",
-                        color = Color(0xFF667085)
-                    )
-                    Text(
-                        "Bluetooth Verification will be available in a future update.",
+                        if (gpsLatitude != null && gpsLongitude != null)
+                            "Location saved · ${"%.5f".format(gpsLatitude)}, ${"%.5f".format(gpsLongitude)}"
+                        else "Workplace location not set",
                         color = Color(0xFF667085),
                         style = MaterialTheme.typography.bodySmall
                     )
+                    OutlinedButton(
+                        onClick = { requestOwnerGpsLocation() },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Set / Update Current Workplace Location") }
+                    Text("Attendance radius: ${gpsRadiusMeters.toInt()} metres", fontWeight = FontWeight.SemiBold)
+                    Slider(
+                        value = gpsRadiusMeters,
+                        onValueChange = { gpsRadiusMeters = it },
+                        valueRange = 50f..300f,
+                        steps = 24,
+                        enabled = !busy
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                busy = true
+                                error = null
+                                try {
+                                    saveOwnerGpsRadius()
+                                } catch (e: Exception) {
+                                    error = e.message ?: "Unable to save attendance radius."
+                                } finally {
+                                    busy = false
+                                }
+                            }
+                        },
+                        enabled = !busy && gpsLatitude != null && gpsLongitude != null,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Save GPS Settings") }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) {
+                            selectOwnerVerificationMode("owner_approval")
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = ownerVerificationMode == "owner_approval",
+                            onClick = { selectOwnerVerificationMode("owner_approval") },
+                            enabled = !busy
+                        )
+                        Column {
+                            Text("Owner Approval", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Staff requests attendance. It is recorded only after you approve it.",
+                                color = Color(0xFF667085),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) {
+                            selectOwnerVerificationMode("gps_auto")
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = ownerVerificationMode == "gps_auto",
+                            onClick = { selectOwnerVerificationMode("gps_auto") },
+                            enabled = !busy
+                        )
+                        Column {
+                            Text("GPS – Auto Approved", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Inside the saved workplace radius: automatic Present. Outside or uncertain GPS: Owner Approval.",
+                                color = Color(0xFF667085),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                    if (ownerVerificationMode == "gps_auto") {
+                        Text(
+                            "Staff must allow location access while marking attendance. Poor accuracy, unavailable GPS or mock location goes to Owner Approval.",
+                            color = Color(0xFF667085),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showVerificationSettings = false }) { Text("Done") }
+                TextButton(onClick = { showVerificationSettings = false }, enabled = !busy) {
+                    Text("Done")
+                }
             },
             containerColor = Color.White
         )
@@ -372,6 +575,31 @@ fun AttendanceScreen(onBack: () -> Unit) {
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFF667085)
                                 )
+                                request.locationReason?.let { reason ->
+                                    val reasonLabel = when (reason) {
+                                        "outside_geofence" -> "Staff location is outside the workplace radius."
+                                        "near_boundary" -> "GPS position is too close to the radius boundary."
+                                        "low_accuracy" -> "GPS accuracy is not sufficient for automatic attendance."
+                                        "location_unavailable" -> "Staff location could not be obtained."
+                                        "location_permission_denied" -> "Staff denied location permission."
+                                        "mock_location_detected" -> "Mock location was detected."
+                                        else -> "GPS verification requires owner review."
+                                    }
+                                    Text(
+                                        reasonLabel,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFB54708)
+                                    )
+                                }
+                                if (request.locationDistanceM != null || request.locationAccuracyM != null) {
+                                    Text(
+                                        "Distance: ${request.locationDistanceM?.toInt()?.let { "$it m" } ?: "Unavailable"} · " +
+                                            "Accuracy: ${request.locationAccuracyM?.toInt()?.let { "$it m" } ?: "Unavailable"} · " +
+                                            "Allowed: ${request.locationRadiusM?.let { "$it m" } ?: "—"}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF667085)
+                                    )
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                     Button(
                                         onClick = {
@@ -937,12 +1165,16 @@ private fun OwnerStaffAttendanceScreen(
 fun StaffAttendanceScreen(onBack: () -> Unit) {
     val repository = remember { AttendanceRepository() }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<String?>(null) }
     var myStaff by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
     var myRecords by remember { mutableStateOf<List<AttendanceRecord>>(emptyList()) }
     var myRequests by remember { mutableStateOf<List<AttendanceMarkRequest>>(emptyList()) }
+    var myVerificationModes by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var pendingStaffAttendanceId by remember { mutableStateOf<String?>(null) }
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember {
         mutableStateOf(LocalDate.now(ZoneId.of("Asia/Kolkata")))
@@ -958,6 +1190,10 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                 ?: kotlin.error("Connect your Google account from the Ledger Online card in Profile.")
             repository.claimStaffLinks()
             myStaff = repository.fetchMyStaff()
+            myVerificationModes = myStaff.associate { staff ->
+                staff.id to runCatching { repository.fetchMyAttendanceVerificationMode(staff.id) }
+                    .getOrDefault("owner_approval")
+            }
             myRecords = repository.fetchMyRecords()
             myRequests = repository.fetchMyAttendanceRequests()
             if (myStaff.isEmpty()) {
@@ -967,6 +1203,93 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
             error = e.message ?: "Unable to load staff attendance."
         } finally {
             busy = false
+        }
+    }
+
+    suspend fun markAttendanceForStaff(staffId: String) {
+        busy = true
+        error = null
+        info = null
+        try {
+            val mode = myVerificationModes[staffId] ?: "owner_approval"
+            if (mode == "gps_auto") {
+                info = null
+                val hasLocationPermission =
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                val fix = if (hasLocationPermission) {
+                    runCatching { readAttendanceLocation(context) }.getOrNull()
+                } else null
+                val locationStatus = when {
+                    !hasLocationPermission -> "permission_denied"
+                    fix == null -> "location_unavailable"
+                    else -> "captured"
+                }
+                val result = repository.submitMyGpsAttendance(
+                    staffId = staffId,
+                    latitude = fix?.latitude,
+                    longitude = fix?.longitude,
+                    accuracyMeters = fix?.accuracyMeters,
+                    locationStatus = locationStatus,
+                    isMockLocation = fix?.isMock == true
+                )
+                myRecords = repository.fetchMyRecords()
+                myRequests = repository.fetchMyAttendanceRequests()
+                info = if (result.result == "present") {
+                    "Attendance marked Present. GPS accuracy: ${result.accuracyM?.toInt() ?: 0} m."
+                } else {
+                    val reasonText = when (result.reason) {
+                        "outside_geofence" -> "Your location is outside the workplace radius."
+                        "near_boundary" -> "Your location is near the radius boundary."
+                        "low_accuracy" -> "GPS accuracy is insufficient."
+                        "location_unavailable" -> "Location could not be obtained."
+                        "location_permission_denied" -> "Location permission was denied."
+                        "mock_location_detected" -> "Mock location was detected."
+                        else -> "GPS verification needs owner review."
+                    }
+                    "$reasonText Attendance approval request has been sent to the owner."
+                }
+            } else {
+                repository.requestMyAttendance(staffId)
+                myRequests = repository.fetchMyAttendanceRequests()
+            }
+        } catch (e: Exception) {
+            error = e.message ?: "Unable to mark attendance or send approval request."
+        } finally {
+            busy = false
+        }
+    }
+
+    val staffLocationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val staffId = pendingStaffAttendanceId
+        pendingStaffAttendanceId = null
+        if (staffId != null) {
+            // Even when permission is denied, submit the attempt so the owner
+            // receives an explicit approval request with the correct reason.
+            scope.launch { markAttendanceForStaff(staffId) }
+        }
+    }
+
+    fun startStaffAttendance(staffId: String) {
+        if (myVerificationModes[staffId] == "gps_auto") {
+            val required = arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            val missing = required.filter {
+                ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+            }
+            pendingStaffAttendanceId = staffId
+            if (missing.isEmpty()) {
+                pendingStaffAttendanceId = null
+                scope.launch { markAttendanceForStaff(staffId) }
+            } else {
+                staffLocationPermissionLauncher.launch(missing.toTypedArray())
+            }
+        } else {
+            scope.launch { markAttendanceForStaff(staffId) }
         }
     }
 
@@ -1026,6 +1349,22 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                             text = message,
                             modifier = Modifier.padding(14.dp),
                             color = Color(0xFFB42318)
+                        )
+                    }
+                }
+            }
+
+            info?.let { message ->
+                item {
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF7EE)),
+                        border = BorderStroke(1.dp, Color(0xFFB7E4C7))
+                    ) {
+                        Text(
+                            text = message,
+                            modifier = Modifier.padding(14.dp),
+                            color = Color(0xFF16703A)
                         )
                     }
                 }
@@ -1130,20 +1469,7 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                             }
                             selectedDate == today -> {
                                 Button(
-                                    onClick = {
-                                        scope.launch {
-                                            busy = true
-                                            error = null
-                                            try {
-                                                repository.requestMyAttendance(staff.id)
-                                                myRequests = repository.fetchMyAttendanceRequests()
-                                            } catch (e: Exception) {
-                                                error = e.message ?: "Unable to request attendance approval."
-                                            } finally {
-                                                busy = false
-                                            }
-                                        }
-                                    },
+                                    onClick = { startStaffAttendance(staff.id) },
                                     enabled = !busy && !todayMarked,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
@@ -1151,6 +1477,7 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                     Text(
                                         when {
                                             todayMarked -> "Already Marked"
+                                            myVerificationModes[staff.id] == "gps_auto" -> "Mark Attendance"
                                             selectedRequestRejected -> "Request Approval Again"
                                             else -> "Request Attendance Approval"
                                         }

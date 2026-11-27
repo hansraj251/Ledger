@@ -9,6 +9,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class AttendanceStaffRecord(
@@ -28,7 +31,11 @@ data class AttendanceStaffRecord(
 @Serializable
 data class AttendanceWorkplaceRecord(
     val id: String,
-    @SerialName("owner_id") val ownerId: String
+    @SerialName("owner_id") val ownerId: String,
+    @SerialName("attendance_verification_mode") val verificationMode: String = "owner_approval",
+    @SerialName("gps_latitude") val gpsLatitude: Double? = null,
+    @SerialName("gps_longitude") val gpsLongitude: Double? = null,
+    @SerialName("attendance_radius_m") val attendanceRadiusM: Int = 200
 )
 
 @Serializable
@@ -59,7 +66,24 @@ data class AttendanceMarkRequest(
     @SerialName("requested_at") val requestedAt: String,
     val status: String,
     @SerialName("reviewed_by_user_id") val reviewedByUserId: String? = null,
-    @SerialName("reviewed_at") val reviewedAt: String? = null
+    @SerialName("reviewed_at") val reviewedAt: String? = null,
+    @SerialName("location_latitude") val locationLatitude: Double? = null,
+    @SerialName("location_longitude") val locationLongitude: Double? = null,
+    @SerialName("location_accuracy_m") val locationAccuracyM: Double? = null,
+    @SerialName("location_distance_m") val locationDistanceM: Double? = null,
+    @SerialName("location_radius_m") val locationRadiusM: Int? = null,
+    @SerialName("location_reason") val locationReason: String? = null
+)
+
+@Serializable
+data class GpsAttendanceResult(
+    val result: String,
+    @SerialName("request_id") val requestId: String? = null,
+    @SerialName("attendance_date") val attendanceDate: String,
+    @SerialName("distance_m") val distanceM: Double? = null,
+    @SerialName("radius_m") val radiusM: Int? = null,
+    @SerialName("accuracy_m") val accuracyM: Double? = null,
+    val reason: String? = null
 )
 
 /**
@@ -89,6 +113,91 @@ class AttendanceRepository {
             .select()
             .decodeList<AttendanceWorkplaceRecord>()
             .isNotEmpty()
+    }
+
+    suspend fun fetchOwnerWorkplace(): AttendanceWorkplaceRecord? {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        return onlineClient.from("attendance_workplaces")
+            .select()
+            .decodeList<AttendanceWorkplaceRecord>()
+            .firstOrNull()
+    }
+
+    suspend fun setOwnerAttendanceVerificationMode(mode: String) {
+        require(mode in setOf("owner_approval", "gps_auto"))
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        onlineClient.postgrest.rpc(
+            "set_owner_attendance_verification_mode",
+            buildJsonObject { put("p_mode", mode) }
+        ).decodeAs<Int>().also {
+            check(it == 1) { "Attendance verification setting could not be saved." }
+        }
+    }
+
+    suspend fun setOwnerGpsSettings(
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Int
+    ) {
+        require(latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+            "Invalid workplace GPS coordinates."
+        }
+        require(radiusMeters in 50..300) { "Attendance radius must be between 50 and 300 metres." }
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        onlineClient.postgrest.rpc(
+            "set_owner_gps_settings",
+            buildJsonObject {
+                put("p_latitude", latitude)
+                put("p_longitude", longitude)
+                put("p_radius_m", radiusMeters)
+            }
+        ).decodeAs<Int>().also {
+            check(it == 1) { "Workplace GPS settings could not be saved." }
+        }
+    }
+
+    suspend fun submitMyGpsAttendance(
+        staffId: String,
+        latitude: Double?,
+        longitude: Double?,
+        accuracyMeters: Double?,
+        locationStatus: String,
+        isMockLocation: Boolean
+    ): GpsAttendanceResult {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Staff is not signed in."
+        }
+        val args = buildJsonObject {
+            put("p_staff_id", staffId)
+            put("p_latitude", latitude?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+                ?: kotlinx.serialization.json.JsonNull)
+            put("p_longitude", longitude?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+                ?: kotlinx.serialization.json.JsonNull)
+            put("p_accuracy_m", accuracyMeters?.let { kotlinx.serialization.json.JsonPrimitive(it) }
+                ?: kotlinx.serialization.json.JsonNull)
+            put("p_location_status", locationStatus)
+            put("p_is_mock", isMockLocation)
+        }
+        return onlineClient.postgrest.rpc("submit_my_gps_attendance", args)
+            .decodeList<GpsAttendanceResult>()
+            .firstOrNull()
+            ?: error("GPS attendance result was not returned by the server.")
+    }
+
+    suspend fun fetchMyAttendanceVerificationMode(staffId: String): String {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Staff is not signed in."
+        }
+        return onlineClient.postgrest.rpc(
+            "get_my_attendance_verification_mode",
+            buildJsonObject { put("p_staff_id", staffId) }
+        ).decodeAs<String>()
     }
 
     suspend fun fetchOwnerStaff(): List<AttendanceStaffRecord> {

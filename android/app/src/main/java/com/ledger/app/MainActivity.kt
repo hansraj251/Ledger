@@ -229,12 +229,13 @@ class MainActivity : ComponentActivity() {
                         ).show()
                     }
                 },
-                onRemoteBackupNewer = { fileId, modifiedTime, accessToken ->
+                onRemoteBackupNewer = { fileId, modifiedTime, accessToken, driveAccountId ->
                     runOnUiThread {
-                        performAutomaticRemoteRestore(
+                        showRemoteBackupChoice(
                             fileId = fileId,
                             modifiedTime = modifiedTime,
-                            accessToken = accessToken
+                            accessToken = accessToken,
+                            driveAccountId = driveAccountId
                         )
                     }
                 }
@@ -1173,51 +1174,27 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
         premiumBillingManager.launchPurchase(this, accountId)
     }
 
-    private fun captureDriveAccountIdentity(accessToken: String?) {
-        if (accessToken.isNullOrBlank()) {
-            Toast.makeText(
-                this,
-                "Google Drive account verification failed. Please reconnect Drive.",
-                Toast.LENGTH_LONG
-            ).show()
-            return
-        }
-
-        DriveAccountBinding.capture(applicationContext, accessToken) {
+    private fun captureDriveAccountIdentity(
+        accessToken: String?,
+        onVerified: ((String) -> Unit)? = null
+    ) {
+        DriveAccountBinding.verifyAndCapture(applicationContext, accessToken) { result ->
             runOnUiThread {
-                if (::premiumBillingManager.isInitialized) {
-                    premiumBillingManager.refreshOwnership()
-                }
-                val verified = DriveAccountBinding.currentAccountId(applicationContext) != null
-                val callback = pendingDriveEmailChange
-                pendingDriveEmailChange = null
-                if (verified) {
-                    val email = applicationContext
-                        .getSharedPreferences(
-                            "ledger_drive_account_binding",
-                            android.content.Context.MODE_PRIVATE
-                        )
-                        .getString("drive_account_email", null)
-                        ?.takeIf { it.isNotBlank() }
-                    if (email != null) {
-                        callback?.invoke(email)
-
-                        // Start automatic sync after a changed Drive account
-                        // has been successfully verified and its email updated.
-                        if (
-                            callback != null &&
-                            ::googleDriveSyncCoordinator.isInitialized
-                        ) {
-                            googleDriveSyncCoordinator.requestAutoSync()
-                        }
+                result.onSuccess { accountId ->
+                    if (::googleDriveSyncCoordinator.isInitialized) {
+                        googleDriveSyncCoordinator.bindVerifiedAccount(accountId)
                     }
+                    if (::premiumBillingManager.isInitialized) premiumBillingManager.refreshOwnership()
+                    val email = DriveAccountBinding.currentEmail(applicationContext)
+                    val callback = pendingDriveEmailChange
+                    pendingDriveEmailChange = null
+                    if (email != null) callback?.invoke(email)
+                    onVerified?.invoke(accountId)
+                    Toast.makeText(this, "Google Drive account verified.", Toast.LENGTH_LONG).show()
+                }.onFailure {
+                    pendingDriveEmailChange = null
+                    Toast.makeText(this, "Unable to verify the Google Drive account. Please reconnect Drive.", Toast.LENGTH_LONG).show()
                 }
-                Toast.makeText(
-                    this,
-                    if (verified) "Google Drive account verified."
-                    else "Unable to verify the Google Drive account. Please reconnect Drive.",
-                    Toast.LENGTH_LONG
-                ).show()
             }
         }
     }
@@ -1267,7 +1244,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                 } else if (pendingDriveRestoreOnlyConnection) {
                     restoreFromNewDriveAccount(result.accessToken)
                 } else {
-                    captureDriveAccountIdentity(result.accessToken)
+                    captureDriveAccountIdentity(result.accessToken) {
+                        googleDriveSyncCoordinator.resume()
+                    }
                 }
             }
             .addOnFailureListener {
@@ -1290,111 +1269,49 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
         if (accessToken.isNullOrBlank()) {
             pendingDriveRestoreOnlyConnection = false
             googleDriveSyncCoordinator.onAuthorizationCancelled()
-            Toast.makeText(
-                this,
-                "Google Drive access token is unavailable.",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Google Drive access token is unavailable.", Toast.LENGTH_LONG).show()
             return
         }
-
-        Toast.makeText(
-            this,
-            "Checking Google Drive backup...",
-            Toast.LENGTH_SHORT
-        ).show()
-
-        googleDriveRestore.findBackupMetadata(accessToken) { backupResult ->
-            backupResult
-                .onSuccess { metadata ->
-                    if (metadata == null || metadata.fileId.isBlank()) {
-                        DriveAccountBinding.capture(applicationContext, accessToken) {
-                            runOnUiThread {
-                                pendingDriveRestoreOnlyConnection = false
-                                val verified =
-                                    DriveAccountBinding.currentAccountId(applicationContext) != null
-
-                                if (verified) {
-                                    if (::premiumBillingManager.isInitialized) {
-                                        premiumBillingManager.refreshOwnership()
+        Toast.makeText(this, "Verifying Google Drive account...", Toast.LENGTH_SHORT).show()
+        DriveAccountBinding.verifyAndCapture(applicationContext, accessToken) { identityResult ->
+            runOnUiThread {
+                identityResult.onSuccess { accountId ->
+                    pendingDriveRestoreOnlyConnection = false
+                    googleDriveSyncCoordinator.bindVerifiedAccount(accountId)
+                    if (::premiumBillingManager.isInitialized) premiumBillingManager.refreshOwnership()
+                    Toast.makeText(this, "Checking this account's Google Drive backup...", Toast.LENGTH_SHORT).show()
+                    googleDriveRestore.findBackupMetadata(accessToken) { backupResult ->
+                        backupResult.onSuccess { metadata ->
+                            if (metadata == null || metadata.fileId.isBlank()) {
+                                googleDriveSyncCoordinator.markNoRemoteBackupFound()
+                                Toast.makeText(this, "No backup found in this Google account. Your local data is unchanged.", Toast.LENGTH_LONG).show()
+                                return@onSuccess
+                            }
+                            Toast.makeText(this, "Backup found. Restoring...", Toast.LENGTH_LONG).show()
+                            googleDriveRestore.restore(accessToken, metadata.fileId, accountId) { restoreResult ->
+                                restoreResult.onSuccess {
+                                    if (DriveAccountBinding.currentAccountId(applicationContext) != accountId) {
+                                        googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                        Toast.makeText(this, "Drive account changed. Local database was not replaced.", Toast.LENGTH_LONG).show()
+                                        return@onSuccess
                                     }
-                                    markInitialDriveSetupComplete()
-                                    googleDriveSyncCoordinator.markNoRemoteBackupFound()
-                                    Toast.makeText(
-                                        this,
-                                        "No Google Drive backup found. Your local data is unchanged.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                } else {
+                                    replaceDatabaseAndRestart(onComplete = {}, remoteModifiedTime = metadata.modifiedTime)
+                                }.onFailure { error ->
                                     googleDriveSyncCoordinator.onAuthorizationCancelled()
-                                    Toast.makeText(
-                                        this,
-                                        "Google Drive account verification failed.",
-                                        Toast.LENGTH_LONG
-                                    ).show()
+                                    Toast.makeText(this, "Backup restore failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                                 }
                             }
+                        }.onFailure { error ->
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(this, "Unable to check Google Drive: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                         }
-                        return@onSuccess
                     }
-
-                    Toast.makeText(
-                        this,
-                        "Backup found. Restoring...",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    googleDriveRestore.restore(
-                        accessToken,
-                        metadata.fileId
-                    ) { restoreResult ->
-                        restoreResult
-                            .onSuccess {
-                                DriveAccountBinding.capture(applicationContext, accessToken) {
-                                    runOnUiThread {
-                                        pendingDriveRestoreOnlyConnection = false
-                                        val verified =
-                                            DriveAccountBinding.currentAccountId(applicationContext) != null
-
-                                        if (verified) {
-                                            if (::premiumBillingManager.isInitialized) {
-                                                premiumBillingManager.refreshOwnership()
-                                            }
-                                            replaceDatabaseAndRestart(
-                                                onComplete = {},
-                                                remoteModifiedTime = metadata.modifiedTime
-                                            )
-                                        } else {
-                                            googleDriveSyncCoordinator.onAuthorizationCancelled()
-                                            Toast.makeText(
-                                                this,
-                                                "Google Drive account verification failed. Local data was not replaced.",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                }
-                            }
-                            .onFailure { error ->
-                                pendingDriveRestoreOnlyConnection = false
-                                googleDriveSyncCoordinator.onAuthorizationCancelled()
-                                Toast.makeText(
-                                    this,
-                                    "Backup restore failed: ${error.message ?: "Unknown error"}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                    }
-                }
-                .onFailure { error ->
+                }.onFailure {
                     pendingDriveRestoreOnlyConnection = false
                     googleDriveSyncCoordinator.onAuthorizationCancelled()
-                    Toast.makeText(
-                        this,
-                        "Unable to check Google Drive: ${error.message ?: "Unknown error"}",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(this, "Google Drive account verification failed. Local data was not changed.", Toast.LENGTH_LONG).show()
                 }
+            }
         }
     }
 
@@ -1403,11 +1320,86 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
      * GoogleDriveSyncCoordinator. No direct Drive upload is started here.
      */
 
+    private fun showRemoteBackupChoice(
+        fileId: String,
+        modifiedTime: String,
+        accessToken: String,
+        driveAccountId: String
+    ) {
+        if (DriveAccountBinding.currentAccountId(applicationContext) != driveAccountId) {
+            googleDriveSyncCoordinator.pause()
+            return
+        }
+        if (isFinishing || isDestroyed) {
+            googleDriveSyncCoordinator.pause()
+            return
+        }
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Backup found in this Google Drive account")
+            .setMessage(
+                "This Google Drive account already contains a Ledger backup. " +
+                    "Choose how you want to continue.\n\n" +
+                    "Restore Backup: replaces the Ledger data currently stored on this device " +
+                    "with the selected Google Drive backup.\n\n" +
+                    "Sync Local Data: keeps the data on this device and updates the backup " +
+                    "in this Google Drive account."
+            )
+            .setPositiveButton("Restore Backup") { _, _ ->
+                if (DriveAccountBinding.currentAccountId(applicationContext) == driveAccountId) {
+                    performAutomaticRemoteRestore(
+                        fileId = fileId,
+                        modifiedTime = modifiedTime,
+                        accessToken = accessToken,
+                        driveAccountId = driveAccountId
+                    )
+                } else {
+                    googleDriveSyncCoordinator.pause()
+                    Toast.makeText(
+                        this,
+                        "Google Drive account changed. No data was modified.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("Sync Local Data") { _, _ ->
+                if (DriveAccountBinding.currentAccountId(applicationContext) == driveAccountId) {
+                    googleDriveSyncCoordinator.syncLocalDataAfterRemoteConflict()
+                    Toast.makeText(
+                        this,
+                        "Keeping local data and syncing it to this Google Drive account...",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    googleDriveSyncCoordinator.pause()
+                    Toast.makeText(
+                        this,
+                        "Google Drive account changed. No data was synced.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNeutralButton("Later") { _, _ ->
+                // Keep sync paused. The next sync attempt rechecks the remote backup.
+                googleDriveSyncCoordinator.pause()
+            }
+            .setOnCancelListener {
+                // Back/outside dismissal must never silently choose either data source.
+                googleDriveSyncCoordinator.pause()
+            }
+            .show()
+    }
+
     private fun performAutomaticRemoteRestore(
         fileId: String,
         modifiedTime: String,
-        accessToken: String
+        accessToken: String,
+        driveAccountId: String
     ) {
+        if (DriveAccountBinding.currentAccountId(applicationContext) != driveAccountId) {
+            googleDriveSyncCoordinator.onAuthorizationCancelled()
+            return
+        }
         Toast.makeText(
             this,
             "Newer Google Drive backup found. Restoring...",
@@ -1416,41 +1408,17 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
         googleDriveRestore.restore(
             accessToken = accessToken,
-            fileIdOverride = fileId
+            fileIdOverride = fileId,
+            driveAccountId = driveAccountId
         ) { restoreResult ->
             restoreResult
                 .onSuccess {
                     try {
-                        val validatedFile =
-                            googleDriveRestore.getValidatedBackupFile()
-
-                        LedgerDatabaseProvider.close()
-
-                        val databaseFile =
-                            getDatabasePath(
-                                LedgerDatabaseProvider.DATABASE_NAME
-                            )
-
-                        val walFile =
-                            File(databaseFile.path + "-wal")
-
-                        val shmFile =
-                            File(databaseFile.path + "-shm")
-
-                        val journalFile =
-                            File(databaseFile.path + "-journal")
-
-                        databaseFile.delete()
-                        walFile.delete()
-                        shmFile.delete()
-                        journalFile.delete()
-
-                        validatedFile.copyTo(
-                            databaseFile,
-                            overwrite = true
-                        )
-
-                        validatedFile.delete()
+                        if (DriveAccountBinding.currentAccountId(applicationContext) != driveAccountId) {
+                            throw IllegalStateException("Google Drive account changed during restore.")
+                        }
+                        val validatedFile = googleDriveRestore.getValidatedBackupFile()
+                        installValidatedDatabase(validatedFile)
 
                         googleDriveSyncCoordinator
                             .markRemoteBackupSynced(
@@ -1621,145 +1589,74 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
 
     private fun performGoogleDriveRestore() {
         googleDriveSyncCoordinator.pause()
-
-        Toast.makeText(
-            this,
-            "Downloading backup...",
-            Toast.LENGTH_SHORT
-        ).show()
-
-        googleDriveAuthorization
-            .authorize()
+        Toast.makeText(this, "Verifying Google Drive account...", Toast.LENGTH_SHORT).show()
+        googleDriveAuthorization.authorize()
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
-                    Toast.makeText(
-                        this,
-                        "Google Drive authorization is required. Connect Google Drive first.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
+                    Toast.makeText(this, "Google Drive authorization is required. Connect Google Drive first.", Toast.LENGTH_LONG).show()
+                    googleDriveSyncCoordinator.onAuthorizationCancelled()
                     return@addOnSuccessListener
                 }
-
                 val accessToken = result.accessToken
-
-                DriveAccountBinding.capture(applicationContext, accessToken) {
+                if (accessToken.isNullOrBlank()) {
+                    Toast.makeText(this, "Google Drive access token is unavailable.", Toast.LENGTH_LONG).show()
+                    googleDriveSyncCoordinator.onAuthorizationCancelled()
+                    return@addOnSuccessListener
+                }
+                DriveAccountBinding.verifyAndCapture(applicationContext, accessToken) { identityResult ->
                     runOnUiThread {
-                        if (::premiumBillingManager.isInitialized) {
-                            premiumBillingManager.refreshOwnership()
+                        identityResult.onSuccess { accountId ->
+                            googleDriveSyncCoordinator.bindVerifiedAccount(accountId)
+                            googleDriveRestore.findBackupMetadata(accessToken) { metadataResult ->
+                                metadataResult.onSuccess { metadata ->
+                                    if (metadata == null) {
+                                        googleDriveSyncCoordinator.markNoRemoteBackupFound()
+                                        Toast.makeText(this, "No backup found in this Google account.", Toast.LENGTH_LONG).show()
+                                        return@onSuccess
+                                    }
+                                    googleDriveRestore.restore(accessToken, metadata.fileId, accountId) { restoreResult ->
+                                        restoreResult.onSuccess {
+                                            try {
+                                                if (DriveAccountBinding.currentAccountId(applicationContext) != accountId) {
+                                                    throw IllegalStateException("Google Drive account changed during restore.")
+                                                }
+                                                installValidatedDatabase(googleDriveRestore.getValidatedBackupFile())
+                                                googleDriveSyncCoordinator.markRemoteRestoreCompleted(metadata.modifiedTime)
+                                                Toast.makeText(this, "Backup restored successfully.", Toast.LENGTH_LONG).show()
+                                                window.decorView.postDelayed({
+                                                    val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                                                    finishAffinity()
+                                                    if (launchIntent != null) {
+                                                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                                        startActivity(launchIntent)
+                                                    }
+                                                }, 500)
+                                            } catch (error: Exception) {
+                                                googleDriveSyncCoordinator.resumeAfterRemoteRestoreFailure()
+                                                Toast.makeText(this, "Restore failed: ${error.message ?: "Unable to replace database"}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }.onFailure { error ->
+                                            googleDriveSyncCoordinator.resumeAfterRemoteRestoreFailure()
+                                            Toast.makeText(this, "Restore failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }.onFailure { error ->
+                                    googleDriveSyncCoordinator.resumeAfterRemoteRestoreFailure()
+                                    Toast.makeText(this, "Unable to check Google Drive: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }.onFailure { error ->
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(this, "Google Drive account verification failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
-
-                if (accessToken.isNullOrBlank()) {
-                    Toast.makeText(
-                        this,
-                        "Google Drive access token is unavailable.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
-                    return@addOnSuccessListener
-                }
-
-                googleDriveRestore.restore(
-                    accessToken
-                ) { restoreResult ->
-                    restoreResult
-                        .onSuccess {
-                            try {
-                                val validatedFile =
-                                    googleDriveRestore.getValidatedBackupFile()
-
-                                LedgerDatabaseProvider.close()
-
-                                val databaseFile =
-                                    getDatabasePath(
-                                        LedgerDatabaseProvider.DATABASE_NAME
-                                    )
-
-                                val walFile =
-                                    File(
-                                        databaseFile.path + "-wal"
-                                    )
-
-                                val shmFile =
-                                    File(
-                                        databaseFile.path + "-shm"
-                                    )
-
-                                val journalFile =
-                                    File(
-                                        databaseFile.path + "-journal"
-                                    )
-
-                                databaseFile.delete()
-                                walFile.delete()
-                                shmFile.delete()
-                                journalFile.delete()
-
-                                validatedFile.copyTo(
-                                    databaseFile,
-                                    overwrite = true
-                                )
-
-                                validatedFile.delete()
-
-                                Toast.makeText(
-                                    this,
-                                    "Backup restored successfully.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-
-                                window.decorView.postDelayed(
-                                    {
-                                        val launchIntent =
-                                            packageManager.getLaunchIntentForPackage(
-                                                packageName
-                                            )
-
-                                        finishAffinity()
-
-                                        if (launchIntent != null) {
-                                            launchIntent.addFlags(
-                                                Intent.FLAG_ACTIVITY_NEW_TASK or
-                                                    Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                            )
-
-                                            startActivity(
-                                                launchIntent
-                                            )
-                                        }
-                                    },
-                                    500
-                                )
-                            } catch (error: Exception) {
-                                Toast.makeText(
-                                    this,
-                                    "Restore failed: ${error.message ?: "Unable to replace database"}",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                        .onFailure { error ->
-                            Toast.makeText(
-                                this,
-                                "Restore failed: ${error.message ?: "Unknown error"}",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
-                }
             }
             .addOnFailureListener { error ->
-                googleDriveSyncCoordinator.resume()
-
-                Toast.makeText(
-                    this,
-                    "Google Drive authorization failed: ${error.message ?: "Unknown error"}",
-                    Toast.LENGTH_LONG
-                ).show()
+                googleDriveSyncCoordinator.onAuthorizationCancelled()
+                Toast.makeText(this, "Google Drive authorization failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
             }
     }
-
 
     private fun isInitialDriveSetupComplete(): Boolean {
         return getSharedPreferences(
@@ -1845,138 +1742,116 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
             }
     }
 
-    private fun continueInitialGoogleDriveSetup(
-        onComplete: () -> Unit
-    ) {
-        googleDriveAuthorization
-            .authorize()
+    private fun continueInitialGoogleDriveSetup(onComplete: () -> Unit) {
+        googleDriveAuthorization.authorize()
             .addOnSuccessListener { result ->
                 if (result.hasResolution()) {
-                    try {
-                        val pendingIntent =
-                            result.pendingIntent
-
-                        if (pendingIntent == null) {
-                            Toast.makeText(
-                                this,
-                                "Google Drive authorization is required.",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            return@addOnSuccessListener
+                    val sender = result.pendingIntent?.intentSender
+                    if (sender == null) {
+                        Toast.makeText(this, "Google Drive authorization is required.", Toast.LENGTH_LONG).show()
+                    } else {
+                        try {
+                            startIntentSenderForResult(sender, GOOGLE_DRIVE_INITIAL_SETUP_REQUEST_CODE, null, 0, 0, 0)
+                        } catch (error: Exception) {
+                            Toast.makeText(this, "Unable to open Google Drive authorization.", Toast.LENGTH_LONG).show()
                         }
-
-                        startIntentSenderForResult(
-                            pendingIntent.intentSender,
-                            GOOGLE_DRIVE_INITIAL_SETUP_REQUEST_CODE,
-                            null,
-                            0,
-                            0,
-                            0
-                        )
-                    } catch (error: Exception) {
-                        Toast.makeText(
-                            this,
-                            "Unable to open Google Drive authorization.",
-                            Toast.LENGTH_LONG
-                        ).show()
                     }
-
                     return@addOnSuccessListener
                 }
-
                 val accessToken = result.accessToken
-
-                DriveAccountBinding.capture(applicationContext, accessToken) {
-                    runOnUiThread {
-                        if (::premiumBillingManager.isInitialized) {
-                            premiumBillingManager.refreshOwnership()
-                        }
-                    }
-                }
-
                 if (accessToken.isNullOrBlank()) {
-                    Toast.makeText(
-                        this,
-                        "Google Drive access token is unavailable.",
-                        Toast.LENGTH_LONG
-                    ).show()
-
+                    Toast.makeText(this, "Google Drive access token is unavailable.", Toast.LENGTH_LONG).show()
                     return@addOnSuccessListener
                 }
-
-                Toast.makeText(
-                    this,
-                    "Checking Google Drive backup...",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                googleDriveRestore.findBackupMetadata(
-                    accessToken
-                ) { backupResult ->
-                    backupResult
-                        .onSuccess { metadata ->
-                            if (metadata == null || metadata.fileId.isBlank()) {
-                                markInitialDriveSetupComplete()
-
-                                Toast.makeText(
-                                    this,
-                                    "No backup found. Starting fresh.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-
-                                onComplete()
-                                return@onSuccess
-                            }
-
-                            Toast.makeText(
-                                this,
-                                "Backup found. Restoring...",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            googleDriveRestore.restore(
-                                accessToken,
-                                metadata.fileId
-                            ) { restoreResult ->
-                                restoreResult
-                                    .onSuccess {
-                                        replaceDatabaseAndRestart(
-                                            onComplete,
-                                            remoteModifiedTime = metadata.modifiedTime
-                                        )
+                Toast.makeText(this, "Verifying Google Drive account and checking backup...", Toast.LENGTH_SHORT).show()
+                DriveAccountBinding.verifyAndCapture(applicationContext, accessToken) { identityResult ->
+                    runOnUiThread {
+                        identityResult.onSuccess { accountId ->
+                            googleDriveSyncCoordinator.bindVerifiedAccount(accountId)
+                            if (::premiumBillingManager.isInitialized) premiumBillingManager.refreshOwnership()
+                            googleDriveRestore.findBackupMetadata(accessToken) { backupResult ->
+                                backupResult.onSuccess { metadata ->
+                                    if (metadata == null || metadata.fileId.isBlank()) {
+                                        markInitialDriveSetupComplete()
+                                        googleDriveSyncCoordinator.markNoRemoteBackupFound()
+                                        Toast.makeText(this, "No backup found. Starting fresh.", Toast.LENGTH_SHORT).show()
+                                        onComplete()
+                                        return@onSuccess
                                     }
-                                    .onFailure { error ->
-                                        Toast.makeText(
-                                            this,
-                                            "Backup restore failed: ${
-                                                error.message ?: "Unknown error"
-                                            }",
-                                            Toast.LENGTH_LONG
-                                        ).show()
+                                    Toast.makeText(this, "Backup found. Restoring...", Toast.LENGTH_LONG).show()
+                                    googleDriveRestore.restore(accessToken, metadata.fileId, accountId) { restoreResult ->
+                                        restoreResult.onSuccess {
+                                            if (DriveAccountBinding.currentAccountId(applicationContext) != accountId) {
+                                                googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                                Toast.makeText(this, "Drive account changed. Local data was not replaced.", Toast.LENGTH_LONG).show()
+                                                return@onSuccess
+                                            }
+                                            replaceDatabaseAndRestart(onComplete, remoteModifiedTime = metadata.modifiedTime)
+                                        }.onFailure { error ->
+                                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                            Toast.makeText(this, "Backup restore failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                                        }
                                     }
+                                }.onFailure { error ->
+                                    googleDriveSyncCoordinator.onAuthorizationCancelled()
+                                    Toast.makeText(this, "Unable to check Google Drive: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+                                }
                             }
+                        }.onFailure { error ->
+                            googleDriveSyncCoordinator.onAuthorizationCancelled()
+                            Toast.makeText(this, "Google Drive account verification failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
                         }
-                        .onFailure { error ->
-                            Toast.makeText(
-                                this,
-                                "Unable to check Google Drive: ${
-                                    error.message ?: "Unknown error"
-                                }",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        }
+                    }
                 }
             }
             .addOnFailureListener { error ->
-                Toast.makeText(
-                    this,
-                    "Google Drive authorization failed: ${
-                        error.message ?: "Unknown error"
-                    }",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, "Google Drive authorization failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
             }
+    }
+
+    /** Installs an already validated DB while retaining a rollback copy until the rename succeeds. */
+    private fun installValidatedDatabase(validatedFile: File) {
+        require(validatedFile.exists() && validatedFile.length() > 0L) { "Validated backup file is missing or empty." }
+        val databaseFile = getDatabasePath(LedgerDatabaseProvider.DATABASE_NAME)
+        val parent = databaseFile.parentFile ?: throw IllegalStateException("Database directory is unavailable.")
+        if (!parent.exists() && !parent.mkdirs()) throw IllegalStateException("Database directory could not be created.")
+        val tempFile = File(parent, databaseFile.name + ".restore_tmp")
+        val rollbackFile = File(parent, databaseFile.name + ".restore_rollback")
+        val suffixes = listOf("-wal", "-shm", "-journal")
+        val sidecarBackups = suffixes.associateWith { suffix -> File(parent, databaseFile.name + suffix + ".restore_rollback") }
+        tempFile.delete()
+        rollbackFile.delete()
+        sidecarBackups.values.forEach { it.delete() }
+        validatedFile.copyTo(tempFile, overwrite = true)
+        if (tempFile.length() != validatedFile.length()) throw IllegalStateException("Temporary database copy is incomplete.")
+        LedgerDatabaseProvider.close()
+        var originalMoved = false
+        try {
+            if (databaseFile.exists()) {
+                if (!databaseFile.renameTo(rollbackFile)) throw IllegalStateException("Existing database could not be secured for rollback.")
+                originalMoved = true
+            }
+            suffixes.forEach { suffix ->
+                val live = File(parent, databaseFile.name + suffix)
+                val backupSidecar = sidecarBackups.getValue(suffix)
+                if (live.exists() && !live.renameTo(backupSidecar)) throw IllegalStateException("Database sidecar could not be secured: $suffix")
+            }
+            if (!tempFile.renameTo(databaseFile)) throw IllegalStateException("Validated database could not be installed.")
+            if (!databaseFile.exists() || databaseFile.length() != validatedFile.length()) throw IllegalStateException("Installed database verification failed.")
+            rollbackFile.delete()
+            sidecarBackups.values.forEach { it.delete() }
+            validatedFile.delete()
+        } catch (error: Exception) {
+            databaseFile.delete()
+            if (originalMoved && rollbackFile.exists() && !rollbackFile.renameTo(databaseFile)) {
+                error.addSuppressed(IllegalStateException("Rollback database could not be restored; preserved at ${rollbackFile.absolutePath}"))
+            }
+            sidecarBackups.forEach { (suffix, backupSidecar) ->
+                if (backupSidecar.exists()) backupSidecar.renameTo(File(parent, databaseFile.name + suffix))
+            }
+            tempFile.delete()
+            throw error
+        }
     }
 
     private fun replaceDatabaseAndRestart(
@@ -1987,33 +1862,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
             val validatedFile =
                 googleDriveRestore.getValidatedBackupFile()
 
-            LedgerDatabaseProvider.close()
-
-            val databaseFile =
-                getDatabasePath(
-                    LedgerDatabaseProvider.DATABASE_NAME
-                )
-
-            File(
-                databaseFile.path + "-wal"
-            ).delete()
-
-            File(
-                databaseFile.path + "-shm"
-            ).delete()
-
-            File(
-                databaseFile.path + "-journal"
-            ).delete()
-
-            databaseFile.delete()
-
-            validatedFile.copyTo(
-                databaseFile,
-                overwrite = true
-            )
-
-            validatedFile.delete()
+            installValidatedDatabase(validatedFile)
 
             markInitialDriveSetupComplete()
 
@@ -2168,7 +2017,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                     } else if (pendingDriveRestoreOnlyConnection) {
                         restoreFromNewDriveAccount(authorizationResult.accessToken)
                     } else {
-                        captureDriveAccountIdentity(authorizationResult.accessToken)
+                        captureDriveAccountIdentity(authorizationResult.accessToken) {
+                            googleDriveSyncCoordinator.resume()
+                        }
                     }
                 } catch (error: Exception) {
                     pendingDriveEmailChange = null
@@ -2230,8 +2081,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         } else {
                             // Refresh the Drive identity and repeat the startup
                             // remote-backup check before allowing any upload.
-                            captureDriveAccountIdentity(accessToken)
-                            googleDriveSyncCoordinator.resume()
+                            captureDriveAccountIdentity(accessToken) {
+                                googleDriveSyncCoordinator.resume()
+                            }
                         }
                     }
                 } catch (error: Exception) {
@@ -2432,10 +2284,10 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
             },
             text = {
                 androidx.compose.material3.Text(
-                    "If the Google account you select already contains a Ledger backup, " +
-                        "that backup may be overwritten and lost. Your current Ledger data " +
-                        "will sync automatically to the new account after the account change. " +
-                        "Continue only if you want to proceed."
+                    "If the selected Google account already contains a Ledger backup, " +
+                        "you will be asked whether to restore that backup or keep and sync " +
+                        "the data currently on this device. No backup will be restored or " +
+                        "overwritten until you choose an option."
                 )
             },
             confirmButton = {

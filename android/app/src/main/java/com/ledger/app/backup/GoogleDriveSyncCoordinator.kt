@@ -6,6 +6,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicLong
 
+/** Serializes Drive sync and keeps all sync state isolated by verified Google account. */
 class GoogleDriveSyncCoordinator(
     context: Context,
     private val authorization: GoogleDriveAuthorization,
@@ -15,497 +16,323 @@ class GoogleDriveSyncCoordinator(
     private val onSyncStarted: (() -> Unit)? = null,
     private val onSyncSuccess: (() -> Unit)? = null,
     private val onSyncFailure: ((Throwable) -> Unit)? = null,
-    private val onRemoteBackupNewer:
-        ((String, String, String) -> Unit)? = null
+    private val onRemoteBackupNewer: ((String, String, String, String) -> Unit)? = null
 ) {
     companion object {
         private const val PREFS_NAME = "ledger_google_drive_sync"
-        private const val PENDING_GENERATION = "pending_generation"
-        private const val COMPLETED_GENERATION = "completed_generation"
-        private const val LAST_SYNCED_DRIVE_MODIFIED_TIME =
-            "last_synced_drive_modified_time"
+        private const val PENDING_GENERATION = "pending_generation_"
+        private const val COMPLETED_GENERATION = "completed_generation_"
+        private const val LAST_SYNCED_DRIVE_MODIFIED_TIME = "last_synced_drive_modified_time_"
+        private const val REMOTE_DECISION_PENDING = "remote_decision_pending_"
     }
 
-    private val applicationContext =
-        context.applicationContext
-
-    private val prefs =
-        applicationContext.getSharedPreferences(
-            PREFS_NAME,
-            Context.MODE_PRIVATE
-        )
-
+    private val applicationContext = context.applicationContext
+    private val prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val lock = Any()
-
-    private val generation =
-        AtomicLong(
-            prefs.getLong(
-                PENDING_GENERATION,
-                0L
-            )
-        )
-
-    private var completedGeneration =
-        prefs.getLong(
-            COMPLETED_GENERATION,
-            0L
-        )
-
+    private val generation = AtomicLong(0L)
+    private var completedGeneration = 0L
+    private var activeAccountId: String? = null
     private var running = false
     private var paused = false
+
+    private fun pendingKey(id: String) = PENDING_GENERATION + id
+    private fun completedKey(id: String) = COMPLETED_GENERATION + id
+    private fun modifiedKey(id: String) = LAST_SYNCED_DRIVE_MODIFIED_TIME + id
+    private fun remoteDecisionKey(id: String) = REMOTE_DECISION_PENDING + id
+
+    private fun activateAccount(accountId: String) {
+        synchronized(lock) {
+            if (activeAccountId == accountId) return
+            // Legacy global sync values are intentionally ignored: their owning Gmail
+            // cannot be proven after an account switch. Each account starts with isolated state.
+            activeAccountId = accountId
+            generation.set(prefs.getLong(pendingKey(accountId), 0L))
+            completedGeneration = prefs.getLong(completedKey(accountId), 0L)
+            running = false
+        }
+    }
+
+    fun bindVerifiedAccount(accountId: String) {
+        require(accountId.matches(Regex("[a-f0-9]{64}")))
+        activateAccount(accountId)
+    }
 
     fun requestAutoSync() {
         android.util.Log.d("LedgerSyncDebug", "requestAutoSync() called")
         requestSync(manual = false)
     }
 
-    fun requestManualSync() {
-        requestSync(manual = true)
-    }
+    fun requestManualSync() = requestSync(manual = true)
 
-    fun pause() {
-        synchronized(lock) {
-            paused = true
-        }
-    }
+    fun pause() { synchronized(lock) { paused = true } }
 
     fun resume() {
-        if (DriveAccountBinding.currentAccountId(applicationContext) == null) {
-            synchronized(lock) {
-                paused = false
-                running = false
+        synchronized(lock) { if (running) return; paused = true; running = true }
+        authorization.authorize()
+            .addOnSuccessListener { auth ->
+                if (auth.hasResolution()) {
+                    requestAuthorization(auth.pendingIntent?.intentSender)
+                    return@addOnSuccessListener
+                }
+                val token = auth.accessToken
+                DriveAccountBinding.verifyAndCapture(applicationContext, token) { verified ->
+                    verified.onSuccess { accountId ->
+                        activateAccount(accountId)
+                        checkRemoteBackupBeforeSync(token!!, accountId)
+                    }.onFailure {
+                        finishStartupCheck(false)
+                        onSyncFailure?.invoke(it)
+                    }
+                }
             }
-            android.util.Log.d(
-                "LedgerSyncDebug",
-                "Skipping startup sync: Google Drive account not connected"
-            )
-            return
-        }
-        val shouldCheckRemote = synchronized(lock) {
-            if (running) {
-                false
-            } else {
-                paused = true
-                running = true
-                true
+            .addOnFailureListener {
+                finishStartupCheck(false)
+                onSyncFailure?.invoke(it)
             }
-        }
+    }
 
-        if (shouldCheckRemote) {
-            checkRemoteBackupBeforeSync()
+    private fun requestAuthorization(sender: IntentSender?) {
+        if (sender == null) {
+            finishStartupCheck(false)
+            onSyncFailure?.invoke(IllegalStateException("Google Drive authorization is required."))
+        } else {
+            try { onAuthorizationRequired?.invoke(sender) }
+            catch (error: Exception) { onAuthorizationCancelled(); onSyncFailure?.invoke(error) }
+            synchronized(lock) { running = false }
+        }
+    }
+
+    fun onAuthorizationCancelled() { synchronized(lock) { running = false; paused = false } }
+
+    private fun checkRemoteBackupBeforeSync(accessToken: String, accountId: String) {
+        GoogleDriveRestore(applicationContext).findBackupMetadata(accessToken) { result ->
+            result.onSuccess { metadata ->
+                if (synchronized(lock) { activeAccountId != accountId }) return@onSuccess
+                if (metadata == null) {
+                    // No remote backup: retain local data. Only upload if this account has pending changes.
+                    finishStartupCheck(startPendingSync = true)
+                    return@onSuccess
+                }
+                val remote = runCatching { Instant.parse(metadata.modifiedTime) }.getOrNull()
+                if (remote == null) {
+                    prefs.edit().putBoolean(remoteDecisionKey(accountId), true).commit()
+                    synchronized(lock) { paused = true; running = false }
+                    onSyncFailure?.invoke(
+                        IllegalStateException("Remote backup time could not be verified. Sync is paused to protect your data.")
+                    )
+                    return@onSuccess
+                }
+                val local = prefs.getString(modifiedKey(accountId), null)
+                    ?.let { runCatching { Instant.parse(it) }.getOrNull() }
+                val hasPending = synchronized(lock) { generation.get() > completedGeneration }
+                if (local == null || remote.isAfter(local)) {
+                    // Ask the user before pending local changes can upload over an
+                    // unseen or newer remote backup. Persist the choice so a later
+                    // autosync cannot bypass the prompt after it is dismissed.
+                    val savedDecision = prefs.edit()
+                        .putBoolean(remoteDecisionKey(accountId), true)
+                        .commit()
+                    synchronized(lock) { paused = true; running = false }
+                    if (savedDecision) {
+                        onRemoteBackupNewer?.invoke(metadata.fileId, metadata.modifiedTime, accessToken, accountId)
+                    } else {
+                        onSyncFailure?.invoke(
+                            IllegalStateException("Backup choice could not be saved. Sync is paused to protect your data.")
+                        )
+                    }
+                } else if (hasPending) {
+                    prefs.edit().putBoolean(remoteDecisionKey(accountId), false).commit()
+                    finishStartupCheck(true)
+                } else {
+                    prefs.edit().putBoolean(remoteDecisionKey(accountId), false).commit()
+                    finishStartupCheck(false)
+                }
+            }.onFailure {
+                // Ignore a stale callback if the user has switched Drive accounts meanwhile.
+                if (synchronized(lock) { activeAccountId != accountId }) return@onFailure
+                // A failed remote check must block direct autosync until the remote
+                // state can be checked again; otherwise a later request could overwrite
+                // a backup that was simply unavailable during this check.
+                prefs.edit().putBoolean(remoteDecisionKey(accountId), true).commit()
+                synchronized(lock) { paused = true; running = false }
+                onSyncFailure?.invoke(it)
+            }
+        }
+    }
+
+    private fun finishStartupCheck(startPendingSync: Boolean) {
+        val shouldStart = synchronized(lock) {
+            paused = false
+            running = false
+            val pending = startPendingSync && generation.get() > completedGeneration
+            if (pending) running = true
+            pending
+        }
+        if (shouldStart) startSync(manual = false)
+    }
+
+    fun markRemoteRestoreCompleted(modifiedTime: String) = markRemoteBackupSynced(modifiedTime)
+
+    fun markNoRemoteBackupFound() {
+        val id = activeAccountId ?: return
+        synchronized(lock) {
+            val current = generation.get()
+            completedGeneration = current
+            prefs.edit().putLong(pendingKey(id), current).putLong(completedKey(id), current)
+                .remove(modifiedKey(id)).putBoolean(remoteDecisionKey(id), false).commit()
+            paused = false
+            running = false
+        }
+    }
+
+    fun markRemoteBackupSynced(modifiedTime: String) {
+        val id = activeAccountId ?: return
+        synchronized(lock) {
+            val current = generation.get()
+            completedGeneration = current
+            prefs.edit().putString(modifiedKey(id), modifiedTime)
+                .putLong(pendingKey(id), current).putLong(completedKey(id), current)
+                .putBoolean(remoteDecisionKey(id), false).commit()
+            paused = false
+            running = false
         }
     }
 
     /**
-     * Called when the user cancels or cannot complete the Drive authorization
-     * activity. Keep the pending generation so a later data change can retry.
+     * Called only after the user explicitly chooses "Sync Local Data" when a
+     * different/newer remote backup exists. This bypasses the remote conflict
+     * check exactly once and uploads the current local database to the verified
+     * active Drive account.
      */
-    fun onAuthorizationCancelled() {
-        synchronized(lock) {
-            running = false
-            paused = false
+    fun syncLocalDataAfterRemoteConflict() {
+        val accountId = synchronized(lock) { activeAccountId }
+        if (accountId.isNullOrBlank() ||
+            DriveAccountBinding.currentAccountId(applicationContext) != accountId
+        ) {
+            onSyncFailure?.invoke(
+                IllegalStateException("Google Drive account changed. Local data was not synced.")
+            )
+            return
         }
-    }
 
-    private fun checkRemoteBackupBeforeSync() {
-        authorization
-            .authorize()
-            .addOnSuccessListener { result ->
-                if (result.hasResolution()) {
-                    val pendingIntent = result.pendingIntent
-                    if (pendingIntent != null) {
-                        try {
-                            onAuthorizationRequired?.invoke(
-                                pendingIntent.intentSender
-                            )
-                        } catch (error: Exception) {
-                            onAuthorizationCancelled()
-                            onSyncFailure?.invoke(error)
-                        }
-                    } else {
-                        // Do not leave startup permanently paused if no
-                        // resolution intent is available.
-                        finishStartupCheck(startPendingSync = false)
-                        onSyncFailure?.invoke(
-                            IllegalStateException(
-                                "Google Drive authorization is required, but no authorization screen is available."
-                            )
-                        )
-                    }
-                    synchronized(lock) {
-                        running = false
-                    }
-                    return@addOnSuccessListener
-                }
-
-                val accessToken = result.accessToken
-
-                if (accessToken.isNullOrBlank()) {
-                    finishStartupCheck(true)
-                    return@addOnSuccessListener
-                }
-
-                val restore =
-                    GoogleDriveRestore(applicationContext)
-
-                restore.findBackupMetadata(accessToken) { result ->
-                    result
-                        .onSuccess { metadata ->
-                            if (metadata == null) {
-                                finishStartupCheck(true)
-                                return@onSuccess
-                            }
-
-                            val remote =
-                                runCatching {
-                                    Instant.parse(
-                                        metadata.modifiedTime
-                                    )
-                                }.getOrNull()
-
-                            if (remote == null) {
-                                finishStartupCheck(true)
-                                return@onSuccess
-                            }
-
-                            val localText =
-                                prefs.getString(
-                                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
-                                    null
-                                )
-
-                            val local =
-                                localText?.let {
-                                    runCatching {
-                                        Instant.parse(it)
-                                    }.getOrNull()
-                                }
-
-                            // Pending local changes always take priority over
-                            // a newer remote backup after an interrupted sync.
-                            val hasPendingLocalChanges = synchronized(lock) {
-                                generation.get() > completedGeneration
-                            }
-
-                            if (hasPendingLocalChanges) {
-                                android.util.Log.w(
-                                    "LedgerSyncDebug",
-                                    "Pending local changes found. Prioritizing local backup over remote restore."
-                                )
-                                finishStartupCheck(startPendingSync = true)
-                                return@onSuccess
-                            }
-
-                            if (
-                                local != null &&
-                                remote.isAfter(local)
-                            ) {
-                                synchronized(lock) {
-                                    paused = true
-                                    running = false
-                                }
-
-                                onRemoteBackupNewer?.invoke(
-                                    metadata.fileId,
-                                    metadata.modifiedTime,
-                                    accessToken
-                                )
-                            } else {
-                                finishStartupCheck(true)
-                            }
-                        }
-                        .onFailure {
-                            finishStartupCheck(true)
-                        }
-                }
-            }
-            .addOnFailureListener {
-                // Drive unavailable must never block local app startup.
-                finishStartupCheck(true)
-            }
-    }
-
-    private fun finishStartupCheck(
-        startPendingSync: Boolean
-    ) {
         val shouldStart = synchronized(lock) {
-            paused = false
-            running = false
-
-            val hasPendingChanges =
-                startPendingSync &&
-                    generation.get() > completedGeneration
-
-            if (hasPendingChanges) {
-                // Claim the running slot in the same critical section.
-                // This prevents two callbacks from starting parallel uploads.
-                running = true
+            if (activeAccountId != accountId) {
+                false
+            } else {
+                val nextGeneration = generation.incrementAndGet()
+                val saved = prefs.edit()
+                    .putLong(pendingKey(accountId), nextGeneration)
+                    .putBoolean(remoteDecisionKey(accountId), false)
+                    .commit()
+                if (saved) {
+                    paused = false
+                    running = true
+                    true
+                } else {
+                    paused = true
+                    running = false
+                    false
+                }
             }
-
-            hasPendingChanges
         }
 
         if (shouldStart) {
             startSync(manual = false)
-        }
-    }
-
-    fun markRemoteRestoreCompleted(
-        modifiedTime: String
-    ) {
-        synchronized(lock) {
-            val restoredGeneration = generation.get()
-            completedGeneration = restoredGeneration
-
-            prefs.edit()
-                .putLong(PENDING_GENERATION, restoredGeneration)
-                .putLong(COMPLETED_GENERATION, restoredGeneration)
-                .putString(LAST_SYNCED_DRIVE_MODIFIED_TIME, modifiedTime)
-                .apply()
-
-            paused = false
-            running = false
-        }
-
-        android.util.Log.d(
-            "LedgerSyncDebug",
-            "Initial Drive restore recorded; no upload requested. modifiedTime=$modifiedTime"
-        )
-    }
-
-    fun markNoRemoteBackupFound() {
-        synchronized(lock) {
-            val currentGeneration = generation.get()
-            completedGeneration = currentGeneration
-
-            prefs.edit()
-                .putLong(PENDING_GENERATION, currentGeneration)
-                .putLong(COMPLETED_GENERATION, currentGeneration)
-                .remove(LAST_SYNCED_DRIVE_MODIFIED_TIME)
-                .apply()
-
-            paused = false
-            running = false
-        }
-
-        android.util.Log.d(
-            "LedgerSyncDebug",
-            "No remote backup found. Local data retained; no initial upload requested."
-        )
-    }
-
-    fun markRemoteBackupSynced(
-        modifiedTime: String
-    ) {
-        prefs.edit()
-            .putString(
-                LAST_SYNCED_DRIVE_MODIFIED_TIME,
-                modifiedTime
+        } else {
+            onSyncFailure?.invoke(
+                IllegalStateException("Could not save the local sync request. No backup was uploaded.")
             )
-            .apply()
-
-        synchronized(lock) {
-            paused = false
-            running = false
         }
     }
 
-    fun resumeAfterRemoteRestoreFailure() {
-        finishStartupCheck(true)
-    }
+    fun resumeAfterRemoteRestoreFailure() = finishStartupCheck(startPendingSync = false)
 
     private fun requestSync(manual: Boolean) {
-        if (DriveAccountBinding.currentAccountId(applicationContext) == null) {
-            android.util.Log.d(
-                "LedgerSyncDebug",
-                "Skipping sync request: Google Drive account not connected"
-            )
+        val id = DriveAccountBinding.currentAccountId(applicationContext)
+        if (id.isNullOrBlank()) {
+            onSyncFailure?.invoke(IllegalStateException("Verify Google Drive account before syncing."))
             return
         }
+        activateAccount(id)
+
+        var shouldRecheckRemote = false
         val shouldStart = synchronized(lock) {
             generation.incrementAndGet()
-            persistPendingGeneration()
-
-            if (
-                !paused &&
-                !running
-            ) {
+            val saved = prefs.edit().putLong(pendingKey(id), generation.get()).commit()
+            if (!saved) {
+                onSyncFailure?.invoke(IllegalStateException("Pending sync state could not be saved."))
+                false
+            } else if (prefs.getBoolean(remoteDecisionKey(id), false)) {
+                // Autosync records local edits but cannot overwrite an unresolved
+                // remote backup. The next sync attempt rechecks and reopens the choice.
+                paused = true
+                running = false
+                shouldRecheckRemote = true
+                false
+            } else if (!paused && !running) {
                 running = true
                 true
-            } else {
-                false
-            }
+            } else false
         }
 
-        android.util.Log.d(
-            "LedgerSyncDebug",
-            "requestSync: manual=$manual shouldStart=$shouldStart paused=$paused running=$running generation=${generation.get()}"
-        )
-        if (shouldStart) {
+        if (shouldRecheckRemote) {
+            resume()
+        } else if (shouldStart) {
             startSync(manual)
         }
     }
 
     private fun startSync(manual: Boolean) {
-        android.util.Log.d("LedgerSyncDebug", "startSync() called; manual=$manual")
+        val accountId = activeAccountId ?: run { synchronized(lock) { running = false }; return }
         val syncGeneration = generation.get()
-
         onSyncStarted?.invoke()
-
-        authorization
-            .authorize()
-            .addOnSuccessListener { result ->
-
-                if (result.hasResolution()) {
-                    synchronized(lock) {
-                        running = false
-                    }
-
-                    val pendingIntent = result.pendingIntent
-                    if (pendingIntent != null) {
-                        try {
-                            // Automatic sync also needs to request consent;
-                            // otherwise it silently remains pending forever.
-                            onAuthorizationRequired?.invoke(
-                                pendingIntent.intentSender
-                            )
-                        } catch (error: Exception) {
-                            onAuthorizationCancelled()
-                            onSyncFailure?.invoke(error)
+        authorization.authorize()
+            .addOnSuccessListener { auth ->
+                if (auth.hasResolution()) { requestAuthorization(auth.pendingIntent?.intentSender); return@addOnSuccessListener }
+                val token = auth.accessToken
+                DriveAccountBinding.verifyAndCapture(applicationContext, token) { verified ->
+                    verified.onSuccess { verifiedId ->
+                        if (verifiedId != accountId || DriveAccountBinding.currentAccountId(applicationContext) != accountId) {
+                            finishSync(syncGeneration, accountId, null, IllegalStateException("Google Drive account changed during sync. No backup was uploaded."))
+                            return@onSuccess
                         }
-                    } else {
-                        onSyncFailure?.invoke(
-                            IllegalStateException(
-                                "Google Drive authorization is required."
-                            )
-                        )
-                    }
-
-                    return@addOnSuccessListener
-                }
-
-                val accessToken = result.accessToken
-
-                if (accessToken.isNullOrBlank()) {
-                    finishSync(
-                        syncGeneration,
-                        backupResult = null,
-                        error = IllegalStateException(
-                            "Google Drive access token is unavailable."
-                        )
-                    )
-                    return@addOnSuccessListener
-                }
-
-                backup.sync(
-                    database,
-                    accessToken
-                ) { syncResult ->
-
-                    syncResult
-                        .onSuccess { backupResult ->
-                            finishSync(
-                                syncGeneration,
-                                backupResult = backupResult,
-                                error = null
-                            )
+                        if (token.isNullOrBlank()) {
+                            finishSync(syncGeneration, accountId, null, IllegalStateException("Google Drive access token is unavailable."))
+                            return@onSuccess
                         }
-                        .onFailure { error ->
-                            finishSync(
-                                syncGeneration,
-                                backupResult = null,
-                                error = error
-                            )
+                        backup.sync(database, token, accountId) { syncResult ->
+                            syncResult.onSuccess { finishSync(syncGeneration, accountId, it, null) }
+                                .onFailure { finishSync(syncGeneration, accountId, null, it) }
                         }
+                    }.onFailure { finishSync(syncGeneration, accountId, null, it) }
                 }
             }
-            .addOnFailureListener { error ->
-                finishSync(
-                    syncGeneration,
-                    backupResult = null,
-                    error = error
-                )
-            }
+            .addOnFailureListener { finishSync(syncGeneration, accountId, null, it) }
     }
 
-    private fun finishSync(
-        syncGeneration: Long,
-        backupResult: GoogleDriveBackupResult?,
-        error: Throwable?
-    ) {
+    private fun finishSync(syncGeneration: Long, accountId: String, backupResult: GoogleDriveBackupResult?, error: Throwable?) {
         if (backupResult == null) {
             synchronized(lock) {
-                running = false
+                if (activeAccountId == accountId) running = false
             }
-
-            error?.let {
-                onSyncFailure?.invoke(it)
-            }
+            error?.let { onSyncFailure?.invoke(it) }
             return
         }
-
         var startNext = false
-        var persistenceError: Throwable? = null
-
+        val saved = prefs.edit().putString(modifiedKey(accountId), backupResult.modifiedTime)
+            .putLong(completedKey(accountId), syncGeneration)
+            .putBoolean(remoteDecisionKey(accountId), false).commit()
         synchronized(lock) {
-            val saved = prefs.edit()
-                .putString(
-                    LAST_SYNCED_DRIVE_MODIFIED_TIME,
-                    backupResult.modifiedTime
-                )
-                .putLong(
-                    COMPLETED_GENERATION,
-                    syncGeneration
-                )
-                .commit()
-
-            if (!saved) {
-                running = false
-                persistenceError = IllegalStateException(
-                    "Backup uploaded, but local sync status could not be saved."
-                )
-            } else {
-                completedGeneration = syncGeneration
-
-                if (
-                    generation.get() > syncGeneration &&
-                    !paused
-                ) {
-                    running = true
-                    startNext = true
-                } else {
-                    running = false
-                }
+            if (activeAccountId == accountId) {
+                if (saved) {
+                    completedGeneration = syncGeneration
+                    if (generation.get() > syncGeneration && !paused) { running = true; startNext = true }
+                    else running = false
+                } else running = false
             }
         }
-
-        if (persistenceError != null) {
-            onSyncFailure?.invoke(persistenceError!!)
-            return
-        }
-
-        // Local timestamp and completed generation are saved before success.
+        if (!saved) { onSyncFailure?.invoke(IllegalStateException("Backup uploaded, but account-specific sync status could not be saved.")); return }
         onSyncSuccess?.invoke()
-
-        if (startNext) {
-            startSync(manual = false)
-        }
+        if (startNext && activeAccountId == accountId) startSync(manual = false)
     }
-
-    private fun persistPendingGeneration() {
-        val saved = prefs.edit()
-            .putLong(
-                PENDING_GENERATION,
-                generation.get()
-            )
-            .commit()
-
-        if (!saved) {
-            android.util.Log.e(
-                "LedgerSyncDebug",
-                "Failed to persist pending generation."
-            )
-        }
-    }
-
 }

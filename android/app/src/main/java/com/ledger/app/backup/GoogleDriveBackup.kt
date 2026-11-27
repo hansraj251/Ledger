@@ -22,7 +22,7 @@ class GoogleDriveBackup(
 
     companion object {
         private const val PREFERENCES_NAME = "ledger_backup"
-        private const val FILE_ID_KEY = "google_drive_file_id"
+        private const val FILE_ID_KEY_PREFIX = "google_drive_file_id_"
         private const val BACKUP_FILE_NAME = "Ledger Backup.db"
         private const val MIME_TYPE = "application/x-sqlite3"
         private const val DRIVE_UPLOAD_URL =
@@ -42,18 +42,19 @@ class GoogleDriveBackup(
     fun sync(
         database: SupportSQLiteDatabase,
         accessToken: String,
+        driveAccountId: String,
         callback: (Result<GoogleDriveBackupResult>) -> Unit
     ) {
+        require(driveAccountId.matches(Regex("[a-f0-9]{64}"))) { "Verified Google Drive account ID is required." }
+        val accountFileIdKey = FILE_ID_KEY_PREFIX + driveAccountId
         Thread {
             var snapshot: File? = null
 
             try {
                 snapshot = createDatabaseSnapshot(database)
 
-                val storedFileId = preferences.getString(
-                    FILE_ID_KEY,
-                    null
-                )
+                // Do not reuse the legacy global File ID: its Google account cannot be proven.
+                val storedFileId = preferences.getString(accountFileIdKey, null)
 
                 val backupResult =
                     if (storedFileId.isNullOrBlank()) {
@@ -68,7 +69,7 @@ class GoogleDriveBackup(
                         } catch (error: Exception) {
                             if (error.message?.contains("HTTP 404") == true) {
                                 val removed = preferences.edit()
-                                    .remove(FILE_ID_KEY)
+                                    .remove(accountFileIdKey)
                                     .commit()
 
                                 if (!removed) {
@@ -85,7 +86,7 @@ class GoogleDriveBackup(
                     }
 
                 val fileIdSaved = preferences.edit()
-                    .putString(FILE_ID_KEY, backupResult.fileId)
+                    .putString(accountFileIdKey, backupResult.fileId)
                     .commit()
 
                 if (!fileIdSaved) {

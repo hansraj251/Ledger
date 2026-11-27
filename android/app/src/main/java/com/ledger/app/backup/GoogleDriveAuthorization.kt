@@ -1,5 +1,6 @@
 package com.ledger.app.backup
 
+import android.accounts.Account
 import android.content.Context
 import android.content.Intent
 import com.google.android.gms.auth.api.identity.AuthorizationClient
@@ -17,7 +18,11 @@ class GoogleDriveAuthorization(
             "https://www.googleapis.com/auth/drive.appdata"
         const val USERINFO_EMAIL_SCOPE =
             "https://www.googleapis.com/auth/userinfo.email"
+
+        private const val GOOGLE_ACCOUNT_TYPE = "com.google"
     }
+
+    private val appContext = context.applicationContext
 
     private val authorizationClient: AuthorizationClient =
         Identity.getAuthorizationClient(context)
@@ -33,6 +38,20 @@ class GoogleDriveAuthorization(
                     Scope(USERINFO_EMAIL_SCOPE)
                 )
             )
+
+        /*
+         * Credential Manager (used by Ledger Online sign-in) changes the app's
+         * default Google account. Pin Drive authorization to the separately
+         * verified Drive account so that a later Online login cannot silently
+         * redirect Drive sync to the Online Gmail.
+         *
+         * An explicit Drive-account-change action sets SELECT_ACCOUNT below;
+         * Google's API documents that SELECT_ACCOUNT overrides setAccount().
+         */
+        val driveEmail = DriveAccountBinding.currentEmail(appContext)
+        if (!forceSelectAccount && !driveEmail.isNullOrBlank()) {
+            builder.setAccount(Account(driveEmail, GOOGLE_ACCOUNT_TYPE))
+        }
 
         if (forceSelectAccount) {
             builder.setPrompt(AuthorizationRequest.Prompt.SELECT_ACCOUNT)

@@ -22,7 +22,7 @@ class GoogleDriveRestore(
 
     companion object {
         private const val PREFERENCES_NAME = "ledger_backup"
-        private const val FILE_ID_KEY = "google_drive_file_id"
+        private const val FILE_ID_KEY_PREFIX = "google_drive_file_id_"
         private const val DRIVE_FILE_URL =
             "https://www.googleapis.com/drive/v3/files"
     }
@@ -42,12 +42,21 @@ class GoogleDriveRestore(
         accessToken: String,
         callback: (Result<Unit>) -> Unit
     ) {
-        restore(accessToken, null, callback)
+        restore(accessToken, null, null, callback)
     }
 
     fun restore(
         accessToken: String,
         fileIdOverride: String?,
+        callback: (Result<Unit>) -> Unit
+    ) {
+        restore(accessToken, fileIdOverride, null, callback)
+    }
+
+    fun restore(
+        accessToken: String,
+        fileIdOverride: String?,
+        driveAccountId: String?,
         callback: (Result<Unit>) -> Unit
     ) {
         Thread {
@@ -64,23 +73,14 @@ class GoogleDriveRestore(
                 )
 
             try {
-                val fileId =
-                    fileIdOverride
-                        ?: preferences.getString(
-                            FILE_ID_KEY,
-                            null
-                        )
+                val fileId = fileIdOverride
+                    ?: findBackupMetadataBlocking(accessToken)?.fileId
+                    ?: throw NoBackupFoundException()
 
-                if (fileId.isNullOrBlank()) {
-                    throw NoBackupFoundException()
+                if (!driveAccountId.isNullOrBlank() &&
+                    !driveAccountId.matches(Regex("[a-f0-9]{64}"))) {
+                    throw IllegalArgumentException("Verified Google Drive account ID is invalid.")
                 }
-
-                preferences.edit()
-                    .putString(
-                        FILE_ID_KEY,
-                        fileId
-                    )
-                    .apply()
 
                 downloadedFile.delete()
                 validatedFile.delete()
@@ -99,6 +99,14 @@ class GoogleDriveRestore(
                     validatedFile,
                     overwrite = true
                 )
+
+                // Persist the account-scoped file ID only after download and DB validation succeed.
+                if (!driveAccountId.isNullOrBlank()) {
+                    val saved = preferences.edit()
+                        .putString(FILE_ID_KEY_PREFIX + driveAccountId, fileId)
+                        .commit()
+                    if (!saved) throw IllegalStateException("Google Drive backup reference could not be saved.")
+                }
 
                 mainHandler.post {
                     callback(
@@ -230,6 +238,7 @@ class GoogleDriveRestore(
                     "?q=$encodedQuery" +
                     "&spaces=appDataFolder" +
                     "&pageSize=10" +
+                    "&orderBy=modifiedTime%20desc" +
                     "&fields=$encodedFields"
             )
 

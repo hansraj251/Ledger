@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -50,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ledger.app.attendance.AttendanceRecord
+import com.ledger.app.attendance.AttendanceMarkRequest
 import com.ledger.app.attendance.AttendanceRepository
 import com.ledger.app.attendance.AttendanceStaffRecord
 import kotlinx.coroutines.launch
@@ -69,6 +71,8 @@ fun AttendanceScreen(onBack: () -> Unit) {
     var ownerStaff by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
     var ownerPendingInvites by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
     var ownerRecords by remember { mutableStateOf<List<AttendanceRecord>>(emptyList()) }
+    var ownerPendingRequests by remember { mutableStateOf<List<AttendanceMarkRequest>>(emptyList()) }
+    var showVerificationSettings by remember { mutableStateOf(false) }
     var ownerLoaded by remember { mutableStateOf(false) }
     var selectedStaff by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
     var staffPendingDelete by remember { mutableStateOf<AttendanceStaffRecord?>(null) }
@@ -98,6 +102,7 @@ fun AttendanceScreen(onBack: () -> Unit) {
                 }
                 .sortedBy { it.displayName.lowercase() }
             ownerRecords = repository.fetchOwnerRecords()
+            ownerPendingRequests = repository.fetchOwnerAttendanceRequests()
             ownerLoaded = true
         } catch (e: Exception) {
             error = e.message ?: "Unable to load attendance report."
@@ -201,6 +206,31 @@ fun AttendanceScreen(onBack: () -> Unit) {
         )
     }
 
+    if (showVerificationSettings) {
+        AlertDialog(
+            onDismissRequest = { showVerificationSettings = false },
+            title = { Text("Attendance Verification") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("On Approval of Owner", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Staff attendance is recorded only after you approve the request in Attendance Report.",
+                        color = Color(0xFF667085)
+                    )
+                    Text(
+                        "Bluetooth Verification will be available in a future update.",
+                        color = Color(0xFF667085),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showVerificationSettings = false }) { Text("Done") }
+            },
+            containerColor = Color.White
+        )
+    }
+
     if (activeStaff != null) {
         OwnerStaffAttendanceScreen(
             staff = activeStaff,
@@ -243,6 +273,15 @@ fun AttendanceScreen(onBack: () -> Unit) {
                     },
                     actions = {
                         IconButton(
+                            onClick = { showVerificationSettings = true },
+                            enabled = !busy
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Settings,
+                                contentDescription = "Attendance verification settings"
+                            )
+                        }
+                        IconButton(
                             onClick = { scope.launch { loadOwnerReport() } },
                             enabled = !busy
                         ) {
@@ -284,6 +323,96 @@ fun AttendanceScreen(onBack: () -> Unit) {
                                 modifier = Modifier.padding(14.dp),
                                 color = Color(0xFFB42318)
                             )
+                        }
+                    }
+                }
+
+                if (ownerPendingRequests.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Attendance Approval Requests",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF202124)
+                        )
+                    }
+                    items(ownerPendingRequests, key = { "attendance-request-${it.id}" }) { request ->
+                        val requestStaff = ownerStaff.firstOrNull { it.id == request.staffId }
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFF2D19B))
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            requestStaff?.displayName ?: "Staff member",
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF202124)
+                                        )
+                                        Text(
+                                            requestStaff?.email.orEmpty(),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF667085)
+                                        )
+                                    }
+                                    Text("Pending", color = Color(0xFFB54708), fontWeight = FontWeight.SemiBold)
+                                }
+                                Text(
+                                    "Attendance request · ${request.attendanceDate}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF667085)
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                busy = true
+                                                error = null
+                                                try {
+                                                    repository.approveOwnerAttendanceRequest(request.id)
+                                                    loadOwnerReport()
+                                                } catch (e: Exception) {
+                                                    error = e.message ?: "Unable to approve attendance."
+                                                } finally {
+                                                    busy = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !busy,
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { Text("Approve") }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                busy = true
+                                                error = null
+                                                try {
+                                                    repository.rejectOwnerAttendanceRequest(request.id)
+                                                    loadOwnerReport()
+                                                } catch (e: Exception) {
+                                                    error = e.message ?: "Unable to reject attendance."
+                                                } finally {
+                                                    busy = false
+                                                }
+                                            }
+                                        },
+                                        enabled = !busy,
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) { Text("Reject") }
+                                }
+                            }
                         }
                     }
                 }
@@ -813,6 +942,7 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var myStaff by remember { mutableStateOf<List<AttendanceStaffRecord>>(emptyList()) }
     var myRecords by remember { mutableStateOf<List<AttendanceRecord>>(emptyList()) }
+    var myRequests by remember { mutableStateOf<List<AttendanceMarkRequest>>(emptyList()) }
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var selectedDate by remember {
         mutableStateOf(LocalDate.now(ZoneId.of("Asia/Kolkata")))
@@ -829,6 +959,7 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
             repository.claimStaffLinks()
             myStaff = repository.fetchMyStaff()
             myRecords = repository.fetchMyRecords()
+            myRequests = repository.fetchMyAttendanceRequests()
             if (myStaff.isEmpty()) {
                 error = "No accepted attendance registration found for $email. Check your invitation on Home or contact your employer."
             }
@@ -911,8 +1042,13 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                 }
                 val selectedDateMarked = selectedDateRecord != null
                 val todayMarked = staffRecords.any { it.attendanceDate == today.toString() }
+                val selectedDateRequest = myRequests
+                    .filter { it.staffId == staff.id && it.attendanceDate == selectedDateString }
+                    .maxByOrNull { it.requestedAt }
+                val selectedRequestPending = selectedDateRequest?.status == "pending"
+                val selectedRequestRejected = selectedDateRequest?.status == "rejected"
 
-                // Mark Attendance card: date selection and today's mark action.
+                // Staff can submit a request; only the owner can create final attendance.
                 Card(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -955,6 +1091,8 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                 selectedDate.isAfter(today) -> "Future date"
                                 selectedDateMarked && selectedDateRecord?.status.equals("present", true) -> "Present"
                                 selectedDateMarked -> "Absent"
+                                selectedRequestPending -> "Approval pending"
+                                selectedRequestRejected -> "Request rejected"
                                 else -> "Not marked"
                             }
                             Text(
@@ -962,6 +1100,8 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                 color = when (selectedStatus) {
                                     "Present" -> Color(0xFF16803D)
                                     "Absent" -> Color(0xFFB42318)
+                                    "Approval pending" -> Color(0xFFB54708)
+                                    "Request rejected" -> Color(0xFFB42318)
                                     else -> Color(0xFF667085)
                                 },
                                 fontWeight = FontWeight.SemiBold
@@ -981,6 +1121,13 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                     ) { Text("Already Marked") }
                                 }
                             }
+                            selectedDate == today && selectedRequestPending -> {
+                                OutlinedButton(
+                                    onClick = {},
+                                    enabled = false,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Awaiting Owner Approval") }
+                            }
                             selectedDate == today -> {
                                 Button(
                                     onClick = {
@@ -988,10 +1135,10 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                             busy = true
                                             error = null
                                             try {
-                                                repository.markMyAttendance(staff.id)
-                                                myRecords = repository.fetchMyRecords()
+                                                repository.requestMyAttendance(staff.id)
+                                                myRequests = repository.fetchMyAttendanceRequests()
                                             } catch (e: Exception) {
-                                                error = e.message ?: "Unable to mark attendance."
+                                                error = e.message ?: "Unable to request attendance approval."
                                             } finally {
                                                 busy = false
                                             }
@@ -1001,7 +1148,20 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Text(if (todayMarked) "Already Marked" else "Mark Attendance")
+                                    Text(
+                                        when {
+                                            todayMarked -> "Already Marked"
+                                            selectedRequestRejected -> "Request Approval Again"
+                                            else -> "Request Attendance Approval"
+                                        }
+                                    )
+                                }
+                                if (selectedRequestRejected) {
+                                    Text(
+                                        "Your previous request was rejected. You can submit a new request.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFB42318)
+                                    )
                                 }
                             }
                             else -> {

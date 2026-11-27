@@ -50,6 +50,18 @@ data class AttendanceRecord(
     val status: String = "present"
 )
 
+@Serializable
+data class AttendanceMarkRequest(
+    val id: String,
+    @SerialName("staff_id") val staffId: String,
+    @SerialName("attendance_date") val attendanceDate: String,
+    @SerialName("requested_by_user_id") val requestedByUserId: String,
+    @SerialName("requested_at") val requestedAt: String,
+    val status: String,
+    @SerialName("reviewed_by_user_id") val reviewedByUserId: String? = null,
+    @SerialName("reviewed_at") val reviewedAt: String? = null
+)
+
 /**
  * All attendance operations use the same authenticated Supabase session as
  * Ledger Online / Online Groups. There is no separate attendance login/session.
@@ -268,19 +280,56 @@ class AttendanceRepository {
             .decodeList<AttendanceRecord>()
     }
 
-    suspend fun markMyAttendance(staffId: String): AttendanceRecord {
+    suspend fun fetchOwnerAttendanceRequests(): List<AttendanceMarkRequest> {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        return onlineClient.from("attendance_mark_requests")
+            .select()
+            .decodeList<AttendanceMarkRequest>()
+            .filter { it.status == "pending" }
+            .sortedByDescending { it.requestedAt }
+    }
+
+    suspend fun fetchMyAttendanceRequests(): List<AttendanceMarkRequest> {
         check(onlineClient.auth.currentUserOrNull() != null) {
             "Staff is not signed in."
         }
-        return onlineClient.postgrest
-            .rpc(
-                "mark_my_attendance",
-                kotlinx.serialization.json.buildJsonObject {
-                    put("p_staff_id", kotlinx.serialization.json.JsonPrimitive(staffId))
-                }
-            )
-            .decodeList<AttendanceRecord>()
-            .firstOrNull()
-            ?: error("Attendance was not returned by the server.")
+        return onlineClient.from("attendance_mark_requests")
+            .select()
+            .decodeList<AttendanceMarkRequest>()
+            .sortedByDescending { it.requestedAt }
+    }
+
+    suspend fun requestMyAttendance(staffId: String): AttendanceMarkRequest {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Staff is not signed in."
+        }
+        return onlineClient.postgrest.rpc(
+            "request_my_attendance",
+            buildJsonObject { put("p_staff_id", staffId) }
+        ).decodeList<AttendanceMarkRequest>().firstOrNull()
+            ?: error("Attendance approval request was not returned by the server.")
+    }
+
+    suspend fun approveOwnerAttendanceRequest(requestId: String): AttendanceRecord {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        return onlineClient.postgrest.rpc(
+            "approve_owner_attendance_request",
+            buildJsonObject { put("p_request_id", requestId) }
+        ).decodeList<AttendanceRecord>().firstOrNull()
+            ?: error("Approved attendance record was not returned by the server.")
+    }
+
+    suspend fun rejectOwnerAttendanceRequest(requestId: String): Int {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        return onlineClient.postgrest.rpc(
+            "reject_owner_attendance_request",
+            buildJsonObject { put("p_request_id", requestId) }
+        ).decodeAs<Int>()
     }
 }

@@ -133,6 +133,9 @@ fun HomeScreen(
     onOnlineAccountSessionReady: (String?) -> Unit = {},
     onAttendanceDataChanged: () -> Unit = {},
     showOwnerAttendanceReport: Boolean = false,
+    attendanceTodayPresent: Int = 0,
+    attendanceTodayAbsent: Int = 0,
+    attendanceTodayTotal: Int = 0,
     hasAttendanceAccess: Boolean = false,
     onStaffAttendanceClick: () -> Unit = {},
     pendingAttendanceInvites: List<AttendanceInviteRecord> = emptyList(),
@@ -198,6 +201,7 @@ fun HomeScreen(
     }
     var onlineGroupsError by remember { mutableStateOf<String?>(null) }
     var onlineGroupsLoadTrigger by remember { mutableStateOf(0) }
+    var isOnlineConnectionChecking by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -235,7 +239,12 @@ fun HomeScreen(
     val availableHomeFilters = buildList {
             if (uiState.parties.isNotEmpty()) add("Parties")
             add("Groups")
-            if (staffMembers.isNotEmpty()) add("Staff")
+            if (
+                staffMembers.isNotEmpty() ||
+                showOwnerAttendanceReport ||
+                hasAttendanceAccess ||
+                pendingAttendanceInvites.isNotEmpty()
+            ) add("Staff")
         }
         val activeHomeFilter =
             if (homeFilter == "All" || homeFilter in availableHomeFilters) homeFilter
@@ -350,9 +359,10 @@ fun HomeScreen(
     }
 
     LaunchedEffect(cloudAuthManager, onlineGroupsLoadTrigger) {
-        if (onlineGroups.isEmpty()) {
-            isOnlineGroupsLoading = true
-        }
+        // Re-check the persisted Ledger Online session on every app resume
+        // and whenever the user taps the status control in the Search field.
+        isOnlineConnectionChecking = true
+        isOnlineGroupsLoading = true
         onlineGroupsError = null
 
         var lastError: Exception? = null
@@ -403,6 +413,7 @@ fun HomeScreen(
             }
         } finally {
             isOnlineGroupsLoading = false
+            isOnlineConnectionChecking = false
         }
     }
 
@@ -1207,6 +1218,49 @@ if (showTipsDialog) {
                         },
                         placeholder = {
                             Text("Search", fontSize = 14.sp, lineHeight = 16.sp)
+                        },
+                        trailingIcon = {
+                            val connectionLabel = when {
+                                isOnlineConnectionChecking || attendanceInviteBusy -> "Checking"
+                                onlineGroupsError != null -> "Retry"
+                                cloudUser != null -> "Online"
+                                else -> "Not connected"
+                            }
+                            val connectionTint = when (connectionLabel) {
+                                "Online" -> Color(0xFF2E7D32)
+                                "Retry" -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                            Row(
+                                modifier = Modifier.padding(end = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = connectionLabel,
+                                    fontSize = 10.sp,
+                                    color = connectionTint,
+                                    maxLines = 1
+                                )
+                                IconButton(
+                                    onClick = { onlineGroupsLoadTrigger++ },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    if (isOnlineConnectionChecking || attendanceInviteBusy) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Outlined.CloudDone,
+                                            contentDescription = "Check Ledger Online connection",
+                                            tint = connectionTint,
+                                            modifier = Modifier.size(19.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     )
 
@@ -1857,6 +1911,92 @@ item {
                 }
             }
 
+            if (showOwnerAttendanceReport && (activeHomeFilter == "All" || activeHomeFilter == "Staff")) {
+                item(key = "owner-attendance-report-entry") {
+                    val attendancePercent = if (attendanceTodayTotal > 0) {
+                        (attendanceTodayPresent * 100 / attendanceTodayTotal).coerceIn(0, 100)
+                    } else 0
+                    val attendanceNotMarked = (
+                        attendanceTodayTotal - attendanceTodayPresent - attendanceTodayAbsent
+                    ).coerceAtLeast(0)
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onAttendanceClick),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF172554)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "ATTENDANCE OVERVIEW",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB8C7F5)
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Today's Attendance",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.height(3.dp))
+                                    Text(
+                                        "$attendanceTodayPresent of $attendanceTodayTotal staff",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFFE0E7FF)
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        "$attendancePercent%",
+                                        style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        "Present",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFCBD5E1)
+                                    )
+                                }
+                            }
+
+                            androidx.compose.material3.LinearProgressIndicator(
+                                progress = { attendancePercent / 100f },
+                                modifier = Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(20.dp)),
+                                color = Color(0xFF6EE7B7),
+                                trackColor = Color(0xFF344675)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AttendanceSummaryPill("Present", attendanceTodayPresent, Color(0xFF6EE7B7), Modifier.weight(1f))
+                                AttendanceSummaryPill("Absent", attendanceTodayAbsent, Color(0xFFFCA5A5), Modifier.weight(1f))
+                                AttendanceSummaryPill("Not marked", attendanceNotMarked, Color(0xFFFDE68A), Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+
             items(
                 items = visibleGroups,
                 key = { "sharing-group-${it.id}" }
@@ -1929,46 +2069,6 @@ item {
             }
 
             if (activeHomeFilter == "All" || activeHomeFilter == "Groups") {
-                if (isOnlineGroupsLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text("Loading Online Groups...")
-                        }
-                    }
-                }
-                onlineGroupsError?.let { message ->
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = message,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            TextButton(
-                                onClick = { onlineGroupsLoadTrigger++ }
-                            ) {
-                                Text("Retry")
-                            }
-                        }
-                    }
-                }
 
                 items(
                     items = visibleOnlineGroups,
@@ -2059,19 +2159,7 @@ item {
                 }
             }
 
-            if (showOwnerAttendanceReport) {
-                item(key = "owner-attendance-report-entry") {
-                    OutlinedButton(
-                        onClick = onAttendanceClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Attendance Report")
-                    }
-                }
-            }
-
-            if (pendingAttendanceInvites.isNotEmpty()) {
+            if (pendingAttendanceInvites.isNotEmpty() && (activeHomeFilter == "All" || activeHomeFilter == "Staff")) {
                 items(
                     items = pendingAttendanceInvites,
                     key = { "attendance-invite-${it.staffId}" }
@@ -2175,7 +2263,7 @@ item {
                 }
             }
 
-            if (hasAttendanceAccess) {
+            if (hasAttendanceAccess && (activeHomeFilter == "All" || activeHomeFilter == "Staff")) {
                 item(key = "staff-attendance-entry") {
                     Card(
                         modifier = Modifier
@@ -3330,6 +3418,35 @@ title = { Text("Delete Party?") },
         )
     }
 
+}
+
+@Composable
+private fun AttendanceSummaryPill(
+    label: String,
+    count: Int,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF243765))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = tint
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFFD5DDF2),
+            maxLines = 1
+        )
+    }
 }
 
 @Composable

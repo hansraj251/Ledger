@@ -283,6 +283,21 @@ class MainActivity : ComponentActivity() {
                     } ?: false
                 )
             }
+            var attendanceTodayPresent by remember {
+                mutableStateOf(lastAttendanceCacheUserId?.let {
+                    attendanceCachePrefs.getInt("present_$it", 0)
+                } ?: 0)
+            }
+            var attendanceTodayAbsent by remember {
+                mutableStateOf(lastAttendanceCacheUserId?.let {
+                    attendanceCachePrefs.getInt("absent_$it", 0)
+                } ?: 0)
+            }
+            var attendanceTodayTotal by remember {
+                mutableStateOf(lastAttendanceCacheUserId?.let {
+                    attendanceCachePrefs.getInt("total_$it", 0)
+                } ?: 0)
+            }
             var attendancePendingInvites by remember {
                 mutableStateOf<List<AttendanceInviteRecord>>(emptyList())
             }
@@ -310,10 +325,16 @@ class MainActivity : ComponentActivity() {
                         if (attendanceRepository.currentOnlineAccountUserId() == expectedUserId) {
                             attendanceHasOwnerReportEntries = false
                             attendanceHasLinkedStaff = false
+                            attendanceTodayPresent = 0
+                            attendanceTodayAbsent = 0
+                            attendanceTodayTotal = 0
                             attendancePendingInvites = emptyList()
                             attendanceCachePrefs.edit()
                                 .putBoolean("owner_$expectedUserId", false)
                                 .putBoolean("staff_$expectedUserId", false)
+                                .putInt("present_$expectedUserId", 0)
+                                .putInt("absent_$expectedUserId", 0)
+                                .putInt("total_$expectedUserId", 0)
                                 .apply()
                         }
                     } else {
@@ -323,15 +344,39 @@ class MainActivity : ComponentActivity() {
                             attendanceRepository.fetchMyStaffForHomeCard().isNotEmpty()
 
                         val isOwner = attendanceRepository.hasOwnerAttendanceAccess()
-                        val hasOwnerReportEntries = isOwner &&
-                            attendanceRepository.fetchOwnerStaffForReport().any { staff ->
-                                staff.isActive && (
-                                    (staff.linkStatus == "linked" &&
-                                        staff.approvalStatus == "accepted") ||
-                                    (staff.linkStatus == "pending" &&
-                                        staff.approvalStatus == "pending")
-                                )
+                        val reportStaff = if (isOwner) {
+                            attendanceRepository.fetchOwnerStaffForReport()
+                        } else emptyList()
+                        val activeReportStaff = reportStaff.filter {
+                            it.isActive &&
+                                it.linkStatus == "linked" &&
+                                it.approvalStatus == "accepted"
+                        }
+                        val hasOwnerReportEntries = isOwner && reportStaff.any { staff ->
+                            staff.isActive && (
+                                (staff.linkStatus == "linked" &&
+                                    staff.approvalStatus == "accepted") ||
+                                (staff.linkStatus == "pending" &&
+                                    staff.approvalStatus == "pending")
+                            )
+                        }
+
+                        val todayAttendanceDate = java.time.LocalDate.now(
+                            java.time.ZoneId.of("Asia/Kolkata")
+                        ).toString()
+                        val todayAttendanceRecords = if (activeReportStaff.isNotEmpty()) {
+                            attendanceRepository.fetchOwnerRecords().filter { record ->
+                                record.attendanceDate == todayAttendanceDate &&
+                                    activeReportStaff.any { it.id == record.staffId }
                             }
+                        } else emptyList()
+                        val todayPresentCount = todayAttendanceRecords.count {
+                            it.status.equals("present", ignoreCase = true)
+                        }
+                        val todayAbsentCount = todayAttendanceRecords.count {
+                            it.status.equals("absent", ignoreCase = true)
+                        }
+                        val todayTotalCount = activeReportStaff.size
 
                         // Re-check identity after all requests; ignore stale results
                         // if the user switched Ledger Online accounts mid-refresh.
@@ -339,10 +384,16 @@ class MainActivity : ComponentActivity() {
                             attendancePendingInvites = latestInvites
                             attendanceHasLinkedStaff = hasLinkedStaff
                             attendanceHasOwnerReportEntries = hasOwnerReportEntries
+                            attendanceTodayPresent = todayPresentCount
+                            attendanceTodayAbsent = todayAbsentCount
+                            attendanceTodayTotal = todayTotalCount
                             attendanceCachePrefs.edit()
                                 .putString("last_user_id", expectedUserId)
                                 .putBoolean("owner_$expectedUserId", hasOwnerReportEntries)
                                 .putBoolean("staff_$expectedUserId", hasLinkedStaff)
+                                .putInt("present_$expectedUserId", todayPresentCount)
+                                .putInt("absent_$expectedUserId", todayAbsentCount)
+                                .putInt("total_$expectedUserId", todayTotalCount)
                                 .apply()
                         }
                     }
@@ -1029,6 +1080,12 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                         attendanceCachePrefs.getBoolean("owner_$userId", false)
                                     attendanceHasLinkedStaff =
                                         attendanceCachePrefs.getBoolean("staff_$userId", false)
+                                    attendanceTodayPresent =
+                                        attendanceCachePrefs.getInt("present_$userId", 0)
+                                    attendanceTodayAbsent =
+                                        attendanceCachePrefs.getInt("absent_$userId", 0)
+                                    attendanceTodayTotal =
+                                        attendanceCachePrefs.getInt("total_$userId", 0)
                                     attendanceCachePrefs.edit()
                                         .putString("last_user_id", userId)
                                         .apply()
@@ -1046,6 +1103,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                 }
                             },
                             showOwnerAttendanceReport = attendanceHasOwnerReportEntries,
+                            attendanceTodayPresent = attendanceTodayPresent,
+                            attendanceTodayAbsent = attendanceTodayAbsent,
+                            attendanceTodayTotal = attendanceTodayTotal,
                             hasAttendanceAccess = attendanceHasLinkedStaff,
                             onStaffAttendanceClick = { showStaffAttendanceScreen = true },
                             pendingAttendanceInvites = attendancePendingInvites,

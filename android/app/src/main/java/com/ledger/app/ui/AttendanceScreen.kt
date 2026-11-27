@@ -214,7 +214,11 @@ fun AttendanceScreen(onBack: () -> Unit) {
                     busy = true
                     error = null
                     try {
-                        repository.setOwnerAttendance(activeStaff.id, date.toString(), status)
+                        if (status == "unmarked") {
+                            repository.clearOwnerAttendance(activeStaff.id, date.toString())
+                        } else {
+                            repository.setOwnerAttendance(activeStaff.id, date.toString(), status)
+                        }
                         ownerRecords = repository.fetchOwnerRecords()
                     } catch (e: Exception) {
                         error = e.message ?: "Unable to update attendance."
@@ -682,29 +686,54 @@ private fun OwnerStaffAttendanceScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Button(
                                 onClick = { onSetStatus(selectedDate, "present") },
                                 enabled = !busy && selectedRecord?.status?.equals("present", true) != true,
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 2.dp,
+                                    vertical = 10.dp
+                                ),
                                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFF16803D),
                                     contentColor = Color.White
                                 )
-                            ) { Text("Mark Present") }
+                            ) {
+                                Text("Present", maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            }
 
                             Button(
                                 onClick = { onSetStatus(selectedDate, "absent") },
                                 enabled = !busy && selectedRecord?.status?.equals("absent", true) != true,
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 2.dp,
+                                    vertical = 10.dp
+                                ),
                                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                     containerColor = Color(0xFFB42318),
                                     contentColor = Color.White
                                 )
-                            ) { Text("Mark Absent") }
+                            ) {
+                                Text("Absent", maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            }
+
+                            OutlinedButton(
+                                onClick = { onSetStatus(selectedDate, "unmarked") },
+                                enabled = !busy && selectedRecord != null,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 2.dp,
+                                    vertical = 10.dp
+                                )
+                            ) {
+                                Text("Unmarked", maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            }
                         }
                         if (busy) {
                             Row(

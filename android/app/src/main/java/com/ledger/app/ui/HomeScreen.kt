@@ -130,6 +130,8 @@ fun HomeScreen(
     onStaffLongClick: (Long) -> Unit = { onStaffClick(it) },
     onDriveConnectionRequired: () -> Unit = {},
     onAttendanceClick: () -> Unit = {},
+    onOnlineAccountSessionReady: () -> Unit = {},
+    onAttendanceDataChanged: () -> Unit = {},
     showOwnerAttendanceReport: Boolean = false,
     hasAttendanceAccess: Boolean = false,
     onStaffAttendanceClick: () -> Unit = {},
@@ -363,6 +365,9 @@ fun HomeScreen(
                     }
 
                     cloudUser = restoredUser
+                    // Attendance must wait until the persisted Ledger Online
+                    // account has been restored from Supabase storage.
+                    onOnlineAccountSessionReady()
 
                     val latestGroups = if (restoredUser != null) {
                         withContext(Dispatchers.IO) {
@@ -2506,6 +2511,9 @@ item {
                                 "yyyy-MM-dd", java.util.Locale.US
                             ).format(java.util.Date())
                             onDataChanged()
+                            if (attendanceRegistered) {
+                                onAttendanceDataChanged()
+                            }
                         } catch (error: Exception) {
                             android.util.Log.e("LedgerStaff", "Unable to save/register staff", error)
                             if (insertedStaffId != null && !attendanceRegistered && attendanceEmail.isNotBlank()) {

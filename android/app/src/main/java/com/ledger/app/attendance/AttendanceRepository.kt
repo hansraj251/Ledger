@@ -167,6 +167,24 @@ class AttendanceRepository {
             ?: error("Updated attendance was not returned by the server.")
     }
 
+    suspend fun clearOwnerAttendance(
+        staffId: String,
+        attendanceDate: String
+    ): Int {
+        check(onlineClient.auth.currentUserOrNull() != null) {
+            "Connect the owner Google account first."
+        }
+        return onlineClient.postgrest
+            .rpc(
+                "clear_owner_attendance",
+                buildJsonObject {
+                    put("p_staff_id", staffId)
+                    put("p_attendance_date", attendanceDate)
+                }
+            )
+            .decodeAs<Int>()
+    }
+
     suspend fun claimStaffLinks(): Int {
         check(onlineClient.auth.currentUserOrNull() != null) {
             "Sign in with Google first."

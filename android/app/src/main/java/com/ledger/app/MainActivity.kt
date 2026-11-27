@@ -257,21 +257,29 @@ class MainActivity : ComponentActivity() {
 
             val attendanceRepository = remember { AttendanceRepository() }
             val attendanceAuthScope = androidx.compose.runtime.rememberCoroutineScope()
-            var attendanceOwnerSignedIn by remember { mutableStateOf(false) }
+            var attendanceHasOwnerReportEntries by remember { mutableStateOf(false) }
             var attendanceHasLinkedStaff by remember { mutableStateOf(false) }
             var attendancePendingInvites by remember {
                 mutableStateOf<List<AttendanceInviteRecord>>(emptyList())
             }
             var attendanceAuthBusy by remember { mutableStateOf(false) }
+            var attendanceRefreshQueued by remember { mutableStateOf(false) }
             var attendanceAuthError by remember { mutableStateOf<String?>(null) }
 
             suspend fun refreshAttendanceForOnlineAccount() {
+                if (attendanceAuthBusy) {
+                    attendanceRefreshQueued = true
+                    return
+                }
+
                 attendanceAuthBusy = true
                 attendanceAuthError = null
                 try {
+                    // HomeScreen restores the Ledger Online session before invoking
+                    // this refresh. Read the authenticated account only afterwards.
                     val email = attendanceRepository.currentOnlineAccountEmail()
                     if (email.isNullOrBlank()) {
-                        attendanceOwnerSignedIn = false
+                        attendanceHasOwnerReportEntries = false
                         attendanceHasLinkedStaff = false
                         attendancePendingInvites = emptyList()
                     } else {
@@ -279,36 +287,32 @@ class MainActivity : ComponentActivity() {
                         attendancePendingInvites = attendanceRepository.fetchMyInvites()
                         attendanceHasLinkedStaff =
                             attendanceRepository.fetchMyStaffForHomeCard().isNotEmpty()
-                        attendanceOwnerSignedIn =
-                            attendanceRepository.hasOwnerAttendanceAccess()
+
+                        val isOwner = attendanceRepository.hasOwnerAttendanceAccess()
+                        attendanceHasOwnerReportEntries = isOwner &&
+                            attendanceRepository.fetchOwnerStaffForReport().any { staff ->
+                                staff.isActive && (
+                                    (staff.linkStatus == "linked" &&
+                                        staff.approvalStatus == "accepted") ||
+                                    (staff.linkStatus == "pending" &&
+                                        staff.approvalStatus == "pending")
+                                )
+                            }
                     }
                 } catch (error: Exception) {
-                    attendanceOwnerSignedIn = false
+                    attendanceHasOwnerReportEntries = false
                     attendanceHasLinkedStaff = false
                     attendancePendingInvites = emptyList()
                     attendanceAuthError =
                         error.message ?: "Unable to refresh attendance access."
                 } finally {
                     attendanceAuthBusy = false
-                }
-            }
-
-            val attendanceLifecycleOwner =
-                androidx.lifecycle.compose.LocalLifecycleOwner.current
-            androidx.compose.runtime.DisposableEffect(attendanceLifecycleOwner) {
-                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                    if (
-                        event == androidx.lifecycle.Lifecycle.Event.ON_RESUME &&
-                        !attendanceAuthBusy
-                    ) {
+                    if (attendanceRefreshQueued) {
+                        attendanceRefreshQueued = false
                         attendanceAuthScope.launch {
                             refreshAttendanceForOnlineAccount()
                         }
                     }
-                }
-                attendanceLifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    attendanceLifecycleOwner.lifecycle.removeObserver(observer)
                 }
             }
 
@@ -341,12 +345,6 @@ class MainActivity : ComponentActivity() {
 
                 var showProfileScreen by remember {
                         mutableStateOf(false)
-                }
-
-                androidx.compose.runtime.LaunchedEffect(showProfileScreen) {
-                    if (!showProfileScreen) {
-                        refreshAttendanceForOnlineAccount()
-                    }
                 }
 
                 var showAllPartiesReport by remember {
@@ -969,7 +967,17 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             },
                             onDriveConnectionRequired = { connectGoogleDrive() },
                             onAttendanceClick = { showAttendanceScreen = true },
-                            showOwnerAttendanceReport = attendanceOwnerSignedIn,
+                            onOnlineAccountSessionReady = {
+                                attendanceAuthScope.launch {
+                                    refreshAttendanceForOnlineAccount()
+                                }
+                            },
+                            onAttendanceDataChanged = {
+                                attendanceAuthScope.launch {
+                                    refreshAttendanceForOnlineAccount()
+                                }
+                            },
+                            showOwnerAttendanceReport = attendanceHasOwnerReportEntries,
                             hasAttendanceAccess = attendanceHasLinkedStaff,
                             onStaffAttendanceClick = { showStaffAttendanceScreen = true },
                             pendingAttendanceInvites = attendancePendingInvites,
@@ -984,8 +992,16 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                                         attendancePendingInvites = attendanceRepository.fetchMyInvites()
                                         attendanceHasLinkedStaff =
                                             attendanceRepository.fetchMyStaffForHomeCard().isNotEmpty()
-                                        attendanceOwnerSignedIn =
-                                            attendanceRepository.hasOwnerAttendanceAccess()
+                                        val isOwner = attendanceRepository.hasOwnerAttendanceAccess()
+                                        attendanceHasOwnerReportEntries = isOwner &&
+                                            attendanceRepository.fetchOwnerStaffForReport().any { staff ->
+                                                staff.isActive && (
+                                                    (staff.linkStatus == "linked" &&
+                                                        staff.approvalStatus == "accepted") ||
+                                                    (staff.linkStatus == "pending" &&
+                                                        staff.approvalStatus == "pending")
+                                                )
+                                            }
                                     } catch (error: Exception) {
                                         val message =
                                             error.message ?: "Unable to accept attendance invitation."

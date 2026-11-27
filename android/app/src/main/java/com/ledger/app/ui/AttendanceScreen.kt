@@ -150,6 +150,11 @@ fun AttendanceScreen(onBack: () -> Unit) {
             )
             gpsLatitude = fix.latitude
             gpsLongitude = fix.longitude
+            // Selecting GPS Auto Approved first reveals setup controls. Activate
+            // the server-side mode only after valid workplace coordinates are saved.
+            if (ownerVerificationMode == "gps_auto") {
+                repository.setOwnerAttendanceVerificationMode("gps_auto")
+            }
             error = null
         } catch (e: Exception) {
             error = e.message ?: "Unable to save workplace location."
@@ -208,9 +213,13 @@ fun AttendanceScreen(onBack: () -> Unit) {
                 val workplace = repository.fetchOwnerWorkplace()
                     ?: error("Attendance workplace was not found for this owner account.")
                 val workplaceLatitude = workplace.gpsLatitude
-                    ?: error("Set the workplace GPS location before enabling GPS Attendance.")
                 val workplaceLongitude = workplace.gpsLongitude
-                    ?: error("Set the workplace GPS location before enabling GPS Attendance.")
+                // Keep GPS selected in this dialog so the owner can configure the
+                // location. Do not enable it in Supabase until setup is complete.
+                if (workplaceLatitude == null || workplaceLongitude == null) {
+                    ownerVerificationMode = "gps_auto"
+                    return
+                }
                 check(workplace.attendanceRadiusM in 50..300) {
                     "Set a valid attendance radius between 50 and 300 metres."
                 }
@@ -337,44 +346,51 @@ fun AttendanceScreen(onBack: () -> Unit) {
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Workplace GPS Location", fontWeight = FontWeight.Bold)
-                    Text(
-                        if (gpsLatitude != null && gpsLongitude != null)
-                            "Location saved · ${"%.5f".format(gpsLatitude)}, ${"%.5f".format(gpsLongitude)}"
-                        else "Workplace location not set",
-                        color = Color(0xFF667085),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    OutlinedButton(
-                        onClick = { requestOwnerGpsLocation() },
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Set / Update Current Workplace Location") }
-                    Text("Attendance radius: ${gpsRadiusMeters.toInt()} metres", fontWeight = FontWeight.SemiBold)
-                    Slider(
-                        value = gpsRadiusMeters,
-                        onValueChange = { gpsRadiusMeters = it },
-                        valueRange = 50f..300f,
-                        steps = 24,
-                        enabled = !busy
-                    )
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                busy = true
-                                error = null
-                                try {
-                                    saveOwnerGpsRadius()
-                                } catch (e: Exception) {
-                                    error = e.message ?: "Unable to save attendance radius."
-                                } finally {
-                                    busy = false
+                    if (ownerVerificationMode == "gps_auto") {
+                        Text("Workplace GPS Location", fontWeight = FontWeight.Bold)
+                        Text(
+                            if (gpsLatitude != null && gpsLongitude != null)
+                                "Location saved · ${"%.5f".format(gpsLatitude)}, ${"%.5f".format(gpsLongitude)}"
+                            else "Workplace location not set. Save the current workplace location to enable GPS attendance.",
+                            color = Color(0xFF667085),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        OutlinedButton(
+                            onClick = { requestOwnerGpsLocation() },
+                            enabled = !busy,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Save Workplace Location") }
+                        Text("Attendance radius: ${gpsRadiusMeters.toInt()} metres", fontWeight = FontWeight.SemiBold)
+                        Slider(
+                            value = gpsRadiusMeters,
+                            onValueChange = { gpsRadiusMeters = it },
+                            onValueChangeFinished = {
+                                if (gpsLatitude != null && gpsLongitude != null) {
+                                    scope.launch {
+                                        busy = true
+                                        error = null
+                                        try {
+                                            saveOwnerGpsRadius()
+                                        } catch (e: Exception) {
+                                            error = e.message ?: "Unable to save attendance radius."
+                                        } finally {
+                                            busy = false
+                                        }
+                                    }
                                 }
-                            }
-                        },
-                        enabled = !busy && gpsLatitude != null && gpsLongitude != null,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Save GPS Settings") }
+                            },
+                            valueRange = 50f..300f,
+                            steps = 24,
+                            enabled = !busy && gpsLatitude != null && gpsLongitude != null
+                        )
+                        Text(
+                            if (gpsLatitude != null && gpsLongitude != null)
+                                "Radius is saved automatically when you finish adjusting the slider."
+                            else "Save workplace location first to configure the radius.",
+                            color = Color(0xFF667085),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable(enabled = !busy) {
@@ -388,7 +404,7 @@ fun AttendanceScreen(onBack: () -> Unit) {
                             enabled = !busy
                         )
                         Column {
-                            Text("Owner Approval", fontWeight = FontWeight.Bold)
+                            Text("Approval Required", fontWeight = FontWeight.Bold)
                             Text(
                                 "Staff requests attendance. It is recorded only after you approve it.",
                                 color = Color(0xFF667085),
@@ -410,7 +426,7 @@ fun AttendanceScreen(onBack: () -> Unit) {
                         Column {
                             Text("GPS – Auto Approved", fontWeight = FontWeight.Bold)
                             Text(
-                                "Inside the saved workplace radius: automatic Present. Outside or uncertain GPS: Owner Approval.",
+                                "Inside the saved workplace radius: automatic Present. Outside or uncertain GPS: Approval Required.",
                                 color = Color(0xFF667085),
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -1478,14 +1494,14 @@ fun StaffAttendanceScreen(onBack: () -> Unit) {
                                         when {
                                             todayMarked -> "Already Marked"
                                             myVerificationModes[staff.id] == "gps_auto" -> "Mark Attendance"
-                                            selectedRequestRejected -> "Request Approval Again"
-                                            else -> "Request Attendance Approval"
+                                            selectedRequestRejected -> "Mark Attendance"
+                                            else -> "Mark Attendance"
                                         }
                                     )
                                 }
                                 if (selectedRequestRejected) {
                                     Text(
-                                        "Your previous request was rejected. You can submit a new request.",
+                                        "Your previous request was rejected. Tap Mark Attendance to send a new request.",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color(0xFFB42318)
                                     )

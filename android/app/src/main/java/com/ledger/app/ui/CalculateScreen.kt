@@ -68,7 +68,7 @@ private val CalculateMuted = Color(0xFF697386)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalculateScreen(isPremium: Boolean, onHomeClick: () -> Unit, onExpensesClick: () -> Unit) {
+fun CalculateScreen(isPremium: Boolean, onHomeClick: () -> Unit, onExpensesClick: () -> Unit, onWriteClick: () -> Unit = {}) {
     var search by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("All") }
     var selected by remember { mutableStateOf<CalcDef?>(null) }
@@ -109,7 +109,8 @@ fun CalculateScreen(isPremium: Boolean, onHomeClick: () -> Unit, onExpensesClick
                 isPremium = isPremium,
                 onPartiesClick = onHomeClick,
                 onExpensesClick = onExpensesClick,
-                onCalculateClick = { selected = null }
+                onCalculateClick = { selected = null },
+                onWriteClick = onWriteClick
             )
         }
     ) { inset ->

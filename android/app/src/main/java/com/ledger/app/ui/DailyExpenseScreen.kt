@@ -19,6 +19,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import android.app.DatePickerDialog
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -274,63 +275,200 @@ private fun startOfToday(): Long =
 @Composable
 fun LedgerBottomNavigation(
     selectedTab: String,
-        isPremium: Boolean = false,
-onPartiesClick: () -> Unit,
+    isPremium: Boolean = false,
+    onPartiesClick: () -> Unit,
     onExpensesClick: () -> Unit,
     onGroupSharingClick: () -> Unit = {},
-    onCalculateClick: () -> Unit = {}
+    onCalculateClick: () -> Unit = {},
+    onWriteClick: () -> Unit = {},
+    openFooterSettings: Boolean = false,
+    onFooterSettingsRequestHandled: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val preferences = remember(context) {
+        context.getSharedPreferences("ledger_footer_settings", android.content.Context.MODE_PRIVATE)
+    }
+    var showExpense by remember {
+        mutableStateOf(preferences.getBoolean("show_expense", true))
+    }
+    var showWrite by remember {
+        mutableStateOf(preferences.getBoolean("show_write", false))
+    }
+    var showCalculate by remember {
+        mutableStateOf(preferences.getBoolean("show_calculate", false))
+    }
+    var showFooterSettings by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openFooterSettings) {
+        if (openFooterSettings) {
+            showFooterSettings = true
+            onFooterSettingsRequestHandled()
+        }
+    }
+
+    val destinations = buildList {
+        add("home")
+        if (showExpense) add("expenses")
+        if (showWrite) add("write")
+        if (showCalculate) add("calculate")
+    }
+
+    val selectedColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2)
+    val indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
+
     NavigationBar(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(80.dp),
+        modifier = Modifier.fillMaxWidth().height(80.dp),
         containerColor = Color.White,
         tonalElevation = 8.dp,
         windowInsets = WindowInsets(0.dp)
     ) {
-        NavigationBarItem(
-            selected = selectedTab == "parties",
-            onClick = onPartiesClick,
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
-            ),
-            icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
-            label = {
-                Text(
-                    "Home",
-                    fontWeight = if (selectedTab == "parties") FontWeight.SemiBold else FontWeight.Normal
-                )
-            }
-        )
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().height(80.dp)
+        ) {
+            val visibleSlots = minOf(destinations.size, 3)
+            val itemWidth = maxWidth / visibleSlots
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .horizontalScroll(androidx.compose.foundation.rememberScrollState())
+            ) {
+                destinations.forEach { destination ->
+                    val selected = when (destination) {
+                        "home" -> selectedTab == "parties"
+                        "expenses" -> selectedTab == "expenses"
+                        "write" -> selectedTab == "write"
+                        else -> selectedTab == "calculate"
+                    }
+                    val label = when (destination) {
+                        "home" -> "Home"
+                        "expenses" -> "Expense"
+                        "write" -> "Write"
+                        else -> "Calculate"
+                    }
+                    val icon = when (destination) {
+                        "home" -> Icons.Outlined.Home
+                        "expenses" -> Icons.Outlined.AccountBalanceWallet
+                        "write" -> Icons.Outlined.EditNote
+                        else -> Icons.Outlined.Calculate
+                    }
+                    val action = when (destination) {
+                        "home" -> onPartiesClick
+                        "expenses" -> onExpensesClick
+                        "write" -> onWriteClick
+                        else -> onCalculateClick
+                    }
 
-        NavigationBarItem(
-            selected = selectedTab == "expenses",
-            onClick = onExpensesClick,
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
-            ),
-            icon = { Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null) },
-            label = {
-                Text(
-                    "Daily Expense",
-                    fontWeight = if (selectedTab == "expenses") FontWeight.SemiBold else FontWeight.Normal
-                )
+                    Column(
+                        modifier = Modifier.width(itemWidth).height(80.dp)
+                            .combinedClickable(
+                                onClick = action,
+                                onLongClick = { if (destination == "home") showFooterSettings = true }
+                            )
+                            .padding(top = 7.dp, bottom = 5.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (selected) indicatorColor else Color.Transparent)
+                                .padding(horizontal = 18.dp, vertical = 3.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = label,
+                                tint = if (selected) selectedColor else Color(0xFF687386)
+                            )
+                        }
+                        Text(
+                            text = label,
+                            color = if (selected) selectedColor else Color(0xFF687386),
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
-        )
-        NavigationBarItem(
-            selected = selectedTab == "calculate",
-            onClick = onCalculateClick,
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
-                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
-            ),
-            icon = { Icon(Icons.Outlined.Calculate, contentDescription = null) },
-            label = { Text("Calculate", fontWeight = if (selectedTab == "calculate") FontWeight.SemiBold else FontWeight.Normal) }
+        }
+    }
+
+    if (showFooterSettings) {
+        AlertDialog(
+            onDismissRequest = { showFooterSettings = false },
+            containerColor = Color.White,
+            title = {
+                Text("Footer Settings", fontWeight = FontWeight.Bold, color = Color(0xFF172033))
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        "Choose which sections appear in the bottom navigation.",
+                        color = Color(0xFF697386),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Home", fontWeight = FontWeight.SemiBold)
+                            Text("Always visible", color = Color(0xFF697386), style = MaterialTheme.typography.bodySmall)
+                        }
+                        androidx.compose.material3.Checkbox(checked = true, onCheckedChange = null, enabled = false)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Expense", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        androidx.compose.material3.Checkbox(
+                            checked = showExpense,
+                            onCheckedChange = {
+                                showExpense = it
+                                preferences.edit().putBoolean("show_expense", it).apply()
+                            }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Write", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        androidx.compose.material3.Checkbox(
+                            checked = showWrite,
+                            onCheckedChange = {
+                                showWrite = it
+                                preferences.edit().putBoolean("show_write", it).apply()
+                            }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Calculate", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                        androidx.compose.material3.Checkbox(
+                            checked = showCalculate,
+                            onCheckedChange = {
+                                showCalculate = it
+                                preferences.edit().putBoolean("show_calculate", it).apply()
+                            }
+                        )
+                    }
+                    Text(
+                        "Up to 3 items are visible at once. Swipe sideways to see additional items.",
+                        color = Color(0xFF697386),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFooterSettings = false }) {
+                    Text("Done", color = selectedColor, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            shape = RoundedCornerShape(22.dp)
         )
     }
 }
@@ -342,6 +480,7 @@ fun DailyExpenseScreen(
     onPartiesClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
     onCalculateClick: () -> Unit = {},
+    onWriteClick: () -> Unit = {},
     onProfileClick: () -> Unit,
     onExpenseDataChanged: () -> Unit,
     onDriveConnectionRequired: () -> Unit = {},
@@ -1380,7 +1519,8 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                 onPartiesClick = onPartiesClick,
                 onExpensesClick = {},
                 onGroupSharingClick = onGroupSharingClick,
-                onCalculateClick = onCalculateClick
+                onCalculateClick = onCalculateClick,
+                onWriteClick = onWriteClick
             )
         },
         floatingActionButton = {

@@ -108,6 +108,7 @@ fun HomeScreen(
     onReportsClick: () -> Unit,
     onDailyExpenseClick: () -> Unit,
     onCalculateClick: () -> Unit = {},
+    onWriteClick: () -> Unit = {},
     onDailyExpenseReportClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
     onGroupClick: (Long) -> Unit,
@@ -877,6 +878,12 @@ fun HomeScreen(
 
 
     var showAutoSyncOffDialog by remember { mutableStateOf(false) }
+    var openFooterSettingsFromSidebar by remember { mutableStateOf(false) }
+    var showSidebarCurrencyMenu by remember { mutableStateOf(false) }
+    var sidebarCurrencyRefresh by remember { mutableStateOf(0) }
+    val sidebarCurrencyLabel = remember(sidebarCurrencyRefresh) {
+        "${CurrencySettings.selectedOption.label} (${CurrencySettings.symbol})"
+    }
 
     if (showAutoSyncOffDialog) {
         androidx.compose.material3.AlertDialog(
@@ -1452,10 +1459,10 @@ if (showTipsDialog) {
                                                         .fillMaxWidth()
                                                         .clickable {
                                                             showMenu = false
-                                                            requestAddParty()
+                                                            showAddOptionsDialog = true
                                                         },
                                                     shape = RoundedCornerShape(13.dp),
-                                                    color = Color.Transparent
+                                                    color = Color(0xFFEDE7F6)
                                                 ) {
                                                     Row(
                                                         modifier = Modifier.padding(
@@ -1465,130 +1472,21 @@ if (showTipsDialog) {
                                                         verticalAlignment = Alignment.CenterVertically
                                                     ) {
                                                         Icon(
-                                                            imageVector = Icons.Outlined.PersonAdd,
+                                                            imageVector = Icons.Outlined.Add,
                                                             contentDescription = null,
-                                                            tint = Color(0xFF6D6557)
+                                                            tint = Color(0xFF6A3FA0)
                                                         )
                                                         Text(
-                                                            text = "Add Party",
+                                                            text = "Add",
                                                             modifier = Modifier.padding(start = 12.dp),
                                                             style = MaterialTheme.typography.titleSmall,
-                                                            color = Color(0xFF303030)
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = Color(0xFF6A3FA0)
                                                         )
                                                     }
                                                 }
 
                                                 Surface(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            showMenu = false
-                                                            if (isPremium || sharingGroups.size < 4) {
-                                                                newGroupName = ""
-                                                                showCreateGroupDialog = true
-                                                            } else {
-                                                                showGroupUpgradeDialog = true
-                                                            }
-                                                        },
-                                                    shape = RoundedCornerShape(13.dp),
-                                                    color = Color.Transparent
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(
-                                                            horizontal = 14.dp,
-                                                            vertical = 13.dp
-                                                        ),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.Group,
-                                                            contentDescription = null,
-                                                            tint = Color(0xFF6D6557)
-                                                        )
-                                                        Text(
-                                                            text = "Add Group",
-                                                            modifier = Modifier.padding(start = 12.dp),
-                                                            style = MaterialTheme.typography.titleSmall,
-                                                            color = Color(0xFF303030)
-                                                        )
-                                                    }
-                                                }
-
-
-                                                Surface(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            showMenu = false
-                                                            if (cloudUser == null) {
-                                                                onProfileClick()
-                                                            } else {
-                                                                newOnlineGroupName = ""
-                                                                createOnlineGroupError = null
-                                                                showCreateOnlineGroupDialog = true
-                                                            }
-                                                        },
-                                                    shape = RoundedCornerShape(13.dp),
-                                                    color = Color.Transparent
-                                                ) {
-                                                    Row(
-                                                        modifier = Modifier.padding(
-                                                            horizontal = 14.dp,
-                                                            vertical = 13.dp
-                                                        ),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Outlined.CloudDone,
-                                                            contentDescription = null,
-                                                            tint = Color(0xFF6D6557)
-                                                        )
-                                                        Text(
-                                                            text = "Add Online Group",
-                                                            modifier = Modifier.padding(start = 12.dp),
-                                                            style = MaterialTheme.typography.titleSmall,
-                                                            color = Color(0xFF303030)
-                                                        )
-                                                    }
-                                                }
-
-                                                Surface(
-    modifier = Modifier
-        .fillMaxWidth()
-        .clickable {
-            showMenu = false
-            newStaffName = ""
-            newStaffMobile = ""
-            newStaffRole = ""
-            newStaffSalary = ""
-            attendanceSetupError = null
-            newStaffJoiningDate = java.text.SimpleDateFormat(
-                "yyyy-MM-dd", java.util.Locale.US
-            ).format(java.util.Date())
-            showAddStaffDialog = true
-        },
-    shape = RoundedCornerShape(13.dp),
-    color = Color.Transparent
-) {
-    Row(
-        modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.PersonAdd,
-            contentDescription = null,
-            tint = Color(0xFF6D6557)
-        )
-        Text(
-            text = "Add Staff",
-            modifier = Modifier.padding(start = 12.dp),
-            style = MaterialTheme.typography.titleSmall,
-            color = Color(0xFF303030)
-        )
-    }
-}
-
-Surface(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clickable {
@@ -1655,6 +1553,77 @@ Surface(
                                                     Color(0xFF176B35)
                                                 else
                                                     Color(0xFF234E8A)
+                                            )
+                                        }
+                                    }
+
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showSidebarCurrencyMenu = true },
+                                            shape = RoundedCornerShape(13.dp),
+                                            color = Color(0xFFE8F5E9)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("💱", fontSize = 20.sp)
+                                                Column(modifier = Modifier.padding(start = 12.dp)) {
+                                                    Text(
+                                                        text = "Currency Settings",
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF23613A)
+                                                    )
+                                                    Text(
+                                                        text = sidebarCurrencyLabel,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = Color(0xFF39764E)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        androidx.compose.material3.DropdownMenu(
+                                            expanded = showSidebarCurrencyMenu,
+                                            onDismissRequest = { showSidebarCurrencyMenu = false },
+                                            modifier = Modifier.background(Color.White)
+                                        ) {
+                                            CurrencySettings.options.forEach { option ->
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text("${option.label} (${option.symbol})") },
+                                                    onClick = {
+                                                        CurrencySettings.setCurrency(context, option.code) { }
+                                                        sidebarCurrencyRefresh++
+                                                        showSidebarCurrencyMenu = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                showMenu = false
+                                                openFooterSettingsFromSidebar = true
+                                            },
+                                        shape = RoundedCornerShape(13.dp),
+                                        color = Color(0xFFEFF6FF)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("⚙️", fontSize = 20.sp)
+                                            Text(
+                                                text = "Footer Settings",
+                                                modifier = Modifier.padding(start = 12.dp),
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF234E8A)
                                             )
                                         }
                                     }
@@ -1734,10 +1703,13 @@ Spacer(Modifier.weight(1f))
             LedgerBottomNavigation(
                 selectedTab = "parties",
                 isPremium = isPremium,
+                openFooterSettings = openFooterSettingsFromSidebar,
+                onFooterSettingsRequestHandled = { openFooterSettingsFromSidebar = false },
                 onPartiesClick = {},
                 onExpensesClick = onDailyExpenseClick,
                 onGroupSharingClick = onGroupSharingClick,
-                onCalculateClick = onCalculateClick
+                onCalculateClick = onCalculateClick,
+                onWriteClick = onWriteClick
             )
         },
         floatingActionButton = {

@@ -169,7 +169,8 @@ fun GroupSharingScreen(
     onGroupReportClick: (Long) -> Unit = {},
     onMemberReportClick: (Long, Long) -> Unit = { _, _ -> }
 ,
-    openGroupEditorOnOpen: Boolean = false) {
+    openGroupEditorOnOpen: Boolean = false,
+    onWriteClick: () -> Unit = {}) {
     val context = LocalContext.current
     val database = remember(context) { LedgerDatabaseProvider.get(context) }
     val groupDao = remember(database) { database.sharingGroupDao() }
@@ -1491,7 +1492,8 @@ val expenseSplits = splits[expense.id].orEmpty()
                 isPremium = isPremium,
                 onPartiesClick = onPartiesClick,
                 onExpensesClick = onExpensesClick,
-                onGroupSharingClick = onBack
+                onGroupSharingClick = onBack,
+                onWriteClick = onWriteClick
             )
         }
     }

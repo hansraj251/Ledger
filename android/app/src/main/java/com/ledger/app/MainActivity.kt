@@ -70,6 +70,7 @@ import java.io.File
 import com.ledger.app.backup.DriveAccountBinding
 import com.ledger.app.backup.GoogleDriveAuthorization
 import com.ledger.app.backup.GoogleDriveBackup
+import com.ledger.app.backup.GoogleDriveBackupCopies
 import com.ledger.app.backup.GoogleDriveRestore
 import com.ledger.app.backup.GoogleDriveSyncCoordinator
 import com.ledger.app.data.LedgerDatabaseProvider
@@ -928,7 +929,9 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             initialDriveSetupRequired = true
                         },
                         onDownloadBackup = { downloadGoogleDriveBackupToDevice() },
+                        onCreateBackupCopy = { createGoogleDriveBackupCopy() },
                         onRestoreBackup = { launchLocalBackupRestorePicker() },
+                        onRestoreFromDrive = { showDriveBackupRestorePicker() },
                         onClearData = {
                             googleDriveSyncCoordinator.pause()
                             Toast.makeText(
@@ -1784,6 +1787,225 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
         }
     }
 
+    private fun createGoogleDriveBackupCopy() {
+        Toast.makeText(this, "Creating a copy on Google Drive...", Toast.LENGTH_SHORT).show()
+        googleDriveAuthorization.authorize()
+            .addOnSuccessListener { auth ->
+                if (auth.hasResolution()) {
+                    Toast.makeText(this, "Reconnect Google Drive before creating a copy.", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
+                val token = auth.accessToken
+                if (token.isNullOrBlank()) {
+                    Toast.makeText(this, "Google Drive access token is unavailable.", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
+                DriveAccountBinding.verifyAndCapture(applicationContext, token) { identity ->
+                    identity.onSuccess {
+                        GoogleDriveBackupCopies(applicationContext).createCopy(token) { result ->
+                            result.onSuccess { copy ->
+                                Toast.makeText(
+                                    this,
+                                    "Backup copy created on Google Drive: ${copy.name}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    this,
+                                    "Could not create Drive copy: ${error.message ?: "Unknown error"}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }.onFailure { error ->
+                        Toast.makeText(this, "Google Drive account verification failed: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .addOnFailureListener { error ->
+                Toast.makeText(this, "Google Drive authorization failed: ${error.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun showDriveBackupRestorePicker() {
+        Toast.makeText(this, "Loading Google Drive backup copies...", Toast.LENGTH_SHORT).show()
+        googleDriveAuthorization.authorize()
+            .addOnSuccessListener { auth ->
+                if (auth.hasResolution()) {
+                    Toast.makeText(this, "Reconnect Google Drive before restoring.", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
+                val token = auth.accessToken
+                if (token.isNullOrBlank()) {
+                    Toast.makeText(this, "Google Drive access token is unavailable.", Toast.LENGTH_LONG).show()
+                    return@addOnSuccessListener
+                }
+                DriveAccountBinding.verifyAndCapture(applicationContext, token) { identity ->
+                    identity.onSuccess { accountId ->
+                        GoogleDriveBackupCopies(applicationContext).listBackups(token) { listResult ->
+                            listResult.onSuccess { backups ->
+                                if (backups.isEmpty()) {
+                                    Toast.makeText(this, "No Ledger backup copies found on Google Drive.", Toast.LENGTH_LONG).show()
+                                    return@onSuccess
+                                }
+                                showDriveBackupCopiesDialog(token, accountId, backups)
+                            }.onFailure { error ->
+                                Toast.makeText(this, "Could not load Drive backups: ${error.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }.onFailure { error ->
+                        Toast.makeText(this, "Google Drive account verification failed: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+            .addOnFailureListener { error ->
+                Toast.makeText(this, "Google Drive authorization failed: ${error.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun showDriveBackupCopiesDialog(
+        accessToken: String,
+        accountId: String,
+        backups: List<GoogleDriveBackupCopies.BackupCopy>
+    ) {
+        val density = resources.displayMetrics.density
+        fun Int.dp(): Int = (this * density).toInt()
+
+        val listContainer = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(16.dp(), 8.dp(), 16.dp(), 8.dp())
+        }
+
+        backups.forEach { item ->
+            val readable = runCatching {
+                val instant = java.time.Instant.parse(item.modifiedTime)
+                java.time.format.DateTimeFormatter
+                    .ofPattern("dd MMM yyyy, hh:mm a", java.util.Locale.getDefault())
+                    .withZone(java.time.ZoneId.systemDefault())
+                    .format(instant)
+            }.getOrDefault(item.modifiedTime)
+
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, 8.dp(), 0, 8.dp())
+            }
+            val details = android.widget.TextView(this).apply {
+                text = "${item.name}\n$readable"
+                textSize = 14f
+                setTextColor(android.graphics.Color.BLACK)
+                setPadding(0, 4.dp(), 8.dp(), 4.dp())
+                isClickable = true
+                setOnClickListener {
+                    android.app.AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Restore selected backup?")
+                        .setMessage(
+                            "Selected: ${item.name}\n\n" +
+                                "Current local data will first be saved as a safety backup on this device."
+                        )
+                        .setPositiveButton("Restore") { _, _ ->
+                            restoreSelectedGoogleDriveBackup(
+                                accessToken,
+                                accountId,
+                                item.fileId,
+                                item.modifiedTime
+                            )
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .show()
+                }
+            }
+            row.addView(
+                details,
+                android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            )
+
+            // Only explicitly named copies get a delete action. The original Ledger Backup.db
+            // is deliberately rendered without a Delete button.
+            if (item.name.startsWith("Ledger Backup Copy ") && item.name != "Ledger Backup.db") {
+                val deleteButton = android.widget.Button(this).apply {
+                    text = "Delete"
+                    isAllCaps = false
+                    setOnClickListener {
+                        android.app.AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Delete this backup copy?")
+                            .setMessage("${item.name}\n\nOnly this copy will be deleted. The original Ledger backup will remain untouched.")
+                            .setPositiveButton("Delete") { _, _ ->
+                                GoogleDriveBackupCopies(applicationContext).deleteCopy(accessToken, item) { deleteResult ->
+                                    deleteResult.onSuccess {
+                                        Toast.makeText(this@MainActivity, "Backup copy deleted.", Toast.LENGTH_SHORT).show()
+                                        GoogleDriveBackupCopies(applicationContext).listBackups(accessToken) { refreshed ->
+                                            refreshed.onSuccess { latest ->
+                                                showDriveBackupCopiesDialog(accessToken, accountId, latest)
+                                            }.onFailure { error ->
+                                                Toast.makeText(this@MainActivity, "Could not refresh backups: ${error.message}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }.onFailure { error ->
+                                        Toast.makeText(this@MainActivity, "Could not delete copy: ${error.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                            .setNegativeButton("Cancel", null)
+                            .show()
+                    }
+                }
+                row.addView(deleteButton)
+            }
+            listContainer.addView(row)
+            listContainer.addView(android.view.View(this).apply {
+                setBackgroundColor(0xFFEAEAEA.toInt())
+            }, android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                1.dp()
+            ))
+        }
+
+        val scroll = android.widget.ScrollView(this).apply { addView(listContainer) }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Restore from Google Drive")
+            .setView(scroll)
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun restoreSelectedGoogleDriveBackup(
+        accessToken: String,
+        accountId: String,
+        fileId: String,
+        modifiedTime: String
+    ) {
+        googleDriveSyncCoordinator.pause()
+        googleDriveSyncCoordinator.bindVerifiedAccount(accountId)
+        Toast.makeText(this, "Downloading selected backup...", Toast.LENGTH_LONG).show()
+        googleDriveRestore.restore(accessToken, fileId, accountId) { restoreResult ->
+            restoreResult.onSuccess {
+                try {
+                    if (DriveAccountBinding.currentAccountId(applicationContext) != accountId) {
+                        throw IllegalStateException("Google Drive account changed during restore.")
+                    }
+                    installValidatedDatabase(googleDriveRestore.getValidatedBackupFile())
+                    googleDriveSyncCoordinator.markRemoteRestoreCompleted(modifiedTime)
+                    Toast.makeText(this, "Backup restored successfully. A local safety copy was saved.", Toast.LENGTH_LONG).show()
+                    window.decorView.postDelayed({
+                        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+                        finishAffinity()
+                        if (launchIntent != null) {
+                            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            startActivity(launchIntent)
+                        }
+                    }, 500)
+                } catch (error: Exception) {
+                    googleDriveSyncCoordinator.resumeAfterRemoteRestoreFailure()
+                    Toast.makeText(this, "Restore failed: ${error.message ?: "Unable to replace database"}", Toast.LENGTH_LONG).show()
+                }
+            }.onFailure { error ->
+                googleDriveSyncCoordinator.resumeAfterRemoteRestoreFailure()
+                Toast.makeText(this, "Restore failed: ${error.message ?: "Unknown error"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private fun downloadGoogleDriveBackupToDevice() {
         Toast.makeText(
             this,
@@ -2117,9 +2339,32 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
             }
     }
 
+    /**
+     * Creates a durable, app-private snapshot of the current database before any restore.
+     * The copy is retained in filesDir/restore_safety and is never overwritten by a later restore.
+     */
+    private fun createLocalSafetyBackup() {
+        val database = LedgerDatabaseProvider.get(applicationContext).openHelper.writableDatabase
+        val folder = File(filesDir, "restore_safety")
+        if (!folder.exists() && !folder.mkdirs()) {
+            throw IllegalStateException("Local safety-backup folder could not be created.")
+        }
+        val stamp = java.text.SimpleDateFormat("yyyyMMdd_HHmmss_SSS", java.util.Locale.US)
+            .format(java.util.Date())
+        val destination = File(folder, "Ledger_Before_Restore_$stamp.db")
+        val escapedPath = destination.absolutePath.replace("'", "''")
+        database.execSQL("VACUUM INTO '$escapedPath'")
+        if (!destination.exists() || destination.length() <= 0L) {
+            destination.delete()
+            throw IllegalStateException("Automatic local safety backup could not be created. Restore was cancelled.")
+        }
+    }
+
     /** Installs an already validated DB while retaining a rollback copy until the rename succeeds. */
     private fun installValidatedDatabase(validatedFile: File) {
         require(validatedFile.exists() && validatedFile.length() > 0L) { "Validated backup file is missing or empty." }
+        // Safety copy must complete before the live database is closed or replaced.
+        createLocalSafetyBackup()
         val databaseFile = getDatabasePath(LedgerDatabaseProvider.DATABASE_NAME)
         val parent = databaseFile.parentFile ?: throw IllegalStateException("Database directory is unavailable.")
         if (!parent.exists() && !parent.mkdirs()) throw IllegalStateException("Database directory could not be created.")
@@ -2527,7 +2772,9 @@ private fun ProfileScreen(
     onChangeDriveEmail: ((String) -> Unit) -> Unit,
     onConnectDrive: () -> Unit,
     onDownloadBackup: () -> Unit,
+    onCreateBackupCopy: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onRestoreFromDrive: () -> Unit,
     onClearData: () -> Unit,
     isPremium: Boolean,
     premiumPrice: String,
@@ -2567,10 +2814,6 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
             document = legalDocument!!,
             onDismiss = { legalDocument = null }
         )
-    }
-
-    var showCurrencyMenu by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(false)
     }
 
     if (showDriveAccountChangeConfirmation) {
@@ -2747,29 +2990,40 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
             },
             text = {
                 androidx.compose.material3.Text(
-                    "Restoring this file will replace the Ledger data currently on this phone. " +
-                        "Make sure you have a recent backup before continuing."
+                    "Choose where to restore from. Before replacing current data, Ledger will automatically save a safety copy on this device."
                 )
             },
             confirmButton = {
-                androidx.compose.material3.Button(
-                    onClick = {
-                        showLocalRestoreConfirmation = false
-                        onRestoreBackup()
-                    }
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
                 ) {
-                    androidx.compose.material3.Text("Select Backup")
+                    androidx.compose.material3.Button(
+                        onClick = {
+                            showLocalRestoreConfirmation = false
+                            onRestoreBackup()
+                        },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.material3.Text("Restore from Local Device")
+                    }
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = {
+                            showLocalRestoreConfirmation = false
+                            onRestoreFromDrive()
+                        },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.material3.Text("Restore from Google Drive")
+                    }
+                    androidx.compose.material3.TextButton(
+                        onClick = { showLocalRestoreConfirmation = false },
+                        modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.material3.Text("Cancel")
+                    }
                 }
             },
-            dismissButton = {
-                androidx.compose.material3.OutlinedButton(
-                    onClick = {
-                        showLocalRestoreConfirmation = false
-                    }
-                ) {
-                    androidx.compose.material3.Text("Cancel")
-                }
-            }
+            dismissButton = {}
         )
     }
 
@@ -3372,101 +3626,49 @@ var showLocalRestoreConfirmation by androidx.compose.runtime.remember {
                             )
                         }
 
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = onDownloadBackup,
+                        androidx.compose.foundation.layout.Row(
                             modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
                         ) {
-                            androidx.compose.material3.Text(
-                                text = "Download Backup",
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            )
-                        }
-
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = {
-                                showLocalRestoreConfirmation = true
-                            },
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                        ) {
-                            androidx.compose.material3.Text(
-                                text = "Restore Backup",
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            )
-                        }
-
-                        androidx.compose.material3.OutlinedButton(
-                            onClick = {
-                                showClearDataConfirmation = true
-                            },
-                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                contentColor = androidx.compose.ui.graphics.Color(0xFFB42318)
-                            )
-                        ) {
-                            androidx.compose.material3.Text(
-                                text = "Clear Data",
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                androidx.compose.material3.Card(
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
-                    shape = androidx.compose.material3.MaterialTheme.shapes.large,
-                    colors = androidx.compose.material3.CardDefaults.cardColors(
-                        containerColor = androidx.compose.ui.graphics.Color.White
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp, androidx.compose.ui.graphics.Color(0xFFE0E0E0)
-                    )
-                ) {
-                    androidx.compose.foundation.layout.Column(
-                        modifier = androidx.compose.ui.Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-                    ) {
-                        androidx.compose.material3.Text(
-                            text = "Currency Settings",
-                            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
-                        )
-                        androidx.compose.foundation.layout.Box {
                             androidx.compose.material3.OutlinedButton(
-                                onClick = { showCurrencyMenu = true },
-                                modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                                onClick = onDownloadBackup,
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
                             ) {
-                                androidx.compose.material3.Text(
-                                    "${CurrencySettings.selectedOption.label} (${CurrencySettings.symbol})"
-                                )
+                                androidx.compose.material3.Text("Download Backup")
                             }
-                            androidx.compose.material3.DropdownMenu(
-                                expanded = showCurrencyMenu,
-                                onDismissRequest = { showCurrencyMenu = false },
-                                modifier = androidx.compose.ui.Modifier
-                                    .background(androidx.compose.ui.graphics.Color.White)
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { showLocalRestoreConfirmation = true },
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
                             ) {
-                                CurrencySettings.options.forEach { option ->
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = {
-                                            androidx.compose.material3.Text(
-                                                "${option.label} (${option.symbol})"
-                                            )
-                                        },
-                                        onClick = {
-                                            CurrencySettings.setCurrency(context, option.code) { onProfileSaved() }
-                                            showCurrencyMenu = false
-                                        }
-                                    )
-                                }
+                                androidx.compose.material3.Text("Restore Backup")
                             }
                         }
+
+                        androidx.compose.foundation.layout.Row(
+                            modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = onCreateBackupCopy,
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                            ) {
+                                androidx.compose.material3.Text("Create Copy")
+                            }
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { showClearDataConfirmation = true },
+                                modifier = androidx.compose.ui.Modifier.weight(1f),
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                    contentColor = androidx.compose.ui.graphics.Color(0xFFB42318)
+                                )
+                            ) {
+                                androidx.compose.material3.Text("Clear Data")
+                            }
+                        }
+
                     }
                 }
             }

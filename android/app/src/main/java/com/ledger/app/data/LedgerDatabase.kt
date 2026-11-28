@@ -28,9 +28,11 @@ import androidx.room.RoomDatabase
         PartySellItemEntity::class,
         EmiScheduleEntity::class,
         TransactionSettlementEntity::class,
-        EmiChargeSettlementEntity::class
+        EmiChargeSettlementEntity::class,
+        WriteNoteEntity::class,
+        WriteTaskEntity::class
     ],
-    version = 41,
+    version = 42,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -70,4 +72,8 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun transactionSettlementDao(): TransactionSettlementDao
 
     abstract fun emiChargeSettlementDao(): EmiChargeSettlementDao
+
+    abstract fun writeNoteDao(): WriteNoteDao
+
+    abstract fun writeTaskDao(): WriteTaskDao
 }

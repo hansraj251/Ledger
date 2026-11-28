@@ -122,6 +122,7 @@ class CloudAuthManager(
         }
 
         claimPendingMembershipsSafely()
+        FcmTokenRepository.registerCurrentDevice()
 
         return CloudAuthenticatedUser(
             userId = user.id,
@@ -136,6 +137,7 @@ class CloudAuthManager(
         val restoredUser = currentUser()
         if (restoredUser != null) {
             claimPendingMembershipsSafely()
+            FcmTokenRepository.registerCurrentDevice()
         }
 
         return restoredUser

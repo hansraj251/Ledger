@@ -1,4 +1,5 @@
 plugins {
+    id("com.google.gms.google-services")
     id("com.android.legacy-kapt")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -13,8 +14,8 @@ android {
         applicationId = "in.alignos.ledger"
         minSdk = 26
         targetSdk = 37
-        versionCode = 38
-        versionName = "0.8.2"
+        versionCode = 39
+        versionName = "0.8.3"
     }
 
     signingConfigs {
@@ -52,6 +53,10 @@ android {
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
+    // Firebase Cloud Messaging
+    implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
+    implementation("com.google.firebase:firebase-messaging")
     implementation("com.android.billingclient:billing:9.1.0")
     implementation("com.google.android.play:app-update:2.1.0")
     implementation("androidx.compose.material:material-icons-extended")

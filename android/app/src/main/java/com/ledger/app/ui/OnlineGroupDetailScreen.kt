@@ -81,8 +81,9 @@ fun OnlineGroupDetailScreen(
     groupId: String,
     isPremium: Boolean,
     onBack: () -> Unit,
-    openEditGroupNameOnOpen: Boolean = false
-) {
+    openEditGroupNameOnOpen: Boolean = false,
+    initialApprovalRequestId: String? = null
+    ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val cloudGroupCache = remember(context) {
         CloudGroupCache(context.applicationContext)
@@ -134,8 +135,16 @@ fun OnlineGroupDetailScreen(
         mutableStateOf<Map<String, CloudGroupMemberBalance>>(emptyMap())
     }
 
-    var selectedGroupSection by remember(groupId) {
-        mutableStateOf("Members")
+    var selectedGroupSection by remember(groupId, initialApprovalRequestId) {
+
+        mutableStateOf(
+
+            if (!initialApprovalRequestId.isNullOrBlank()) "Expenses"
+
+            else "Members"
+
+        )
+
     }
     var addExpenseRequest by remember { mutableStateOf(0) }
     var settlementRequest by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -752,8 +761,9 @@ fun OnlineGroupDetailScreen(
                             settlementRequest = settlementRequest,
                             onSettlementRequestConsumed = {
                                 settlementRequest = null
-                            }
-                        )
+                            },
+                            highlightApprovalRequestId = initialApprovalRequestId
+                            )
                     }
 
                     if (selectedGroupSection == "Members") {

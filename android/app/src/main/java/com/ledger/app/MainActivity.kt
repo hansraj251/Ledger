@@ -98,6 +98,36 @@ import com.ledger.app.billing.PremiumBillingManager
 
 class MainActivity : ComponentActivity() {
 
+    private val notificationGroupIdState =
+
+        mutableStateOf<String?>(null)
+
+
+    private val notificationApprovalRequestIdState =
+
+        mutableStateOf<String?>(null)
+
+
+    
+    private val notificationTypeState = mutableStateOf<String?>(null)
+    private val notificationStaffIdState = mutableStateOf<String?>(null)
+    private val notificationWorkplaceIdState = mutableStateOf<String?>(null)
+override fun onNewIntent(intent: Intent) {
+
+        super.onNewIntent(intent)
+
+        setIntent(intent)
+
+        notificationGroupIdState.value = intent.getStringExtra("group_id")
+
+        notificationApprovalRequestIdState.value =
+
+            intent.getStringExtra("request_id")
+        notificationTypeState.value = intent.getStringExtra("notification_type")
+        notificationStaffIdState.value = intent.getStringExtra("staff_id")
+        notificationWorkplaceIdState.value = intent.getStringExtra("workplace_id")
+    }
+
     private lateinit var googleDriveAuthorization: GoogleDriveAuthorization
     private lateinit var googleDriveBackup: GoogleDriveBackup
     private lateinit var googleDriveRestore: GoogleDriveRestore
@@ -136,6 +166,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(
             savedInstanceState
         )
+
+        notificationGroupIdState.value = intent?.getStringExtra("group_id")
+
+        notificationApprovalRequestIdState.value =
+
+            intent?.getStringExtra("request_id")
+        notificationTypeState.value = intent?.getStringExtra("notification_type")
+        notificationStaffIdState.value = intent?.getStringExtra("staff_id")
+        notificationWorkplaceIdState.value = intent?.getStringExtra("workplace_id")
+        if (
+            android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { }.launch(
+                android.Manifest.permission.POST_NOTIFICATIONS
+            )
+        }
 
         updateFlowLauncher = registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult()
@@ -468,7 +519,25 @@ class MainActivity : ComponentActivity() {
 
                 var showGroupSharingScreen by remember { mutableStateOf(false) }
                 var selectedOnlineGroupId by remember { mutableStateOf<String?>(null) }
+                var selectedOnlineApprovalRequestId by remember {
+                    mutableStateOf<String?>(null)
+                }
                 var openOnlineGroupEditorOnOpen by remember { mutableStateOf(false) }
+
+                LaunchedEffect(
+                    notificationGroupIdState.value,
+                    notificationApprovalRequestIdState.value
+                ) {
+                    val groupId = notificationGroupIdState.value
+                    val requestId = notificationApprovalRequestIdState.value
+                    if (!groupId.isNullOrBlank()) {
+                        openOnlineGroupEditorOnOpen = false
+                        selectedOnlineGroupId = groupId
+                        selectedOnlineApprovalRequestId = requestId
+                        notificationGroupIdState.value = null
+                        notificationApprovalRequestIdState.value = null
+                    }
+                }
                 var selectedSharingGroupId by remember { mutableStateOf<Long?>(null) }
                 var openGroupEditorOnOpen by remember { mutableStateOf(false) }
                 var selectedSharingMemberId by remember { mutableStateOf<Long?>(null) }
@@ -608,6 +677,80 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         googleDriveSyncCoordinator.resume()
                     }
                 }
+                LaunchedEffect(
+                    notificationTypeState.value,
+                    notificationApprovalRequestIdState.value,
+                    notificationStaffIdState.value,
+                    notificationWorkplaceIdState.value
+                ) {
+                    when (notificationTypeState.value) {
+                        "attendance_approval" -> {
+                            showActivityScreen = false
+                            showHelpScreen = false
+                            showStaffAttendanceScreen = false
+                            showAttendanceScreen = true
+                            showProfileScreen = false
+                            setDailyExpenseScreenVisible(false)
+                            showGroupSharingScreen = false
+                            selectedParty = null
+                            selectedStaffId = null
+
+                            showReportTypeSelection = false
+                            showPartyReportSelection = false
+                            showOnePartyReport = false
+                            showAllPartiesReport = false
+                            showGroupReportSelection = false
+                            showGroupReportModeSelection = false
+                            showGroupMemberReportSelection = false
+                            showGroupExpenseReport = false
+                            selectedReportParty = null
+                            selectedReportGroup = null
+                        }
+
+                        "staff_invitation" -> {
+                            showActivityScreen = false
+                            showHelpScreen = false
+                            showAttendanceScreen = false
+                            showStaffAttendanceScreen = false
+                            showProfileScreen = false
+                            setDailyExpenseScreenVisible(false)
+                            showGroupSharingScreen = false
+                            selectedParty = null
+                            selectedStaffId = null
+
+                            showReportTypeSelection = false
+                            showPartyReportSelection = false
+                            showOnePartyReport = false
+                            showAllPartiesReport = false
+                            showGroupReportSelection = false
+                            showGroupReportModeSelection = false
+                            showGroupMemberReportSelection = false
+                            showGroupExpenseReport = false
+                            selectedReportParty = null
+                            selectedReportGroup = null
+
+                            attendanceAuthScope.launch {
+                                val userId = attendanceCacheUserId
+                                    ?: attendanceRepository.currentOnlineAccountUserId()
+                                if (!userId.isNullOrBlank()) {
+                                    attendanceCacheUserId = userId
+                                    refreshAttendanceForOnlineAccount(userId)
+                                }
+                            }
+                        }
+                    }
+
+                    if (
+                        notificationTypeState.value == "attendance_approval" ||
+                        notificationTypeState.value == "staff_invitation"
+                    ) {
+                        notificationTypeState.value = null
+                        notificationApprovalRequestIdState.value = null
+                        notificationStaffIdState.value = null
+                        notificationWorkplaceIdState.value = null
+                    }
+                }
+
 
                 if (initialDriveSetupRequired) {
                     InitialGoogleDriveSetupScreen(
@@ -920,9 +1063,11 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                         isPremium = premiumBillingState.isPremium,
                         onBack = {
                             selectedOnlineGroupId = null
+                            selectedOnlineApprovalRequestId = null
                             openOnlineGroupEditorOnOpen = false
                         },
-                        openEditGroupNameOnOpen = openOnlineGroupEditorOnOpen
+                        openEditGroupNameOnOpen = openOnlineGroupEditorOnOpen,
+                        initialApprovalRequestId = selectedOnlineApprovalRequestId
                     )
                 } else if (showGroupSharingScreen) {
                     GroupSharingScreen(

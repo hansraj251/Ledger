@@ -133,8 +133,9 @@ fun OnlineGroupExpensesSection(
     onAddExpenseRequestConsumed: () -> Unit,
     addExpenseRequest: Int = 0,
     settlementRequest: Pair<String, String>? = null,
-    onSettlementRequestConsumed: () -> Unit = {}
-) {
+    onSettlementRequestConsumed: () -> Unit = {},
+    highlightApprovalRequestId: String? = null
+    ) {
     val scope = rememberCoroutineScope()
 
     val data = expenseData
@@ -422,7 +423,11 @@ fun OnlineGroupExpensesSection(
                 }
             } else false
         }
-        .sortedByDescending { it.createdAtMs }
+        .sortedWith(
+            compareBy<CloudGroupExpenseApprovalRequest> {
+                it.id != highlightApprovalRequestId
+            }.thenByDescending { it.createdAtMs }
+        )
 
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -747,18 +752,35 @@ fun OnlineGroupExpensesSection(
                         val senderName = members.firstOrNull {
                             it.userId == request.createdBy
                         }?.memberName?.takeIf { it.isNotBlank() } ?: "Unknown member"
+                        val openedFromNotification =
+                            request.id == highlightApprovalRequestId
+
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
-                            border = BorderStroke(1.dp, Color(0xFFD8E4F2)),
+                            border = BorderStroke(
+                                if (openedFromNotification) 2.dp else 1.dp,
+                                if (openedFromNotification) Color(0xFF2563EB)
+                                else Color(0xFFD8E4F2)
+                            ),
                             colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = Color(0xFFF8FBFF)
+                                containerColor = if (openedFromNotification)
+                                    Color(0xFFEFF6FF)
+                                else Color(0xFFF8FBFF)
                             )
                         ) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                if (openedFromNotification) {
+                                    Text(
+                                        "Opened from notification",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF1D4ED8),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,

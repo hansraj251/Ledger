@@ -107,6 +107,7 @@ fun HomeScreen(
     onProfileClick: () -> Unit,
     onReportsClick: () -> Unit,
     onDailyExpenseClick: () -> Unit,
+    onCalculateClick: () -> Unit = {},
     onDailyExpenseReportClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
     onGroupClick: (Long) -> Unit,
@@ -1735,7 +1736,8 @@ Spacer(Modifier.weight(1f))
                 isPremium = isPremium,
                 onPartiesClick = {},
                 onExpensesClick = onDailyExpenseClick,
-                onGroupSharingClick = onGroupSharingClick
+                onGroupSharingClick = onGroupSharingClick,
+                onCalculateClick = onCalculateClick
             )
         },
         floatingActionButton = {

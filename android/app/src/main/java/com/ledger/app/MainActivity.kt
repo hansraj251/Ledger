@@ -76,6 +76,7 @@ import com.ledger.app.data.LedgerDatabaseProvider
 import com.ledger.app.data.LedgerRepository
 import com.ledger.app.data.PartyEntity
 import com.ledger.app.ui.HomeScreen
+import com.ledger.app.ui.CalculateScreen
 import com.ledger.app.ui.HelpScreen
 import com.ledger.app.ui.ActivityScreen
 import com.ledger.app.ui.DailyExpenseScreen
@@ -510,6 +511,7 @@ override fun onNewIntent(intent: Intent) {
 
                 var openDailyExpenseReportOnLaunch by remember { mutableStateOf(false) }
                 var openHomeSidebarOnLaunch by remember { mutableStateOf(false) }
+                var showCalculateScreen by remember { mutableStateOf(false) }
                 var showDailyExpenseScreen by remember {
                     mutableStateOf(
                         mainPagePrefs.getBoolean("show_daily_expense", false)
@@ -567,13 +569,15 @@ fun setDailyExpenseScreenVisible(visible: Boolean) {
                         .apply()
                 }
 
-                BackHandler(enabled = showAttendanceScreen || showStaffAttendanceScreen || showDailyExpenseScreen || showGroupSharingScreen) {
+                BackHandler(enabled = showAttendanceScreen || showStaffAttendanceScreen || showDailyExpenseScreen || showGroupSharingScreen || showCalculateScreen) {
                     if (showStaffAttendanceScreen) {
                         showStaffAttendanceScreen = false
                     } else if (showAttendanceScreen) {
                         showAttendanceScreen = false
                     } else if (showGroupSharingScreen) {
                         showGroupSharingScreen = false
+                    } else if (showCalculateScreen) {
+                        showCalculateScreen = false
                     } else {
                         setDailyExpenseScreenVisible(false)
                     }
@@ -1109,6 +1113,12 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             setDailyExpenseScreenVisible(false)
                         }
                     )
+                } else if (showCalculateScreen) {
+                    CalculateScreen(
+                        isPremium = premiumBillingState.isPremium,
+                        onHomeClick = { showCalculateScreen = false },
+                        onExpensesClick = { showCalculateScreen = false; setDailyExpenseScreenVisible(true) }
+                    )
                 } else if (showDailyExpenseScreen) {
                     DailyExpenseScreen(
                         onOpenHomeSidebar = {
@@ -1124,6 +1134,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             setDailyExpenseScreenVisible(false)
                             showGroupSharingScreen = true
                         },
+                        onCalculateClick = { setDailyExpenseScreenVisible(false); showCalculateScreen = true },
                         onProfileClick = { showProfileScreen = true },
                         onExpenseDataChanged = {
                             googleDriveSyncCoordinator.requestAutoSync()
@@ -1159,6 +1170,7 @@ LaunchedEffect(showOnePartyReport, selectedReportParty?.id) {
                             showReportTypeSelection = true
                         },
                         onDailyExpenseClick = { setDailyExpenseScreenVisible(true) },
+                        onCalculateClick = { showCalculateScreen = true },
                             onDailyExpenseReportClick = {
                                 openDailyExpenseReportOnLaunch = true
                                 setDailyExpenseScreenVisible(true)

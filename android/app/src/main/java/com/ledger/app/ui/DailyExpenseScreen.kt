@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Group
@@ -276,7 +277,8 @@ fun LedgerBottomNavigation(
         isPremium: Boolean = false,
 onPartiesClick: () -> Unit,
     onExpensesClick: () -> Unit,
-    onGroupSharingClick: () -> Unit = {}
+    onGroupSharingClick: () -> Unit = {},
+    onCalculateClick: () -> Unit = {}
 ) {
     NavigationBar(
         modifier = Modifier
@@ -319,8 +321,17 @@ onPartiesClick: () -> Unit,
                 )
             }
         )
-
-
+        NavigationBarItem(
+            selected = selectedTab == "calculate",
+            onClick = onCalculateClick,
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                selectedTextColor = if (isPremium) Color(0xFFB8862B) else Color(0xFF1976D2),
+                indicatorColor = if (isPremium) Color(0xFFFFF0C2) else Color(0xFFE3F2FD)
+            ),
+            icon = { Icon(Icons.Outlined.Calculate, contentDescription = null) },
+            label = { Text("Calculate", fontWeight = if (selectedTab == "calculate") FontWeight.SemiBold else FontWeight.Normal) }
+        )
     }
 }
 
@@ -330,6 +341,7 @@ private const val FREE_EXPENSE_LIMIT = 100
 fun DailyExpenseScreen(
     onPartiesClick: () -> Unit,
     onGroupSharingClick: () -> Unit,
+    onCalculateClick: () -> Unit = {},
     onProfileClick: () -> Unit,
     onExpenseDataChanged: () -> Unit,
     onDriveConnectionRequired: () -> Unit = {},
@@ -1367,7 +1379,8 @@ var isReportLimitReached by remember { mutableStateOf(false) }
                 isPremium = isPremium,
                 onPartiesClick = onPartiesClick,
                 onExpensesClick = {},
-                onGroupSharingClick = onGroupSharingClick
+                onGroupSharingClick = onGroupSharingClick,
+                onCalculateClick = onCalculateClick
             )
         },
         floatingActionButton = {
